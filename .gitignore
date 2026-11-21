@@ -221,3 +221,23 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- Project additions ---
+# Node / frontend
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+
+# Local env overrides (.env is ignored above)
+.env.local
+.env.*.local
+
+# Generated CAD output
+cad/out/
+*.glb
+*.step
+*.stp
+
+# Editors / OS
+.DS_Store
+.idea/
