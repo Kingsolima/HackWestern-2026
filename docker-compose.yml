@@ -1,0 +1,35 @@
+# Local stack. On Vultr, point DATABASE_URL at Tiger Cloud and drop the db service.
+services:
+  db:
+    image: timescale/timescaledb:latest-pg17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: redesign
+    ports: ["5432:5432"]
+    volumes:
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - dbdata:/var/lib/postgresql/data
+
+  cad:
+    build: ./cad
+    ports: ["8001:8001"]
+    volumes:
+      - ./cad/out:/app/out
+
+  backend:
+    build: ./backend
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/redesign
+      CAD_WORKER_URL: http://cad:8001
+      DATA_DIR: /data
+    volumes:
+      - ./data:/data:ro
+    ports: ["8000:8000"]
+    depends_on: [db, cad]
+
+volumes:
+  dbdata:
