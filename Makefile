@@ -1,3 +1,6 @@
+# Keep a sourced ROS (or other) PYTHONPATH from leaking into the uv envs.
+unexport PYTHONPATH
+
 .PHONY: help install dev-backend dev-cad dev-frontend up down db test lint
 
 help:
