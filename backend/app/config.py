@@ -20,8 +20,6 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-2.5-pro"
 
     tinyfish_api_key: str = ""
-    # live = call TinyFish and record a fixture; replay = serve recorded fixtures, no network.
-    tf_mode: str = "replay"
 
     database_url: str = "postgresql://postgres:postgres@localhost:5432/redesign"
 
@@ -34,7 +32,6 @@ class Settings(BaseSettings):
     auth0_audience: str = ""
 
     data_dir: Path = REPO_ROOT / "data"
-    fixtures_dir: Path = REPO_ROOT / "data" / "fixtures"
 
     @property
     def cors_origin_list(self) -> list[str]:
