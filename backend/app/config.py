@@ -32,6 +32,15 @@ class Settings(BaseSettings):
     auth0_audience: str = ""
 
     data_dir: Path = REPO_ROOT / "data"
+    recordings_dir: Path = REPO_ROOT / "data" / "recordings"
+    replay_speed: float = 1.0
+
+    agent_slots: int = 2
+    browser_slots: int = 5
+    search_slots: int = 4
+    fetch_slots: int = 4
+    gemini_slots: int = 4
+    max_agent_runs_per_job: int = 8
 
     @property
     def cors_origin_list(self) -> list[str]:
