@@ -6,7 +6,9 @@ Deterministic. Two parts:
   class; the final tier is `lower_tier(code tier, model tier)`, so a model can only lower it.
 """
 
+import html
 import re
+from decimal import Decimal
 from typing import Literal
 
 from app.schemas import AgentRunResult, Claim, OriginTier, Outcome, VerifyMethod
@@ -24,8 +26,26 @@ def classify_outcome(run: AgentRunResult) -> Outcome:
       every data field (all keys but status and reason) null or empty -> incomplete;
       otherwise success.
     """
-    raise NotImplementedError("Tygo: core of chunk 1")
-
+    if run.tf_status == 'PENDING' or run.tf_status == 'RUNNING':
+        raise ValueError('PENDING' or 'RUNNING')
+    if run.tf_status == 'FAILED' or run.tf_status == 'CANCELLED':
+        if run.profile_hint_reason == 'bot_challenge':
+            return "blocked"
+        elif run.profile_hint_reason == 'auth_wall':
+            return "auth_required"
+        else:
+            return "error"
+    if run.tf_status == 'COMPLETED':
+        if 'bot_challenge' in run.page_text or 'auth_wall' in run.page_text or 'CAPTCHA' in run.page_text:
+            return "blocked"
+        elif 'no result' in run.page_text:
+            return "incomplete"
+        elif run.result.status != 'success':
+            return run.result.status
+        elif all(not run.result.data[key] for key in run.result.data):
+            return "incomplete"
+        else:
+            return "success"
 
 def verify_claim(claim: Claim, text: str, method: VerifyMethod) -> Claim:
     """Check a claim against independently fetched page html or PDF text.
@@ -33,14 +53,46 @@ def verify_claim(claim: Claim, text: str, method: VerifyMethod) -> Claim:
     Returns a copy; never mutates `claim`. Verified only if:
     - the claim was not read from an image (`extracted_by` gemini_vision is never verified),
     - the normalized quote occurs in the normalized text, and
-    - the normalized `raw_value` equals a number inside the normalized quote.
-    Normalization: drop html tags, unescape entities (incl. &nbsp;), collapse whitespace,
-    remove thousands separators ("1,200" -> "1200").
+    - the normalized `raw_value` equals a number inside the normalized quote, compared as
+      decimals ("0.5" == "0.50"; a decimal comma "0,50" reads as 0.50).
+    Normalization: html tags become spaces, unescape entities (incl. &nbsp;), remove thousands
+    separators ("1,200" -> "1200"), collapse whitespace, casefold.
     A non-numeric `raw_value` (e.g. country_of_origin "US") needs only the quote match; the
     origin rules read the quote itself.
     Verified -> `verified=True, verify_method=method`; else `verified=False, verify_method="none"`.
     """
-    raise NotImplementedError("Tygo: core of chunk 1")
+    quote = _normalize(claim.quote)
+    verified = (
+        claim.extracted_by != "gemini_vision"
+        and quote != ""
+        and quote in _normalize(text)
+        and _value_in_quote(_normalize(claim.raw_value), quote)
+    )
+    return claim.model_copy(
+        update={"verified": verified, "verify_method": method if verified else "none"}
+    )
+
+
+_TAG = re.compile(r"<[^>]*>")
+_THOUSANDS_COMMA = re.compile(r"(?<=\d),(?=\d{3}(?!\d))")
+_NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
+
+
+def _normalize(text: str) -> str:
+    """Tags become spaces, so a tag inside a word fails the match instead of gluing words."""
+    text = html.unescape(_TAG.sub(" ", text))
+    text = _THOUSANDS_COMMA.sub("", text)
+    return " ".join(text.split()).casefold()
+
+
+def _value_in_quote(value: str, quote: str) -> bool:
+    if not _NUMBER.fullmatch(value):
+        return True
+    return any(_decimal(n) == _decimal(value) for n in _NUMBER.findall(quote))
+
+
+def _decimal(number: str) -> Decimal:
+    return Decimal(number.replace(",", "."))
 
 
 OriginClass = Literal[

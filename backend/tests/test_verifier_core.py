@@ -148,6 +148,32 @@ def test_non_numeric_claim_needs_only_the_quote():
     assert verify_claim(c, page, "html_quote").verified
 
 
+def test_empty_quote_never_verifies():
+    c = claim("US", "  ", field="country_of_origin")
+    assert not verify_claim(c, "<p>Made in USA</p>", "html_quote").verified
+
+
+def test_numbers_compare_as_decimals():
+    page = "<p>Continuous torque: 0.50 N-m</p>"
+    assert verify_claim(claim("0.5", "Continuous torque: 0.50 N-m"), page, "html_quote").verified
+
+
+def test_decimal_comma_is_not_a_thousands_separator():
+    page = "<p>Drehmoment: 0,50 Nm</p>"
+    assert not verify_claim(claim("50", "Drehmoment: 0,50 Nm"), page, "html_quote").verified
+    assert verify_claim(claim("0.50", "Drehmoment: 0,50 Nm"), page, "html_quote").verified
+
+
+def test_quote_match_ignores_case():
+    page = "<h3>CONTINUOUS TORQUE: 0.50 N-m</h3>"
+    assert verify_claim(claim("0.50", "Continuous torque: 0.50 N-m"), page, "html_quote").verified
+
+
+def test_tags_do_not_glue_numbers_together():
+    page = "<td>max 10</td><td>0.5 N-m</td>"
+    assert not verify_claim(claim("100.5", "max 100.5 N-m"), page, "html_quote").verified
+
+
 def test_input_claim_is_not_mutated():
     c = claim("0.50", "Continuous torque: 0.50 N-m")
     verify_claim(c, "<p>Continuous torque: 0.50 N-m</p>", "html_quote")
