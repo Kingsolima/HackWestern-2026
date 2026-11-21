@@ -1,7 +1,9 @@
 """Shared data contracts. Mirrors docs/ARCHITECTURE.md §4; change both together."""
 
+from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -118,3 +120,29 @@ class DesignVariant(BaseModel):
     domestic_pct: float
     glb_url: str | None = None
     step_url: str | None = None
+
+
+# --- v3 evidence shapes (docs/design/04-architecture.md §4) ---
+
+
+class Source(BaseModel):
+    url: str
+    kind: Literal["page", "pdf"]
+    fetched_at: datetime
+    html_key: str | None = None  # object-storage key of the captured html/pdf
+    via: Literal["tinyfetch", "tinyagent", "replay"]
+
+
+class Claim(BaseModel):
+    """One fact, never a bare number. Only the Verifier sets verified=True."""
+
+    candidate_id: str
+    field: str  # e.g. "continuous_torque", "price", "country_of_origin"
+    raw_value: str
+    raw_unit: str | None
+    quote: str
+    source: Source
+    si_value: float | None = None  # filled by units.py, never by an LLM
+    extracted_by: Literal["tinyagent", "gemini_text", "gemini_vision"]
+    verified: bool = False
+    verify_method: Literal["html_quote", "pdf_text", "none"] = "none"
