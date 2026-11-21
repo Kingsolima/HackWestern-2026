@@ -1,15 +1,22 @@
 """Part workers: code loops, one per BOM line (docs/design/07 section 2).
 
-Only the fake swap worker exists so far; it drives the pipeline and the UI end to end against a
-committed recording of a made-up page (data/recordings/fetch, `fake: true`).
+SwapWorker runs TinyAgent on each swap target. FakeSwapWorker drives the pipeline and the UI
+end to end against a committed recording of a made-up page (data/recordings/fetch, `fake`).
 """
 
+import asyncio
+from collections.abc import Sequence
 from datetime import UTC, datetime
-from typing import Protocol
+from decimal import Decimal
+from typing import Literal, Protocol
+from urllib.parse import urlparse
 
+from app.agents.targets import MOTOR_SCHEMA, SWAP_TARGETS, SwapTarget
+from app.agents.verifier import classify_outcome
 from app.orchestrator.context import JobContext
-from app.orchestrator.events import RunFinished, RunProgress, RunStarted
-from app.schemas import Claim, Source
+from app.orchestrator.events import RunFinished, RunProgress, RunStarted, RunStreamingUrl
+from app.schemas import AgentMotorCandidate, AgentRunResult, Claim, Outcome, Source
+from app.tfclient.client import AgentEvent, run_result
 
 
 class Worker(Protocol):
@@ -73,3 +80,123 @@ class FakeSwapWorker:
             )
             for field, value, unit, quote in _FAKE_CLAIMS
         ]
+
+
+class SwapWorker:
+    """Hunts US-made replacements for the drive motor: one TinyAgent run per target, one
+    stealth + US-proxy retry when a run is blocked (docs/design/04 section 5)."""
+
+    name = "swap:drive_motor"
+
+    def __init__(self, targets: Sequence[SwapTarget] = SWAP_TARGETS) -> None:
+        self.targets = targets
+
+    async def run(self, ctx: JobContext) -> list[Claim]:
+        results = await asyncio.gather(*(self._target(ctx, t) for t in self.targets))
+        return [claim for claims in results for claim in claims]
+
+    async def _target(self, ctx: JobContext, target: SwapTarget) -> list[Claim]:
+        outcome, run, live = await self._dispatch(ctx, target, stealth=False)
+        if outcome == "blocked":
+            outcome, run, live = await self._dispatch(ctx, target, stealth=True)
+        if outcome != "success" or run.result is None:
+            return []
+        candidate = AgentMotorCandidate.model_validate(run.result)
+        return claims_from_candidate(candidate, run.run_id, live)
+
+    async def _dispatch(
+        self, ctx: JobContext, target: SwapTarget, stealth: bool
+    ) -> tuple[Outcome, AgentRunResult, bool]:
+        domain = urlparse(target.url).hostname or target.url
+        events: list[AgentEvent] = []
+        async with ctx.fleet.slot("agent", ctx.budget, domain):
+            async for event in ctx.tf.agent_run(
+                target.url,
+                target.goal,
+                MOTOR_SCHEMA,
+                stealth=stealth,
+                proxy_country="US" if stealth else None,
+                max_duration_s=target.max_duration_s,
+            ):
+                events.append(event)
+                await self._tile(ctx, target, domain, event)
+        run = run_result(events)
+        outcome = classify_outcome(run)
+        live = events[-1].live
+        reason = str((run.result or {}).get("reason") or run.error or "")
+        await ctx.log.emit(
+            RunFinished(
+                run_id=run.run_id,
+                outcome=outcome,
+                reason=reason,
+                duration_s=run.duration_s,
+                live=live,
+            )
+        )
+        return outcome, run, live
+
+    async def _tile(
+        self, ctx: JobContext, target: SwapTarget, domain: str, event: AgentEvent
+    ) -> None:
+        if event.run_id is None:
+            return
+        if event.type == "STARTED":
+            await ctx.log.emit(
+                RunStarted(
+                    run_id=event.run_id,
+                    worker=self.name,
+                    product="agent",
+                    site=domain,
+                    url=target.url,
+                    goal=target.name,
+                    live=event.live,
+                )
+            )
+        elif event.type == "STREAMING_URL" and event.streaming_url:
+            await ctx.log.emit(
+                RunStreamingUrl(run_id=event.run_id, streaming_url=event.streaming_url)
+            )
+        elif event.type == "PROGRESS" and event.purpose:
+            await ctx.log.emit(RunProgress(run_id=event.run_id, purpose=event.purpose))
+
+
+def claims_from_candidate(c: AgentMotorCandidate, run_id: str, live: bool) -> list[Claim]:
+    """One raw claim per spec, plus one for the origin statement when the agent gave all of
+    country, quote and page. Values become plain decimal strings ("4000.0", never "4e+03")."""
+    via = "tinyagent" if live else "replay"
+    now = datetime.now(UTC)
+    candidate_id = c.part_number or run_id
+    claims = [
+        Claim(
+            id=f"{run_id}:{i}:{spec.name}",
+            candidate_id=candidate_id,
+            field=spec.name,
+            raw_value=format(Decimal(repr(spec.value)), "f"),
+            raw_unit=spec.unit,
+            quote=spec.quote,
+            source=Source(
+                url=spec.source_url, kind=_kind(spec.source_url), fetched_at=now, via=via
+            ),
+            extracted_by="tinyagent",
+        )
+        for i, spec in enumerate(c.specs)
+    ]
+    if c.country_of_origin and c.origin_quote and c.origin_source_url:
+        url = c.origin_source_url
+        claims.append(
+            Claim(
+                id=f"{run_id}:origin",
+                candidate_id=candidate_id,
+                field="country_of_origin",
+                raw_value=c.country_of_origin,
+                raw_unit=None,
+                quote=c.origin_quote,
+                source=Source(url=url, kind=_kind(url), fetched_at=now, via=via),
+                extracted_by="tinyagent",
+            )
+        )
+    return claims
+
+
+def _kind(url: str) -> Literal["page", "pdf"]:
+    return "pdf" if urlparse(url).path.lower().endswith(".pdf") else "page"

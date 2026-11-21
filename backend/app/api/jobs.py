@@ -55,8 +55,6 @@ def status(job: Job) -> JobStatus:
 async def create_job(
     body: JobRequest, runtime: Annotated[Runtime, Depends(get_runtime)]
 ) -> JobStatus:
-    if body.mode != "replay":
-        raise HTTPException(status_code=501, detail="live and mixed modes need the real workers")
     return status(runtime.start_job(body.robot or load_demo_robot(), body.mode))
 
 

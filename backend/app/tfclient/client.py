@@ -4,7 +4,9 @@ Endpoints and fields follow the OpenAPI specs at agent.tinyfish.ai/v1/openapi/{m
 (read Nov 21, 2026).
 """
 
+import asyncio
 import json
+import time
 from collections.abc import AsyncIterator
 from datetime import datetime
 from typing import Any, Literal
@@ -18,6 +20,8 @@ from app.tfclient.recorder import Recorder
 SEARCH_URL = "https://api.search.tinyfish.ai/"
 FETCH_URL = "https://api.fetch.tinyfish.ai/"
 AGENT_SSE_URL = "https://agent.tinyfish.ai/v1/automation/run-sse"
+RUNS_URL = "https://agent.tinyfish.ai/v1/runs"
+TERMINAL: frozenset[str] = frozenset({"COMPLETED", "FAILED", "CANCELLED"})
 
 
 class _Loose(BaseModel):
@@ -68,14 +72,18 @@ class AgentEvent(_Loose):
     result: dict[str, Any] | None = None
     error: str | None = None
     profile_hint: dict[str, Any] | None = None
+    recovered: bool = False
     live: bool
 
 
 class TFClient:
-    def __init__(self, recorder: Recorder, http: httpx.AsyncClient, api_key: str) -> None:
+    def __init__(
+        self, recorder: Recorder, http: httpx.AsyncClient, api_key: str, poll_s: float = 5.0
+    ) -> None:
         self.recorder = recorder
         self._http = http
         self._headers = {"X-API-Key": api_key}
+        self._poll_s = poll_s
 
     async def search(self, query: str, **params: str) -> Searched:
         request = {"query": query} | params
@@ -93,11 +101,14 @@ class TFClient:
         urls: list[str],
         format: Literal["markdown", "html", "json"] = "markdown",
         ttl: int | None = None,
+        include_selectors: list[str] | None = None,
     ) -> Fetched:
         """ttl=0 forces a fresh fetch; the Verifier always uses it."""
         request: dict[str, Any] = {"urls": urls, "format": format}
         if ttl is not None:
             request["ttl"] = ttl
+        if include_selectors:
+            request["include_selectors"] = include_selectors
 
         async def live() -> dict[str, Any]:
             r = await self._http.post(FETCH_URL, json=request, headers=self._headers)
@@ -129,17 +140,53 @@ class TFClient:
             request["proxy_config"] = {"enabled": True, "country_code": proxy_country}
 
         async def live() -> AsyncIterator[dict[str, Any]]:
+            run_id: str | None = None
             timeout = httpx.Timeout(30.0, read=None)
-            async with self._http.stream(
-                "POST", AGENT_SSE_URL, json=request, headers=self._headers, timeout=timeout
-            ) as r:
-                r.raise_for_status()
-                async for event in parse_sse(r.aiter_lines()):
-                    if event.get("type") != "HEARTBEAT":
-                        yield event
+            try:
+                async with self._http.stream(
+                    "POST", AGENT_SSE_URL, json=request, headers=self._headers, timeout=timeout
+                ) as r:
+                    r.raise_for_status()
+                    async for event in parse_sse(r.aiter_lines()):
+                        run_id = run_id or event.get("run_id")
+                        if event.get("type") == "COMPLETE":
+                            yield event
+                            return
+                        if event.get("type") != "HEARTBEAT":
+                            yield event
+            except httpx.TransportError:
+                if run_id is None:
+                    raise
+            if run_id is None:
+                raise RuntimeError("agent stream ended before the run started")
+            yield await self._wait_for_run(run_id, deadline_s=max_duration_s + 120)
 
         async for event, is_live in self.recorder.stream("agent", request, live):
             yield AgentEvent.model_validate(event | {"live": is_live})
+
+    async def _wait_for_run(self, run_id: str, deadline_s: float) -> dict[str, Any]:
+        """The stream dropped after the run started: poll it to the end, never resubmit
+        (the run may still be executing)."""
+        give_up = time.monotonic() + deadline_s
+        while True:
+            r = await self._http.get(f"{RUNS_URL}/{run_id}", headers=self._headers)
+            r.raise_for_status()
+            run = r.json()
+            if run.get("status") in TERMINAL:
+                error = run.get("error") or {}
+                return {
+                    "type": "COMPLETE",
+                    "run_id": run_id,
+                    "status": run["status"],
+                    "result": run.get("result"),
+                    "error": error.get("message"),
+                    "profile_hint": error.get("profile_hint") or run.get("profile_hint"),
+                    "timestamp": run.get("finished_at"),
+                    "recovered": True,
+                }
+            if time.monotonic() > give_up:
+                raise TimeoutError(f"run {run_id} still {run.get('status')} after {deadline_s}s")
+            await asyncio.sleep(self._poll_s)
 
 
 async def parse_sse(lines: AsyncIterator[str]) -> AsyncIterator[dict[str, Any]]:

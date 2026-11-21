@@ -44,6 +44,11 @@ async def extract(ctx: JobContext, workers: Sequence[Worker]) -> None:
     ctx.raw_claims = [claim for claims in results for claim in claims]
 
 
+# Fetch's default html keeps only the main content block; on Teknic model pages that drops the
+# spec table (tests/fixtures/teknic). Claims not found in pass one get a tables-only pass.
+VERIFY_PASSES: tuple[list[str] | None, ...] = (None, ["table"])
+
+
 async def verify(ctx: JobContext, workers: Sequence[Worker]) -> None:
     """Re-fetch every source page fresh (ttl=0) and promote matching claims to board facts."""
     by_url: defaultdict[str, list[Claim]] = defaultdict(list)
@@ -55,32 +60,49 @@ async def verify(ctx: JobContext, workers: Sequence[Worker]) -> None:
             for claim in claims:
                 await ctx.log.emit(ClaimRejected(claim=claim, reason="pdf verification not built"))
             continue
-        async with ctx.fleet.slot("fetch", ctx.budget):
-            fetched = await ctx.tf.fetch([url], format="html", ttl=0)
-        page = next((r for r in fetched.results if r.url == url), None)
-        if page is None or not isinstance(page.text, str):
-            for claim in claims:
-                await ctx.log.emit(ClaimRejected(claim=claim, reason="fresh fetch failed"))
-            continue
-        for claim in claims:
-            checked = verify_claim(claim, page.text, "html_quote")
-            if not checked.verified:
-                reason = "quote or value not on the freshly fetched page"
-                await ctx.log.emit(ClaimRejected(claim=checked, reason=reason))
-                continue
-            ctx.facts.append(checked)
-            await ctx.board.post(
-                BoardEntry(
-                    job_id=ctx.job_id,
-                    author=BoardEntry.VERIFIER,
-                    kind="fact",
-                    subject=checked.candidate_id,
-                    payload=checked.model_dump(mode="json"),
-                    claim_id=checked.id,
-                    verified=True,
+        pending, fetched_any = claims, False
+        for selectors in VERIFY_PASSES:
+            if not pending:
+                break
+            async with ctx.fleet.slot("fetch", ctx.budget):
+                fetched = await ctx.tf.fetch(
+                    [url], format="html", ttl=0, include_selectors=selectors
                 )
-            )
-            await ctx.log.emit(ClaimVerified(claim=checked))
+            page = next((r for r in fetched.results if r.url == url), None)
+            if page is None or not isinstance(page.text, str):
+                continue
+            fetched_any = True
+            still_pending = []
+            for claim in pending:
+                checked = verify_claim(claim, page.text, "html_quote")
+                if checked.verified:
+                    await promote(ctx, checked)
+                else:
+                    still_pending.append(claim)
+            pending = still_pending
+        reason = (
+            "quote or value not on the freshly fetched page"
+            if fetched_any
+            else "fresh fetch failed"
+        )
+        for claim in pending:
+            await ctx.log.emit(ClaimRejected(claim=claim, reason=reason))
+
+
+async def promote(ctx: JobContext, fact: Claim) -> None:
+    ctx.facts.append(fact)
+    await ctx.board.post(
+        BoardEntry(
+            job_id=ctx.job_id,
+            author=BoardEntry.VERIFIER,
+            kind="fact",
+            subject=fact.candidate_id,
+            payload=fact.model_dump(mode="json"),
+            claim_id=fact.id,
+            verified=True,
+        )
+    )
+    await ctx.log.emit(ClaimVerified(claim=fact))
 
 
 StageFn = Callable[[JobContext, Sequence[Worker]], Awaitable[None]]

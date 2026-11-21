@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from app.config import settings
 from app.main import app
-from app.orchestrator.job import PIPELINE
+from app.orchestrator.job import PIPELINE, VERIFY_PASSES
 from app.orchestrator.workers import FAKE_HTML, FAKE_URL
 from app.tfclient.recorder import Recorder
 
@@ -66,9 +66,32 @@ def test_unknown_job_is_404(client):
     assert client.get("/api/jobs/nope/events").status_code == 404
 
 
-@pytest.mark.parametrize("mode", ["live", "mixed"])
-def test_live_modes_wait_for_real_workers(client, mode):
-    assert client.post("/api/jobs", json={"mode": mode}).status_code == 501
+@pytest.mark.parametrize(("mode", "worker"), [("replay", "FakeSwapWorker"), ("live", "SwapWorker")])
+def test_mode_picks_the_worker(client, mode, worker):
+    workers = client.app.state.runtime.workers(mode)
+    assert [type(w).__name__ for w in workers] == [worker]
+
+
+def test_claims_missing_from_main_content_are_found_in_the_tables_pass(
+    client, monkeypatch, tmp_path
+):
+    import asyncio
+
+    url = "https://tables.invalid/p"
+    pages = {None: "<p>Overview only</p>", "table": "<table><td>q 1</td></table>"}
+    for selectors in VERIFY_PASSES:
+        request = {"urls": [url], "format": "html", "ttl": 0}
+        if selectors:
+            request["include_selectors"] = selectors
+        text = pages[selectors[0] if selectors else None]
+
+        async def response(text=text):
+            return {"results": [{"url": url, "text": text}], "errors": []}
+
+        asyncio.run(Recorder(tmp_path, "live").call("fetch", request, response))
+    monkeypatch.setattr(settings, "recordings_dir", tmp_path)
+    events = sse_events(client, start(client, ClaimWorker(url)))
+    assert [e["type"] for e in events if e["type"].startswith("claim_")] == ["claim_verified"]
 
 
 def test_fake_worker_recording_matches_the_fake_page():
@@ -147,8 +170,11 @@ def test_failed_fresh_fetch_rejects_the_claims(client, monkeypatch, tmp_path):
     async def fetch_error():
         return {"results": [], "errors": [{"url": url, "error": "target_http_error"}]}
 
-    request = {"urls": [url], "format": "html", "ttl": 0}
-    asyncio.run(Recorder(tmp_path, "live").call("fetch", request, fetch_error))
+    for selectors in VERIFY_PASSES:
+        request = {"urls": [url], "format": "html", "ttl": 0}
+        if selectors:
+            request["include_selectors"] = selectors
+        asyncio.run(Recorder(tmp_path, "live").call("fetch", request, fetch_error))
     monkeypatch.setattr(settings, "recordings_dir", tmp_path)
     events = sse_events(client, start(client, ClaimWorker(url)))
     assert rejections(events) == ["fresh fetch failed"]
