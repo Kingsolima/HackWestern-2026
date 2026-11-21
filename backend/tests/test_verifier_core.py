@@ -57,6 +57,10 @@ def test_completed_with_agent_reported_failure_keeps_it(status):
     assert classify_outcome(run(result=CLEAN | {"status": status})) == status
 
 
+def test_unknown_agent_status_is_incomplete():
+    assert classify_outcome(run(result=CLEAN | {"status": "partial"})) == "incomplete"
+
+
 @pytest.mark.parametrize(
     "page_text",
     [

@@ -1,0 +1,329 @@
+{
+  "product": "agent",
+  "request": {
+    "url": "https://teknic.com/products/clearpath-brushless-dc-servo-motors/clearpath-sd/",
+    "goal": "You are a sourcing engineer collecting verifiable specs for ONE motor. Do not buy, log in, fill forms or sign up for anything.\n\n1. On this Teknic ClearPath-SD page, go to the list of ClearPath-SD models (\"All ClearPath models\", filtered to SDSK if possible).\n2. Pick ONE NEMA 23 SDSK model (part number starts with CPM-SDSK-23) and open its specification / model information page.\n3. From that model's page, fill `specs` with every one of these that is shown: continuous_torque, peak_torque, max_speed, supply_voltage_min, supply_voltage_max, body_length, shaft_diameter, price. For each spec:\n   - value = the number exactly as shown, unit = the unit exactly as shown (e.g. \"oz-in\", \"N-m\", \"RPM\", \"VDC\", \"in\", \"mm\", \"USD\"); do not convert units.\n   - quote = the exact text copied from the page that contains that number (a short label + value), character for character.\n   - source_url = the URL of the page where you read it.\n   - at_speed_value / at_speed_unit only if the page ties the torque to a speed, else null.\n4. Find where Teknic states ClearPath motors are manufactured (try the model page, then the About page). Put the exact sentence in origin_quote, its page URL in origin_source_url, and the country it names in country_of_origin. \"Designed in\" or a headquarters address is NOT a manufacturing statement: leave origin fields null in that case.\n5. manufacturer = \"Teknic\", part_number = the model's part number, motor_type = \"servo_integrated\", nema_frame = \"23\", product_url = the model page URL, datasheet_url = a manual/datasheet PDF link if one is on the model page, else null.\n\nRules: never guess or fill placeholders; use null (or omit a spec) when not shown. If a CAPTCHA, bot check or access-denied page blocks you, return status \"blocked\" with the reason. If you cannot find any NEMA 23 SDSK model, return status \"not_found\". If some fields are missing, return status \"incomplete\" and list what is missing in reason. Otherwise status \"success\".\n",
+    "browser_profile": "lite",
+    "agent_config": {
+      "max_duration_seconds": 240
+    },
+    "output_schema": {
+      "type": "object",
+      "propertyOrdering": [
+        "status",
+        "reason",
+        "manufacturer",
+        "part_number",
+        "motor_type",
+        "nema_frame",
+        "specs",
+        "country_of_origin",
+        "origin_quote",
+        "origin_source_url",
+        "product_url",
+        "datasheet_url"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "success",
+            "blocked",
+            "not_found",
+            "auth_required",
+            "incomplete"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "manufacturer": {
+          "type": "string",
+          "nullable": true
+        },
+        "part_number": {
+          "type": "string",
+          "nullable": true
+        },
+        "motor_type": {
+          "type": "string",
+          "enum": [
+            "servo_integrated",
+            "bldc",
+            "stepper",
+            "brushed_dc",
+            "unknown"
+          ],
+          "nullable": true
+        },
+        "nema_frame": {
+          "type": "string",
+          "enum": [
+            "17",
+            "23",
+            "34",
+            "other"
+          ],
+          "nullable": true
+        },
+        "specs": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "propertyOrdering": [
+              "name",
+              "value",
+              "unit",
+              "at_speed_value",
+              "at_speed_unit",
+              "quote",
+              "source_url"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "enum": [
+                  "continuous_torque",
+                  "peak_torque",
+                  "holding_torque",
+                  "torque_at_speed",
+                  "rated_speed",
+                  "max_speed",
+                  "supply_voltage_min",
+                  "supply_voltage_max",
+                  "rated_voltage",
+                  "rated_current",
+                  "body_length",
+                  "shaft_diameter",
+                  "price",
+                  "lead_time"
+                ]
+              },
+              "value": {
+                "type": "number"
+              },
+              "unit": {
+                "type": "string"
+              },
+              "at_speed_value": {
+                "type": "number",
+                "nullable": true
+              },
+              "at_speed_unit": {
+                "type": "string",
+                "nullable": true
+              },
+              "quote": {
+                "type": "string"
+              },
+              "source_url": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "value",
+              "unit",
+              "at_speed_value",
+              "at_speed_unit",
+              "quote",
+              "source_url"
+            ]
+          }
+        },
+        "country_of_origin": {
+          "type": "string",
+          "nullable": true
+        },
+        "origin_quote": {
+          "type": "string",
+          "nullable": true
+        },
+        "origin_source_url": {
+          "type": "string",
+          "nullable": true
+        },
+        "product_url": {
+          "type": "string",
+          "nullable": true
+        },
+        "datasheet_url": {
+          "type": "string",
+          "nullable": true
+        }
+      },
+      "required": [
+        "status",
+        "reason",
+        "manufacturer",
+        "part_number",
+        "motor_type",
+        "nema_frame",
+        "specs",
+        "country_of_origin",
+        "origin_quote",
+        "origin_source_url",
+        "product_url",
+        "datasheet_url"
+      ]
+    }
+  },
+  "recorded_at": "2026-11-21T22:58:20.169409+00:00",
+  "events": [
+    {
+      "type": "STARTED",
+      "run_id": "029dc240-2d65-4f80-99ce-a2a085765c29"
+    },
+    {
+      "type": "STREAMING_URL",
+      "run_id": "029dc240-2d65-4f80-99ce-a2a085765c29",
+      "streaming_url": "https://ip-54-183-12-46.tetra-data.production.tinyfish.io/tf-2ba829b4-c77f-4406-906f-8efa06158838/stream/0"
+    },
+    {
+      "type": "PROGRESS",
+      "run_id": "029dc240-2d65-4f80-99ce-a2a085765c29",
+      "purpose": "Navigate to ClearPath-SD product page"
+    },
+    {
+      "type": "PROGRESS",
+      "run_id": "029dc240-2d65-4f80-99ce-a2a085765c29",
+      "purpose": "View all SDSK models page"
+    },
+    {
+      "type": "PROGRESS",
+      "run_id": "029dc240-2d65-4f80-99ce-a2a085765c29",
+      "purpose": "Filter to NEMA 23 SDSK models"
+    },
+    {
+      "type": "PROGRESS",
+      "run_id": "029dc240-2d65-4f80-99ce-a2a085765c29",
+      "purpose": "Extract filtered NEMA 23 SDSK models and specs"
+    },
+    {
+      "type": "PROGRESS",
+      "run_id": "029dc240-2d65-4f80-99ce-a2a085765c29",
+      "purpose": "Open CPM-SDSK-2310D-RLN model spec page"
+    },
+    {
+      "type": "STREAMING_URL",
+      "run_id": "029dc240-2d65-4f80-99ce-a2a085765c29",
+      "streaming_url": "https://ip-54-183-12-46.tetra-data.production.tinyfish.io/tf-2ba829b4-c77f-4406-906f-8efa06158838/stream/1"
+    },
+    {
+      "type": "PROGRESS",
+      "run_id": "029dc240-2d65-4f80-99ce-a2a085765c29",
+      "purpose": "Extract all specs from CPM-SDSK-2310D-RLN model page"
+    },
+    {
+      "type": "PROGRESS",
+      "run_id": "029dc240-2d65-4f80-99ce-a2a085765c29",
+      "purpose": "Extract exact spec labels and values"
+    },
+    {
+      "type": "PROGRESS",
+      "run_id": "029dc240-2d65-4f80-99ce-a2a085765c29",
+      "purpose": "Find manufacturing origin statement for ClearPath motors"
+    },
+    {
+      "type": "PROGRESS",
+      "run_id": "029dc240-2d65-4f80-99ce-a2a085765c29",
+      "purpose": "Find manufacturing origin statement on about page"
+    },
+    {
+      "type": "COMPLETE",
+      "run_id": "029dc240-2d65-4f80-99ce-a2a085765c29",
+      "status": "COMPLETED",
+      "result": {
+        "specs": [
+          {
+            "name": "continuous_torque",
+            "unit": "oz-in",
+            "quote": "13 oz-in (1.8 N-m)",
+            "value": 13,
+            "source_url": "https://teknic.com/model-info/CPM-SDSK-2310D-RLN/",
+            "at_speed_unit": null,
+            "at_speed_value": null
+          },
+          {
+            "name": "peak_torque",
+            "unit": "oz-in",
+            "quote": "64 oz-in (9.1 N-m)",
+            "value": 64,
+            "source_url": "https://teknic.com/model-info/CPM-SDSK-2310D-RLN/",
+            "at_speed_unit": null,
+            "at_speed_value": null
+          },
+          {
+            "name": "max_speed",
+            "unit": "RPM",
+            "quote": "4,000 RPM",
+            "value": 4000,
+            "source_url": "https://teknic.com/model-info/CPM-SDSK-2310D-RLN/",
+            "at_speed_unit": null,
+            "at_speed_value": null
+          },
+          {
+            "name": "supply_voltage_min",
+            "unit": "VDC",
+            "quote": "24 VDC",
+            "value": 24,
+            "source_url": "https://teknic.com/model-info/CPM-SDSK-2310D-RLN/",
+            "at_speed_unit": null,
+            "at_speed_value": null
+          },
+          {
+            "name": "supply_voltage_max",
+            "unit": "VDC",
+            "quote": "75 VDC",
+            "value": 75,
+            "source_url": "https://teknic.com/model-info/CPM-SDSK-2310D-RLN/",
+            "at_speed_unit": null,
+            "at_speed_value": null
+          },
+          {
+            "name": "body_length",
+            "unit": "in",
+            "quote": "3.34 in",
+            "value": 3.34,
+            "source_url": "https://teknic.com/model-info/CPM-SDSK-2310D-RLN/",
+            "at_speed_unit": null,
+            "at_speed_value": null
+          },
+          {
+            "name": "shaft_diameter",
+            "unit": "in",
+            "quote": "0.375 in",
+            "value": 0.375,
+            "source_url": "https://teknic.com/model-info/CPM-SDSK-2310D-RLN/",
+            "at_speed_unit": null,
+            "at_speed_value": null
+          },
+          {
+            "name": "price",
+            "unit": "USD",
+            "quote": "265",
+            "value": 265,
+            "source_url": "https://teknic.com/model-info/CPM-SDSK-2310D-RLN/",
+            "at_speed_unit": null,
+            "at_speed_value": null
+          }
+        ],
+        "reason": "All data successfully extracted.",
+        "status": "success",
+        "motor_type": "servo_integrated",
+        "nema_frame": "23",
+        "part_number": "CPM-SDSK-2310D-RLN",
+        "product_url": "https://teknic.com/model-info/CPM-SDSK-2310D-RLN/",
+        "manufacturer": "Teknic",
+        "origin_quote": "Teknic designs and builds products in the USA.",
+        "datasheet_url": "https://teknic.com/files/downloads/clearpath_user_manual.pdf",
+        "country_of_origin": "USA",
+        "origin_source_url": "https://teknic.com/about/"
+      },
+      "error": null,
+      "timestamp": "2026-11-21T22:57:44Z"
+    }
+  ],
+  "recovered_from_run": true
+}

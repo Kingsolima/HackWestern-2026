@@ -26,26 +26,37 @@ def classify_outcome(run: AgentRunResult) -> Outcome:
       every data field (all keys but status and reason) null or empty -> incomplete;
       otherwise success.
     """
-    if run.tf_status == 'PENDING' or run.tf_status == 'RUNNING':
-        raise ValueError('PENDING' or 'RUNNING')
-    if run.tf_status == 'FAILED' or run.tf_status == 'CANCELLED':
-        if run.profile_hint_reason == 'bot_challenge':
+    if run.tf_status == "PENDING" or run.tf_status == "RUNNING":
+        raise ValueError(f"run {run.run_id} is still {run.tf_status}")
+    if run.tf_status == "FAILED" or run.tf_status == "CANCELLED":
+        if run.profile_hint_reason == "bot_challenge":
             return "blocked"
-        elif run.profile_hint_reason == 'auth_wall':
+        elif run.profile_hint_reason == "auth_wall":
             return "auth_required"
         else:
             return "error"
-    if run.tf_status == 'COMPLETED':
-        if 'bot_challenge' in run.page_text or 'auth_wall' in run.page_text or 'CAPTCHA' in run.page_text:
-            return "blocked"
-        elif 'no result' in run.page_text:
-            return "incomplete"
-        elif run.result.status != 'success':
-            return run.result.status
-        elif all(not run.result.data[key] for key in run.result.data):
-            return "incomplete"
-        else:
-            return "success"
+    if run.page_text and _BOT_WALL.search(run.page_text):
+        return "blocked"
+    if run.result is None:
+        return "incomplete"
+    status = run.result.get("status")
+    if status != "success":
+        return status if status in _AGENT_FAILURES else "incomplete"
+    data = [v for k, v in run.result.items() if k not in ("status", "reason")]
+    if all(v in (None, [], "") for v in data):
+        return "incomplete"
+    return "success"
+
+
+_BOT_WALL = re.compile(
+    r"access denied|captcha|verify you are human|checking if the site connection is secure"
+    r"|are you a robot|unusual traffic",
+    re.I,
+)
+_AGENT_FAILURES: frozenset[Outcome] = frozenset(
+    {"blocked", "not_found", "auth_required", "incomplete"}
+)
+
 
 def verify_claim(claim: Claim, text: str, method: VerifyMethod) -> Claim:
     """Check a claim against independently fetched page html or PDF text.
@@ -122,7 +133,7 @@ _STATE_ABBR = (
     "NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY"
 )
 _US_PLACE = rf"(?:\b{_US}(?!\w)|\b(?:{_STATES})\b|,\s?(?-i:{_STATE_ABBR})\b)"
-_MAKE = r"\b(?:made|manufactured|produced|built|build|fabricated)\b"
+_MAKE = r"\b(?:made|makes|manufacture[ds]?|produce[ds]?|built|builds?|fabricated)\b"
 _PLANT = r"\b(?:plant|plants|facility|facilities|factory|factories)\b"
 _FOREIGN = (
     "china|prc|taiwan|japan|korea|vietnam|mexico|germany|india|malaysia|thailand|philippines|"
@@ -148,7 +159,9 @@ _RULES: list[tuple[OriginClass, re.Pattern[str]]] = [
     ),
     (
         "us_made_site_unstated",
-        re.compile(rf"{_MAKE}\s+in\s+{_US}(?!\w)|\b(?:usa|american)-made\b", re.I),
+        re.compile(
+            rf"{_MAKE}(?:\s+\w+){{0,3}}?\s+in\s+{_US}(?!\w)|\b(?:usa|american)-made\b", re.I
+        ),
     ),
     ("assembled_in_us", re.compile(rf"\bassembled\s+in\s+{_US}(?!\w)", re.I)),
     ("designed_in_us", re.compile(rf"\b(?:designed|engineered)\s+in\s+{_US}(?!\w)", re.I)),
