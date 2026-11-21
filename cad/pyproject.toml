@@ -1,0 +1,13 @@
+[project]
+name = "cad-worker"
+version = "0.1.0"
+description = "CadQuery worker: parametric robot, motor bracket, GLB/STEP export"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "cadquery>=2.5",
+    "fastapi",
+    "uvicorn[standard]",
+]
+
+[tool.ruff]
+line-length = 100

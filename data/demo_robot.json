@@ -1,0 +1,30 @@
+{
+  "name": "Demo wheeled robot (placeholder values, owner 3 to tune)",
+  "final_assembly_country": "CA",
+  "requirements": {
+    "mass_kg": 8.0,
+    "wheel_radius_m": 0.05,
+    "n_drive_motors": 2,
+    "gear_ratio": 3.0,
+    "efficiency": 0.85,
+    "crr": 0.02,
+    "max_slope_deg": 5.0,
+    "accel_mps2": 0.5,
+    "v_max_mps": 0.6,
+    "bus_voltage_v": 24.0,
+    "envelope_mm": 90.0,
+    "safety_factor": 1.5
+  },
+  "bom": [
+    {"part": "Drive motor (NEMA 23)", "category": "motor", "qty": 2, "unit_cost_usd": "45.00", "origin": "CN", "supply_risk": "ndfeb_magnets"},
+    {"part": "Motor driver", "category": "electronics", "qty": 2, "unit_cost_usd": "30.00", "origin": "CN"},
+    {"part": "Aluminum base plate", "category": "frame", "qty": 1, "unit_cost_usd": "120.00", "origin": "US"},
+    {"part": "Wheel", "category": "frame", "qty": 2, "unit_cost_usd": "15.00", "origin": "CN"},
+    {"part": "24V battery pack", "category": "battery", "qty": 1, "unit_cost_usd": "80.00", "origin": "unknown"},
+    {"part": "Single-board computer", "category": "compute", "qty": 1, "unit_cost_usd": "70.00", "origin": "GB"},
+    {"part": "Wheel encoder", "category": "encoder", "qty": 2, "unit_cost_usd": "30.00", "origin": "US"},
+    {"part": "Electronics enclosure", "category": "frame", "qty": 1, "unit_cost_usd": "25.00", "origin": "CA"},
+    {"part": "Wiring harness", "category": "electronics", "qty": 1, "unit_cost_usd": "25.00", "origin": "US"},
+    {"part": "Fasteners", "category": "frame", "qty": 1, "unit_cost_usd": "12.00", "origin": "US"}
+  ]
+}

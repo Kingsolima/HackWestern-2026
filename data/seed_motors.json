@@ -1,0 +1,4 @@
+{
+  "_comment": "Owner 3: add 2-3 real, pre-identified NEMA motors the swarm is known to find (MotorCandidate shape, with product_url). Never invent specs.",
+  "motors": []
+}
