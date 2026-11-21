@@ -1,0 +1,53 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M805C7KGH5R0GAG9QB4B6ZF0",
+  "strategy": "manual-commit",
+  "branch": "swap-finder-swarm",
+  "checkpoints_count": 10,
+  "files_touched": [
+    ".env.example",
+    "backend/app/agents/motor_schema.py",
+    "backend/app/agents/teknic.py",
+    "backend/app/agents/verifier.py",
+    "backend/app/config.py",
+    "backend/app/schemas.py",
+    "backend/app/tfclient/__init__.py",
+    "backend/app/tfclient/client.py",
+    "backend/app/tfclient/recorder.py",
+    "backend/pyproject.toml",
+    "backend/scripts/teknic_probe.py",
+    "backend/tests/test_tfclient.py",
+    "backend/tests/test_verifier_todo.py",
+    "backend/uv.lock"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 126,
+    "cache_creation_tokens": 110296,
+    "cache_read_tokens": 10815474,
+    "output_tokens": 43880,
+    "api_call_count": 52
+  },
+  "redaction": {
+    "replacements": 48,
+    "layers": {
+      "betterleaks": 43,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 12,
+      "credentialed_uri": 12,
+      "entropy": 0,
+      "key_context": 17,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
