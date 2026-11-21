@@ -1,5 +1,7 @@
 # Architecture
 
+> **v3 update (Nov 21, 6pm):** the agent topology, motor schema, checks and compliance math changed. Read [HANDOFF-v3.md](HANDOFF-v3.md) section 4 for the deltas against this file and the code on main, and [design/07-agent-architecture.md](design/07-agent-architecture.md) for the topology. Where they disagree with this file, they win.
+
 How the AI Robot Redesign Engine is put together. For the plan, demo script, milestones and team split, see [HANDOFF-v2.md](HANDOFF-v2.md). For policy facts, prize rules and TinyFish limits, see [HANDOFF.md](HANDOFF.md) (v1). For Entire commands, see [ENTIRE.md](ENTIRE.md).
 
 ## 1. Overview

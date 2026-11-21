@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Robot Redesign Engine - Agent Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'JetBrains Mono', monospace; background: #020617; color: white; padding: 1.25rem; }
+  .container { max-width: 1200px; margin: 0 auto; }
+  .header-row { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.4rem; }
+  .pulse-dot { width: 11px; height: 11px; background: #22d3ee; border-radius: 50%; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  h1 { font-size: 1.25rem; font-weight: 700; }
+  .subtitle { color: #94a3b8; font-size: 0.8rem; margin: 0 0 1rem 1.5rem; }
+  .diagram-container { background: rgba(15,23,42,0.5); border-radius: 1rem; border: 1px solid #1e293b; padding: 1rem; overflow-x: auto; }
+  svg { width: 100%; min-width: 900px; display: block; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 0.9rem; margin-top: 1.2rem; }
+  .card { background: rgba(15,23,42,0.5); border-radius: 0.75rem; border: 1px solid #1e293b; padding: 1rem; }
+  .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
+  .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .cyan { background: #22d3ee; } .emerald { background: #34d399; } .violet { background: #a78bfa; }
+  .amber { background: #fbbf24; } .rose { background: #fb7185; } .orange { background: #fb923c; }
+  .card h3 { font-size: 0.82rem; font-weight: 600; }
+  .card ul { list-style: none; color: #94a3b8; font-size: 0.72rem; line-height: 1.45; }
+  .card li { margin-bottom: 0.3rem; }
+  .footer { text-align: center; margin-top: 1rem; color: #475569; font-size: 0.7rem; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header-row"><div class="pulse-dot"></div><h1>AI Robot Redesign Engine: agent architecture</h1></div>
+  <p class="subtitle">Centralized orchestrator-workers with a Tiger Data blackboard and a code-built case, tightly scoped advocates, one writer and a Decision 1 critic. Hack Western 13 design v3.2.</p>
+
+  <div class="diagram-container">
+  <svg viewBox="0 0 1200 900" font-family="JetBrains Mono, monospace">
+    <defs>
+      <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+      </pattern>
+      <marker id="ah" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#64748b"/></marker>
+      <marker id="ahs" markerWidth="10" markerHeight="7" refX="1" refY="3.5" orient="auto"><polygon points="10 0, 0 3.5, 10 7" fill="#64748b"/></marker>
+      <marker id="ahr" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#fb7185"/></marker>
+      <marker id="ahv" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa"/></marker>
+      <marker id="ahvs" markerWidth="10" markerHeight="7" refX="1" refY="3.5" orient="auto"><polygon points="10 0, 0 3.5, 10 7" fill="#a78bfa"/></marker>
+    </defs>
+    <rect width="100%" height="100%" fill="url(#grid)"/>
+
+    <!-- ============ ARROWS (drawn first) ============ -->
+    <!-- UI <-> API -->
+    <line x1="170" y1="110" x2="170" y2="138" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#ah)" marker-start="url(#ahs)"/>
+    <text x="178" y="128" fill="#94a3b8" font-size="8">SSE events</text>
+    <!-- API -> Orchestrator -->
+    <path d="M300 170 L325 170 L325 85 L348 85" fill="none" stroke="#34d399" stroke-width="1.5" marker-end="url(#ah)"/>
+    <!-- Orchestrator -> Scheduler -->
+    <line x1="452" y1="120" x2="452" y2="143" stroke="#34d399" stroke-width="1.5" marker-end="url(#ah)"/>
+    <!-- Scheduler -> worker bus -->
+    <path d="M452 210 L452 245" fill="none" stroke="#34d399" stroke-width="1.5"/>
+    <line x1="155" y1="245" x2="705" y2="245" stroke="#34d399" stroke-width="1.5"/>
+    <line x1="155" y1="245" x2="155" y2="288" stroke="#34d399" stroke-width="1.5" marker-end="url(#ah)"/>
+    <line x1="367" y1="245" x2="367" y2="288" stroke="#34d399" stroke-width="1.5" marker-end="url(#ah)"/>
+    <line x1="537" y1="245" x2="537" y2="288" stroke="#34d399" stroke-width="1.5" marker-end="url(#ah)"/>
+    <line x1="705" y1="245" x2="705" y2="288" stroke="#34d399" stroke-width="1.5" marker-end="url(#ah)"/>
+    <text x="462" y="240" fill="#94a3b8" font-size="8">fan-out: one worker per BOM line</text>
+    <!-- Workers -> TinyFish -->
+    <path d="M780 320 L818 320 L818 166 L848 166" fill="none" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#ah)" marker-start="url(#ahs)"/>
+    <text x="823" y="250" fill="#94a3b8" font-size="8" transform="rotate(-90 823 250)">dispatch runs</text>
+    <!-- raw claims -> Verifier -->
+    <line x1="760" y1="288" x2="760" y2="213" stroke="#fb7185" stroke-width="1.5" stroke-dasharray="5,4" marker-end="url(#ahr)"/>
+    <text x="714" y="270" fill="#fb7185" font-size="8">raw claims</text>
+    <!-- Verifier -> Blackboard (only writer of verified facts) -->
+    <path d="M780 195 L808 195 L808 462 L802 462" fill="none" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#ahv)"/>
+    <text x="796" y="402" fill="#a78bfa" font-size="8" transform="rotate(-90 796 402)">verified facts</text>
+    <!-- Workers <-> Blackboard -->
+    <line x1="155" y1="372" x2="155" y2="448" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#ahv)" marker-start="url(#ahvs)"/>
+    <line x1="367" y1="372" x2="367" y2="448" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#ahv)" marker-start="url(#ahvs)"/>
+    <text x="163" y="412" fill="#94a3b8" font-size="8">read board · post hints</text>
+    <text x="375" y="412" fill="#94a3b8" font-size="8">lease tasks</text>
+    <!-- Blackboard -> deterministic layer -->
+    <line x1="800" y1="522" x2="848" y2="522" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#ahv)"/>
+    <!-- Deterministic -> advocates bus -->
+    <line x1="925" y1="552" x2="925" y2="585" stroke="#34d399" stroke-width="1.5"/>
+    <line x1="1090" y1="552" x2="1090" y2="585" stroke="#34d399" stroke-width="1.5"/>
+    <line x1="115" y1="585" x2="1090" y2="585" stroke="#34d399" stroke-width="1.5"/>
+    <line x1="115" y1="585" x2="115" y2="638" stroke="#34d399" stroke-width="1.5" marker-end="url(#ah)"/>
+    <line x1="1085" y1="585" x2="1085" y2="638" stroke="#34d399" stroke-width="1.5" marker-end="url(#ah)"/>
+    <text x="1093" y="625" fill="#94a3b8" font-size="8">ranked designs</text>
+    <text x="560" y="580" fill="#94a3b8" font-size="8">verified facts + check table + compliance (no raw web text)</text>
+    <!-- case builder -> advocates -> synthesizer <-> critic -> final -->
+    <line x1="190" y1="676" x2="203" y2="676" stroke="#34d399" stroke-width="1.5" marker-end="url(#ah)"/>
+    <line x1="310" y1="660" x2="320" y2="660" stroke="#fb923c" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#ah)" marker-start="url(#ahs)"/>
+    <line x1="420" y1="660" x2="430" y2="660" stroke="#fb923c" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#ah)" marker-start="url(#ahs)"/>
+    <line x1="537" y1="676" x2="553" y2="676" stroke="#fb923c" stroke-width="1.5" marker-end="url(#ah)"/>
+    <line x1="695" y1="668" x2="713" y2="668" stroke="#fb923c" stroke-width="1.5" marker-end="url(#ah)"/>
+    <line x1="713" y1="690" x2="697" y2="690" stroke="#fb7185" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#ahr)"/>
+    <line x1="855" y1="676" x2="868" y2="676" stroke="#fb923c" stroke-width="1.5" marker-end="url(#ah)"/>
+    <!-- Gap loop: critic -> orchestrator -->
+    <path d="M785 712 L785 790 L12 790 L12 12 L740 12 L740 48" fill="none" stroke="#fb7185" stroke-width="1.5" stroke-dasharray="6,4" marker-end="url(#ahr)"/>
+    <text x="250" y="784" fill="#fb7185" font-size="9">gap requests: "need lead time for candidate B" → orchestrator re-dispatches (max 1 round)</text>
+
+    <!-- ============ REGIONS ============ -->
+    <rect x="330" y="22" width="470" height="205" rx="12" fill="rgba(52,211,153,0.04)" stroke="#34d399" stroke-width="1" stroke-dasharray="8,4"/>
+    <text x="342" y="38" fill="#34d399" font-size="10" font-weight="600">COORDINATOR · code owns control flow</text>
+
+    <rect x="20" y="258" width="780" height="130" rx="12" fill="rgba(34,211,238,0.03)" stroke="#22d3ee" stroke-width="1" stroke-dasharray="8,4"/>
+    <text x="32" y="275" fill="#22d3ee" font-size="10" font-weight="600">PART WORKERS · parallel, isolated context, one per BOM line (code loops)</text>
+
+    <rect x="20" y="420" width="780" height="150" rx="12" fill="rgba(167,139,250,0.05)" stroke="#a78bfa" stroke-width="1" stroke-dasharray="8,4"/>
+    <text x="32" y="437" fill="#a78bfa" font-size="10" font-weight="600">BLACKBOARD · Tiger Data (shared sketchpad)</text>
+
+    <rect x="830" y="22" width="350" height="372" rx="12" fill="rgba(251,191,36,0.04)" stroke="#fbbf24" stroke-width="1" stroke-dasharray="8,4"/>
+    <text x="842" y="38" fill="#fbbf24" font-size="10" font-weight="600">EXTERNAL SERVICES</text>
+
+    <rect x="830" y="420" width="350" height="150" rx="12" fill="rgba(52,211,153,0.04)" stroke="#34d399" stroke-width="1" stroke-dasharray="8,4"/>
+    <text x="842" y="437" fill="#34d399" font-size="10" font-weight="600">DETERMINISTIC LAYER · every number</text>
+
+    <rect x="20" y="600" width="1160" height="170" rx="12" fill="rgba(251,146,60,0.04)" stroke="#fb923c" stroke-width="1" stroke-dasharray="8,4"/>
+    <text x="305" y="617" fill="#fb923c" font-size="10" font-weight="600">SYNTHESIS · code builds the case, scoped advocates, one writer, one critic, one gap round</text>
+
+    <!-- ============ COMPONENTS ============ -->
+    <!-- UI -->
+    <rect x="40" y="40" width="260" height="70" rx="6" fill="#0f172a"/>
+    <rect x="40" y="40" width="260" height="70" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="170" y="64" fill="white" font-size="12" font-weight="600" text-anchor="middle">Web app</text>
+    <text x="170" y="81" fill="#94a3b8" font-size="9" text-anchor="middle">3D viewer · live agent tiles</text>
+    <text x="170" y="95" fill="#94a3b8" font-size="9" text-anchor="middle">compliance card · LIVE/REPLAY badge</text>
+    <!-- API -->
+    <rect x="40" y="140" width="260" height="60" rx="6" fill="#0f172a"/>
+    <rect x="40" y="140" width="260" height="60" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5"/>
+    <text x="170" y="164" fill="white" font-size="12" font-weight="600" text-anchor="middle">FastAPI on Vultr</text>
+    <text x="170" y="181" fill="#94a3b8" font-size="9" text-anchor="middle">POST /jobs · GET /jobs/{id}/events</text>
+    <!-- Orchestrator -->
+    <rect x="350" y="50" width="430" height="70" rx="6" fill="#0f172a"/>
+    <rect x="350" y="50" width="430" height="70" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5"/>
+    <text x="565" y="72" fill="white" font-size="12" font-weight="600" text-anchor="middle">Orchestrator (lead)</text>
+    <text x="565" y="89" fill="#94a3b8" font-size="9" text-anchor="middle">plan → fan out → verify → check → rank → synthesize → build</text>
+    <text x="565" y="104" fill="#94a3b8" font-size="9" text-anchor="middle">effort budgets · stop rules · posts tasks to board</text>
+    <!-- Scheduler -->
+    <rect x="350" y="145" width="205" height="65" rx="6" fill="#0f172a"/>
+    <rect x="350" y="145" width="205" height="65" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5"/>
+    <text x="452" y="167" fill="white" font-size="12" font-weight="600" text-anchor="middle">Fleet scheduler</text>
+    <text x="452" y="183" fill="#94a3b8" font-size="9" text-anchor="middle">slots · 1 run per domain</text>
+    <text x="452" y="197" fill="#94a3b8" font-size="9" text-anchor="middle">circuit breaker per domain</text>
+    <!-- Verifier -->
+    <rect x="575" y="145" width="205" height="65" rx="6" fill="#0f172a"/>
+    <rect x="575" y="145" width="205" height="65" rx="6" fill="rgba(136,19,55,0.4)" stroke="#fb7185" stroke-width="1.5"/>
+    <text x="677" y="167" fill="white" font-size="12" font-weight="600" text-anchor="middle">Verifier (gate)</text>
+    <text x="677" y="183" fill="#94a3b8" font-size="9" text-anchor="middle">fresh html · quote + number match</text>
+    <text x="677" y="197" fill="#94a3b8" font-size="9" text-anchor="middle">origin tier by code rules</text>
+
+    <!-- Workers -->
+    <rect x="40" y="290" width="230" height="80" rx="6" fill="#0f172a"/>
+    <rect x="40" y="290" width="230" height="80" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="155" y="313" fill="white" font-size="12" font-weight="600" text-anchor="middle">Swap worker</text>
+    <text x="155" y="330" fill="#94a3b8" font-size="9" text-anchor="middle">drive motor (the redesign)</text>
+    <text x="155" y="345" fill="#94a3b8" font-size="9" text-anchor="middle">discover → triage → extract</text>
+    <text x="155" y="360" fill="#22d3ee" font-size="8" text-anchor="middle">US NEMA candidates</text>
+
+    <rect x="290" y="290" width="155" height="80" rx="6" fill="#0f172a"/>
+    <rect x="290" y="290" width="155" height="80" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="367" y="313" fill="white" font-size="12" font-weight="600" text-anchor="middle">Origin worker</text>
+    <text x="367" y="330" fill="#94a3b8" font-size="9" text-anchor="middle">battery pack</text>
+    <text x="367" y="345" fill="#94a3b8" font-size="9" text-anchor="middle">prove current origin</text>
+
+    <rect x="460" y="290" width="155" height="80" rx="6" fill="#0f172a"/>
+    <rect x="460" y="290" width="155" height="80" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="537" y="313" fill="white" font-size="12" font-weight="600" text-anchor="middle">Origin worker</text>
+    <text x="537" y="330" fill="#94a3b8" font-size="9" text-anchor="middle">compute module</text>
+    <text x="537" y="345" fill="#94a3b8" font-size="9" text-anchor="middle">prove current origin</text>
+
+    <rect x="630" y="290" width="150" height="80" rx="6" fill="#0f172a"/>
+    <rect x="630" y="290" width="150" height="80" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="705" y="313" fill="white" font-size="12" font-weight="600" text-anchor="middle">Origin worker</text>
+    <text x="705" y="330" fill="#94a3b8" font-size="9" text-anchor="middle">lidar · chassis · …</text>
+    <text x="705" y="345" fill="#94a3b8" font-size="9" text-anchor="middle">prove current origin</text>
+
+    <!-- Blackboard -->
+    <rect x="40" y="450" width="230" height="105" rx="6" fill="#0f172a"/>
+    <rect x="40" y="450" width="230" height="105" rx="6" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+    <text x="155" y="472" fill="white" font-size="12" font-weight="600" text-anchor="middle">board (hypertable)</text>
+    <text x="155" y="490" fill="#94a3b8" font-size="9" text-anchor="middle">append-only entries:</text>
+    <text x="155" y="504" fill="#94a3b8" font-size="9" text-anchor="middle">fact · hint · supplier</text>
+    <text x="155" y="518" fill="#94a3b8" font-size="9" text-anchor="middle">gap_request</text>
+    <text x="155" y="540" fill="#a78bfa" font-size="8" text-anchor="middle">fact rows written by Verifier only</text>
+
+    <rect x="290" y="450" width="155" height="105" rx="6" fill="#0f172a"/>
+    <rect x="290" y="450" width="155" height="105" rx="6" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+    <text x="367" y="472" fill="white" font-size="12" font-weight="600" text-anchor="middle">tasks (table)</text>
+    <text x="367" y="490" fill="#94a3b8" font-size="9" text-anchor="middle">orchestrator posts</text>
+    <text x="367" y="504" fill="#94a3b8" font-size="9" text-anchor="middle">workers lease with</text>
+    <text x="367" y="518" fill="#94a3b8" font-size="9" text-anchor="middle">FOR UPDATE SKIP LOCKED</text>
+
+    <rect x="460" y="450" width="155" height="105" rx="6" fill="#0f172a"/>
+    <rect x="460" y="450" width="155" height="105" rx="6" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+    <text x="537" y="472" fill="white" font-size="12" font-weight="600" text-anchor="middle">agent_runs</text>
+    <text x="537" y="490" fill="#94a3b8" font-size="9" text-anchor="middle">hypertable, every call</text>
+    <text x="537" y="504" fill="#94a3b8" font-size="9" text-anchor="middle">only source of site status</text>
+    <text x="537" y="518" fill="#94a3b8" font-size="9" text-anchor="middle">→ site_success_1h cagg</text>
+    <text x="537" y="540" fill="#a78bfa" font-size="8" text-anchor="middle">UI panel only, agents don't read it</text>
+
+    <rect x="630" y="450" width="150" height="105" rx="6" fill="#0f172a"/>
+    <rect x="630" y="450" width="150" height="105" rx="6" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+    <text x="705" y="472" fill="white" font-size="12" font-weight="600" text-anchor="middle">supplier_1h</text>
+    <text x="705" y="490" fill="#94a3b8" font-size="9" text-anchor="middle">continuous aggregate</text>
+    <text x="705" y="504" fill="#94a3b8" font-size="9" text-anchor="middle">last origin tier,</text>
+    <text x="705" y="518" fill="#94a3b8" font-size="9" text-anchor="middle">min price, lead time</text>
+    <text x="705" y="540" fill="#a78bfa" font-size="8" text-anchor="middle">per manufacturer</text>
+
+    <!-- External services -->
+    <g font-size="9">
+      <rect x="850" y="50" width="310" height="40" rx="6" fill="#0f172a"/><rect x="850" y="50" width="310" height="40" rx="6" fill="rgba(120,53,15,0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+      <text x="862" y="67" fill="white" font-size="11" font-weight="600">TinySearch</text><text x="862" y="81" fill="#94a3b8">free · discovery queries</text>
+      <rect x="850" y="98" width="310" height="40" rx="6" fill="#0f172a"/><rect x="850" y="98" width="310" height="40" rx="6" fill="rgba(120,53,15,0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+      <text x="862" y="115" fill="white" font-size="11" font-weight="600">TinyFetch</text><text x="862" y="129" fill="#94a3b8">free · 10 URLs/call · triage + verify (html, ttl=0)</text>
+      <rect x="850" y="146" width="310" height="40" rx="6" fill="#0f172a"/><rect x="850" y="146" width="310" height="40" rx="6" fill="rgba(120,53,15,0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+      <text x="862" y="163" fill="white" font-size="11" font-weight="600">TinyAgent</text><text x="862" y="177" fill="#94a3b8">run-sse tiles · origin + datasheet hunts</text>
+      <rect x="850" y="194" width="310" height="40" rx="6" fill="#0f172a"/><rect x="850" y="194" width="310" height="40" rx="6" fill="rgba(120,53,15,0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+      <text x="862" y="211" fill="white" font-size="11" font-weight="600">TinyBrowser</text><text x="862" y="225" fill="#94a3b8">Playwright · RFQ form, stop before submit</text>
+      <rect x="850" y="242" width="310" height="40" rx="6" fill="#0f172a"/><rect x="850" y="242" width="310" height="40" rx="6" fill="rgba(120,53,15,0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+      <text x="862" y="259" fill="white" font-size="11" font-weight="600">TinyMonitor</text><text x="862" y="273" fill="#94a3b8">price / stock change → webhook → board</text>
+      <rect x="850" y="290" width="310" height="40" rx="6" fill="#0f172a"/><rect x="850" y="290" width="310" height="40" rx="6" fill="rgba(30,41,59,0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+      <text x="862" y="307" fill="white" font-size="11" font-weight="600">Gemini Flash</text><text x="862" y="321" fill="#94a3b8">plan queries · PDF/page → strict JSON · prose</text>
+      <rect x="850" y="338" width="310" height="40" rx="6" fill="#0f172a"/><rect x="850" y="338" width="310" height="40" rx="6" fill="rgba(30,41,59,0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+      <text x="862" y="355" fill="white" font-size="11" font-weight="600">Gemini Decision 1</text><text x="862" y="369" fill="#94a3b8">calibrated triage · origin class · rubrics</text>
+    </g>
+
+    <!-- Deterministic layer -->
+    <rect x="850" y="450" width="150" height="100" rx="6" fill="#0f172a"/>
+    <rect x="850" y="450" width="150" height="100" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5"/>
+    <text x="925" y="472" fill="white" font-size="12" font-weight="600" text-anchor="middle">Supply chain</text>
+    <text x="925" y="490" fill="#94a3b8" font-size="9" text-anchor="middle">landed cost</text>
+    <text x="925" y="504" fill="#94a3b8" font-size="9" text-anchor="middle">domestic % (&gt;65 / 75)</text>
+    <text x="925" y="518" fill="#94a3b8" font-size="9" text-anchor="middle">risk flags · lists</text>
+    <rect x="1015" y="450" width="150" height="100" rx="6" fill="#0f172a"/>
+    <rect x="1015" y="450" width="150" height="100" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5"/>
+    <text x="1090" y="472" fill="white" font-size="12" font-weight="600" text-anchor="middle">Eng. checks</text>
+    <text x="1090" y="490" fill="#94a3b8" font-size="9" text-anchor="middle">torque · speed</text>
+    <text x="1090" y="504" fill="#94a3b8" font-size="9" text-anchor="middle">voltage · fit</text>
+    <text x="1090" y="518" fill="#94a3b8" font-size="9" text-anchor="middle">Pass* / Review / Rejected</text>
+
+    <!-- Synthesis -->
+    <rect x="40" y="640" width="150" height="72" rx="6" fill="#0f172a"/>
+    <rect x="40" y="640" width="150" height="72" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5"/>
+    <text x="115" y="660" fill="white" font-size="11" font-weight="600" text-anchor="middle">Case builder</text>
+    <text x="115" y="677" fill="#94a3b8" font-size="9" text-anchor="middle">code · per design:</text>
+    <text x="115" y="691" fill="#94a3b8" font-size="9" text-anchor="middle">strengths, weaknesses,</text>
+    <text x="115" y="704" fill="#94a3b8" font-size="9" text-anchor="middle">missing fields</text>
+
+    <rect x="205" y="630" width="332" height="92" rx="8" fill="transparent" stroke="#fb923c" stroke-width="1" stroke-dasharray="4,4"/>
+    <text x="212" y="642" fill="#fb923c" font-size="7">ADVOCATES · parallel · strict JSON · no tools</text>
+    <g>
+      <rect x="210" y="648" width="100" height="62" rx="6" fill="#0f172a"/><rect x="210" y="648" width="100" height="62" rx="6" fill="rgba(251,146,60,0.25)" stroke="#fb923c" stroke-width="1.5"/>
+      <text x="260" y="668" fill="white" font-size="11" font-weight="600" text-anchor="middle">Advocate</text>
+      <text x="260" y="684" fill="#94a3b8" font-size="9" text-anchor="middle">lowest cost</text>
+      <rect x="320" y="648" width="100" height="62" rx="6" fill="#0f172a"/><rect x="320" y="648" width="100" height="62" rx="6" fill="rgba(251,146,60,0.25)" stroke="#fb923c" stroke-width="1.5"/>
+      <text x="370" y="668" fill="white" font-size="11" font-weight="600" text-anchor="middle">Advocate</text>
+      <text x="370" y="684" fill="#94a3b8" font-size="9" text-anchor="middle">performance</text>
+      <rect x="430" y="648" width="100" height="62" rx="6" fill="#0f172a"/><rect x="430" y="648" width="100" height="62" rx="6" fill="rgba(251,146,60,0.25)" stroke="#fb923c" stroke-width="1.5"/>
+      <text x="480" y="668" fill="white" font-size="11" font-weight="600" text-anchor="middle">Advocate</text>
+      <text x="480" y="684" fill="#94a3b8" font-size="9" text-anchor="middle">US-first</text>
+      <text x="260" y="700" fill="#94a3b8" font-size="8" text-anchor="middle">Flash</text>
+      <text x="370" y="700" fill="#94a3b8" font-size="8" text-anchor="middle">Flash</text>
+      <text x="480" y="700" fill="#94a3b8" font-size="8" text-anchor="middle">Flash</text>
+    </g>
+
+    <rect x="555" y="640" width="140" height="72" rx="6" fill="#0f172a"/>
+    <rect x="555" y="640" width="140" height="72" rx="6" fill="rgba(251,146,60,0.25)" stroke="#fb923c" stroke-width="1.5"/>
+    <text x="625" y="662" fill="white" font-size="11" font-weight="600" text-anchor="middle">Synthesizer</text>
+    <text x="625" y="679" fill="#94a3b8" font-size="9" text-anchor="middle">Flash · one call</text>
+    <text x="625" y="694" fill="#94a3b8" font-size="9" text-anchor="middle">comparison + RFQ</text>
+
+    <rect x="715" y="640" width="140" height="72" rx="6" fill="#0f172a"/>
+    <rect x="715" y="640" width="140" height="72" rx="6" fill="rgba(136,19,55,0.4)" stroke="#fb7185" stroke-width="1.5"/>
+    <text x="785" y="662" fill="white" font-size="11" font-weight="600" text-anchor="middle">Critic</text>
+    <text x="785" y="679" fill="#94a3b8" font-size="9" text-anchor="middle">Decision 1 rubric</text>
+    <text x="785" y="694" fill="#94a3b8" font-size="9" text-anchor="middle">+ gap finder</text>
+
+    <rect x="870" y="640" width="120" height="72" rx="6" fill="#0f172a"/>
+    <rect x="870" y="640" width="120" height="72" rx="6" fill="rgba(251,146,60,0.25)" stroke="#fb923c" stroke-width="1.5"/>
+    <text x="930" y="662" fill="white" font-size="11" font-weight="600" text-anchor="middle">Final report</text>
+    <text x="930" y="679" fill="#94a3b8" font-size="9" text-anchor="middle">numbers rendered</text>
+    <text x="930" y="694" fill="#94a3b8" font-size="9" text-anchor="middle">by code</text>
+
+    <rect x="1005" y="640" width="160" height="72" rx="6" fill="#0f172a"/>
+    <rect x="1005" y="640" width="160" height="72" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5"/>
+    <text x="1085" y="662" fill="white" font-size="12" font-weight="600" text-anchor="middle">CAD workers</text>
+    <text x="1085" y="679" fill="#94a3b8" font-size="9" text-anchor="middle">CadQuery bracket</text>
+    <text x="1085" y="694" fill="#94a3b8" font-size="9" text-anchor="middle">GLB + STEP → storage</text>
+    <text x="40" y="734" fill="#fb923c" font-size="8">advocate scope: pick + phrase items from its own design's case lists · cite claim ids</text>
+    <text x="40" y="746" fill="#fb923c" font-size="8">numbers only via {{claim:id}} slots · concede ≥1 weakness · 1 cross-exam round, ≤2 rebuttals</text>
+
+    <!-- Legend -->
+    <text x="40" y="825" fill="white" font-size="10" font-weight="600">Legend</text>
+    <rect x="40" y="837" width="16" height="10" rx="2" fill="rgba(8,51,68,0.4)" stroke="#22d3ee"/><text x="62" y="846" fill="#94a3b8" font-size="8">UI / worker loops</text>
+    <rect x="190" y="837" width="16" height="10" rx="2" fill="rgba(6,78,59,0.4)" stroke="#34d399"/><text x="212" y="846" fill="#94a3b8" font-size="8">deterministic code</text>
+    <rect x="340" y="837" width="16" height="10" rx="2" fill="rgba(76,29,149,0.4)" stroke="#a78bfa"/><text x="362" y="846" fill="#94a3b8" font-size="8">Tiger Data</text>
+    <rect x="460" y="837" width="16" height="10" rx="2" fill="rgba(120,53,15,0.3)" stroke="#fbbf24"/><text x="482" y="846" fill="#94a3b8" font-size="8">TinyFish</text>
+    <rect x="570" y="837" width="16" height="10" rx="2" fill="rgba(251,146,60,0.25)" stroke="#fb923c"/><text x="592" y="846" fill="#94a3b8" font-size="8">LLM writer (no numbers of its own)</text>
+    <rect x="800" y="837" width="16" height="10" rx="2" fill="rgba(136,19,55,0.4)" stroke="#fb7185"/><text x="822" y="846" fill="#94a3b8" font-size="8">gates (verifier, critic)</text>
+    <line x1="960" y1="842" x2="980" y2="842" stroke="#fb7185" stroke-dasharray="5,4"/><text x="986" y="846" fill="#94a3b8" font-size="8">feedback / gap loop</text>
+  </svg>
+  </div>
+
+  <div class="cards">
+    <div class="card"><div class="card-header"><div class="card-dot emerald"></div><h3>Why centralized orchestrator-workers</h3></div>
+      <ul>
+        <li>• Part lookups are decomposable and parallel: the case where multi-agent wins (+80.8% on decomposable tasks, Kim et al. 2025).</li>
+        <li>• Central verification contains error spread: 4.4x vs 17.2x for independent agents (same paper).</li>
+        <li>• Lead + parallel subagents with effort budgets: Anthropic research system pattern.</li>
+      </ul></div>
+    <div class="card"><div class="card-header"><div class="card-dot violet"></div><h3>Blackboard rules</h3></div>
+      <ul>
+        <li>• Workers share supplier facts, blocked sites and hints, not transcripts.</li>
+        <li>• Append-only rows; only the Verifier writes kind=fact.</li>
+        <li>• Site status lives only in agent_runs; the orchestrator's circuit breaker sees every outcome first-hand.</li>
+        <li>• TinyFish runs cannot read the board mid-run; workers read it between dispatches and put it in the next goal.</li>
+      </ul></div>
+    <div class="card"><div class="card-header"><div class="card-dot orange"></div><h3>Synthesis rules</h3></div>
+      <ul>
+        <li>• Ranking, strengths and weaknesses are computed in code; verdicts never change here.</li>
+        <li>• Advocates only choose and phrase items from their design's case lists, cite claim ids, write no numbers.</li>
+        <li>• One cross-exam round; rebuttals must target a weakness code already listed.</li>
+        <li>• Decision 1 rubric gates the drafts; gaps go back to the orchestrator once.</li>
+      </ul></div>
+  </div>
+  <p class="footer">Hack Western 13 · docs/design/07-agent-architecture.md · Nov 21, 2026</p>
+</div>
+</body>
+</html>
