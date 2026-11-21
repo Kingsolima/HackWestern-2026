@@ -1,0 +1,31 @@
+[project]
+name = "redesign-backend"
+version = "0.1.0"
+description = "Orchestrator API for the AI Robot Redesign Engine"
+requires-python = ">=3.12"
+dependencies = [
+    "boto3>=1.44.9",
+    "fastapi>=0.165.0",
+    "google-genai>=3.6.1",
+    "httpx>=0.28.1",
+    "psycopg[binary]>=3.3.9",
+    "pydantic-settings>=2.16.3",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+    "ruff>=0.17.6",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
