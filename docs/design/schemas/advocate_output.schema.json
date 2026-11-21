@@ -1,0 +1,46 @@
+{
+  "title": "AdvocateOutput",
+  "description": "Gemini Flash structured output for one advocate. Round 1: rebuttals must be []. Round 2 (cross-exam): rebuttals allowed. Code validates every rule in 07-agent-architecture.md section 5 and drops invalid items.",
+  "type": "object",
+  "properties": {
+    "design_id": { "type": "string", "enum": ["lowest_cost", "best_performance", "us_first"] },
+    "round": { "type": "integer", "minimum": 1, "maximum": 2 },
+    "headline": { "type": "string", "description": "<= 15 words, no digits except inside {{claim:ID}} slots" },
+    "best_for": { "type": "string", "description": "one sentence: which buyer this design suits, <= 25 words" },
+    "strengths": {
+      "type": "array", "minItems": 1, "maxItems": 3,
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": { "type": "string", "description": "id from this design's case_builder.strengths" },
+          "phrasing": { "type": "string", "description": "<= 25 words" }
+        },
+        "required": ["item_id", "phrasing"]
+      }
+    },
+    "concessions": {
+      "type": "array", "minItems": 1, "maxItems": 2,
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": { "type": "string", "description": "id from this design's case_builder.weaknesses" },
+          "phrasing": { "type": "string", "description": "<= 25 words" }
+        },
+        "required": ["item_id", "phrasing"]
+      }
+    },
+    "rebuttals": {
+      "type": "array", "minItems": 0, "maxItems": 2,
+      "items": {
+        "type": "object",
+        "properties": {
+          "target_design_id": { "type": "string", "enum": ["lowest_cost", "best_performance", "us_first"] },
+          "item_id": { "type": "string", "description": "id from the TARGET design's case_builder.weaknesses" },
+          "phrasing": { "type": "string", "description": "<= 25 words" }
+        },
+        "required": ["target_design_id", "item_id", "phrasing"]
+      }
+    }
+  },
+  "required": ["design_id", "round", "headline", "best_for", "strengths", "concessions", "rebuttals"]
+}
