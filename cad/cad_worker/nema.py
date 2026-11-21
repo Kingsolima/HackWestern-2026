@@ -7,3 +7,5 @@ NEMA = {
     "34": (69.6, 73.0, 86.0),
 }
 BOLT_HOLE_MM = {"17": 3.4, "23": 5.2, "34": 6.6}
+# Common shaft diameter per frame (first value from the ARCHITECTURE §5 table).
+SHAFT_MM = {"17": 5.0, "23": 6.35, "34": 9.5}
