@@ -1,0 +1,88 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M80MFB2WCC4WMD4GQ0DJ1S4K",
+  "session_id": "956fee62-d2ae-44c7-9348-81c3cb0b899c",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-22T03:23:27.950731274Z",
+  "branch": "v4-ui",
+  "checkpoints_count": 2,
+  "save_step_count": 1,
+  "files_touched": [],
+  "agent": "Claude Code",
+  "model": "claude-opus-5-5",
+  "turn_id": "f17c0db51d68",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 7031,
+    "cache_read_tokens": 591189,
+    "output_tokens": 2111,
+    "api_call_count": 4
+  },
+  "session_token_usage": {
+    "input_tokens": 752,
+    "cache_creation_tokens": 572385,
+    "cache_read_tokens": 90272441,
+    "output_tokens": 302790,
+    "api_call_count": 335,
+    "subagent_tokens": {
+      "input_tokens": 48,
+      "cache_creation_tokens": 56590,
+      "cache_read_tokens": 3514436,
+      "output_tokens": 30969,
+      "api_call_count": 24
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 121,
+    "layers": {
+      "betterleaks": 84,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 41,
+      "credentialed_uri": 23,
+      "entropy": 0,
+      "key_context": 42,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01L6j23sT8dKoDrMyLSczKkv",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "anthropic-skills:built-in-browser"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "aa80b39bdcfc",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 1697,
+        "end": 1698,
+        "entry_ids": [
+          "efd69ec6-dd29-4410-8bdc-7b6bf691e05b"
+        ],
+        "tool_use_id": "toolu_01L6j23sT8dKoDrMyLSczKkv"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01L6j23sT8dKoDrMyLSczKkv"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: anthropic-skills:built-in-browser",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 41
+  }
+}

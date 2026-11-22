@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_012VMmvSvp9X6eZYK7M3QSVJ",
+  "agent_id": "ad4f39b5f8146c580",
+  "subagent_type": "fork",
+  "task_description": "Build v4 UI in worktree",
+  "token_usage": {
+    "input_tokens": 48,
+    "cache_creation_tokens": 56590,
+    "cache_read_tokens": 3514436,
+    "output_tokens": 30969,
+    "api_call_count": 24
+  },
+  "started_at": "2026-11-21T22:16:56.439724087-05:00",
+  "completed_at": "2026-11-21T22:22:45.659499613-05:00"
+}
