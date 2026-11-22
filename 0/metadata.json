@@ -1,0 +1,62 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M81H3960TJCQSTD09AA76AZY",
+  "session_id": "f3cf5e0b-dd3c-4408-ab69-85adca55f6cc",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-22T11:43:43.215615309Z",
+  "branch": "cad-ar4-real-meshes",
+  "checkpoints_count": 2,
+  "save_step_count": 3,
+  "files_touched": [
+    "cad/Dockerfile",
+    "cad/assets/ar4/NOTICE.md",
+    "cad/assets/ar4/base_link.STL",
+    "cad/assets/ar4/link_1.STL",
+    "cad/assets/ar4/link_2.STL",
+    "cad/assets/ar4/link_3.STL",
+    "cad/assets/ar4/link_4.STL",
+    "cad/assets/ar4/link_5.STL",
+    "cad/assets/ar4/link_6.STL",
+    "cad/cad_worker/ar4_meshes.py",
+    "cad/cad_worker/arm.py",
+    "cad/cad_worker/export.py",
+    "cad/cad_worker/server.py",
+    "cad/pyproject.toml",
+    "cad/tests/test_arm.py"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5-5",
+  "turn_id": "8e5e695663c7",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 88,
+    "cache_creation_tokens": 154439,
+    "cache_read_tokens": 6113241,
+    "output_tokens": 33076,
+    "api_call_count": 41
+  },
+  "session_token_usage": {
+    "input_tokens": 124,
+    "cache_creation_tokens": 260941,
+    "cache_read_tokens": 6854152,
+    "output_tokens": 38778,
+    "api_call_count": 54
+  },
+  "redaction": {
+    "replacements": 8,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 8,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "session_metrics": {
+    "turn_count": 7
+  }
+}
