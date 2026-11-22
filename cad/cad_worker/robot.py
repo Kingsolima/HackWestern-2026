@@ -30,6 +30,8 @@ BRACKET_MARGIN = 5.0  # bracket material around the motor face
 EDGE_INSET = 5.0  # bracket outer face inset from the deck edge
 CENTER_GAP = 5.0  # space kept free on the robot's centre line between the two motors
 ADAPTER_LEN = 12.0
+BRACKET_COLOR = cq.Color("orange")
+HIGHLIGHT_COLOR = cq.Color(0.13, 0.83, 0.93)  # cyan: the part the redesign regenerated
 
 
 @dataclass
@@ -47,6 +49,7 @@ class RobotParams:
     wheel_bore: float = 6.35  # baseline NEMA 23 shaft
     axle_from_rear: float = 70.0
     min_ground_clearance: float = 10.0
+    highlight: bool = False  # colour the regenerated bracket so it stands out in the viewer
 
 
 def _cylinder(r: float, length: float, start, direction=(0, 1, 0)) -> cq.Workplane:
@@ -184,7 +187,7 @@ def robot(p: RobotParams) -> cq.Assembly:
             ),
             name=f"bracket_{side}",
             loc=loc,
-            color=cq.Color("orange"),
+            color=HIGHLIGHT_COLOR if p.highlight else BRACKET_COLOR,
         )
         assy.add(
             motor(p.frame, p.body_len).translate((0, motor_face_y, 0)),

@@ -75,3 +75,17 @@ def test_fit_exposes_bracket_thickness_and_clearance_for_the_checks():
     assert m["clearance_mm"] == 7.0
     # envelope uses the same numbers the checks will read
     assert m["envelope_used_mm"] == 56.0 + m["bracket"]["thickness_mm"] + m["clearance_mm"]
+
+
+def test_highlight_colours_only_the_brackets():
+    plain = robot(RobotParams(frame="23"))
+    lit = robot(RobotParams(frame="23", highlight=True))
+    for side in ("left", "right"):
+        assert (
+            lit.objects[f"bracket_{side}"].color.toTuple()
+            != plain.objects[f"bracket_{side}"].color.toTuple()
+        )
+        assert (
+            lit.objects[f"motor_{side}"].color.toTuple()
+            == plain.objects[f"motor_{side}"].color.toTuple()
+        )

@@ -106,6 +106,21 @@ class CompliancePayload(Payload):
     card: ComplianceCard
 
 
+class DesignReady(Payload):
+    """A design the CAD worker built. One event per design: the baseline robot first, then
+    each candidate. Urls are CAD-worker paths (/designs/{id}/glb); the UI serves them via /cad."""
+
+    type: ClassVar[EventType] = "design_ready"
+    design_id: str
+    role: Literal["baseline", "candidate"]
+    label: str
+    motor: str
+    frame: str
+    glb_url: str
+    step_url: str
+    fit: dict[str, Any]
+
+
 class ErrorPayload(Payload):
     type: ClassVar[EventType] = "error"
     message: str

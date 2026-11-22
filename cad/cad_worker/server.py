@@ -39,6 +39,7 @@ class BuildRequest(BaseModel):
     wheel_r: float = Field(60.0, gt=0)
     wheel_bore: float = Field(6.35, gt=0)
     min_ground_clearance: float = 10.0
+    highlight: bool = False
 
 
 @app.get("/health")

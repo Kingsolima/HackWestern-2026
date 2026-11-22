@@ -2,7 +2,7 @@
 // into the state, and `useJob` feeds it from the SSE stream.
 
 import { useCallback, useEffect, useReducer, useRef } from 'react'
-import type { Claim, JobEvent, JobMode, JobStatus, Outcome, Stage } from './events'
+import type { Claim, Design, JobEvent, JobMode, JobStatus, Outcome, Stage } from './events'
 import { TERMINAL_STAGES } from './events'
 import type { ComplianceCard } from './types'
 
@@ -36,6 +36,9 @@ export interface JobState {
   runOrder: string[]
   claims: ClaimRow[]
   compliance: ComplianceCard | null
+  /** The robot before the swap, and each redesigned candidate (one per tournament entry). */
+  baseline: Design | null
+  candidates: Design[]
   errors: string[]
   connection: 'idle' | 'starting' | 'streaming' | 'closed' | 'failed'
 }
@@ -49,6 +52,8 @@ export const initialJobState: JobState = {
   runOrder: [],
   claims: [],
   compliance: null,
+  baseline: null,
+  candidates: [],
   errors: [],
   connection: 'idle',
 }
@@ -113,8 +118,12 @@ export function applyEvent(prev: JobState, ev: JobEvent): JobState {
       return { ...state, compliance: ev.data.card }
     case 'error':
       return { ...state, errors: [...state.errors, ev.data.message] }
+    case 'design_ready':
+      return ev.data.role === 'baseline'
+        ? { ...state, baseline: ev.data }
+        : { ...state, candidates: [...state.candidates, ev.data] }
     default:
-      return state // check_result, design_ready, advocate, synthesis: not rendered yet
+      return state // check_result, advocate, synthesis: not rendered yet
   }
 }
 
