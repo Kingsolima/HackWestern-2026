@@ -31,7 +31,7 @@ export function ProjectCard({
         {project.fact_basis.map((f) => {
           const claim = f.claim_id ? claimById.get(f.claim_id) : undefined
           return (
-            <li key={f.field}>
+            <li key={`${f.field}:${f.value}`}>
               {f.basis === 'verified' ? (
                 claim ? (
                   <a
