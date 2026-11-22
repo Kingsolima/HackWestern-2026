@@ -3,8 +3,12 @@
   "checkpoint_id": "01M80V8RYN8RS0A2GPMKJMG97N",
   "strategy": "manual-commit",
   "branch": "merge-core-scaffold",
-  "checkpoints_count": 6,
-  "files_touched": null,
+  "checkpoints_count": 10,
+  "files_touched": [
+    "cad/cad_worker/server.py",
+    "cad/tests/test_robot.py",
+    "frontend/src/App.tsx"
+  ],
   "sessions": [
     {
       "metadata": "/0/metadata.json",
@@ -12,17 +16,24 @@
       "compact_transcript": "/0/transcript.jsonl",
       "content_hash": "/0/content_hash.txt",
       "prompt": "/0/prompt.txt"
+    },
+    {
+      "metadata": "/1/metadata.json",
+      "transcript": "/1/full.jsonl",
+      "compact_transcript": "/1/transcript.jsonl",
+      "content_hash": "/1/content_hash.txt",
+      "prompt": "/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 18,
-    "cache_creation_tokens": 9706,
-    "cache_read_tokens": 1707945,
-    "output_tokens": 5667,
-    "api_call_count": 9
+    "input_tokens": 50,
+    "cache_creation_tokens": 60973,
+    "cache_read_tokens": 2419811,
+    "output_tokens": 10532,
+    "api_call_count": 21
   },
   "redaction": {
-    "replacements": 130,
+    "replacements": 134,
     "layers": {
       "betterleaks": 84,
       "connection_string": 0,
@@ -30,7 +41,7 @@
       "credential_value": 41,
       "credentialed_uri": 23,
       "entropy": 0,
-      "key_context": 51,
+      "key_context": 55,
       "provider_token": 0,
       "shell_stdin": 0
     }
