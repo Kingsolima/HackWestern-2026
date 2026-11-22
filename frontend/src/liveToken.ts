@@ -11,9 +11,47 @@ export function storedLiveToken(): string | null {
   }
 }
 
+/** An in-page dialog with one password field. window.prompt() is not used: embedded browsers
+ * (VS Code's preview, some in-app browsers) do not support it. Resolves null on cancel. */
+function promptForToken(message: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const dialog = document.createElement('dialog')
+    dialog.className = 'token-dialog'
+    const form = document.createElement('form')
+    form.method = 'dialog'
+    const label = document.createElement('label')
+    label.textContent = message
+    const input = document.createElement('input')
+    input.type = 'password'
+    input.autocomplete = 'off'
+    label.append(input)
+    const buttons = document.createElement('div')
+    buttons.className = 'token-dialog-buttons'
+    const ok = document.createElement('button')
+    ok.className = 'primary'
+    ok.value = 'ok'
+    ok.textContent = 'OK'
+    const cancel = document.createElement('button')
+    cancel.value = 'cancel'
+    cancel.textContent = 'Cancel'
+    cancel.formNoValidate = true
+    buttons.append(ok, cancel)
+    form.append(label, buttons)
+    dialog.append(form)
+    dialog.addEventListener('close', () => {
+      const token = dialog.returnValue === 'ok' ? input.value.trim() : ''
+      dialog.remove()
+      resolve(token || null)
+    })
+    document.body.append(dialog)
+    dialog.showModal()
+    input.focus()
+  })
+}
+
 /** The stored token, or ask for one. null when the user cancels. */
-export function askLiveToken(message: string): string | null {
-  const token = storedLiveToken() ?? window.prompt(message)
+export async function askLiveToken(message: string): Promise<string | null> {
+  const token = storedLiveToken() ?? (await promptForToken(message))
   if (!token) return null
   try {
     sessionStorage.setItem(TOKEN_KEY, token)

@@ -75,7 +75,7 @@ export function Onboarding({ demo, example, initial, onDone, onSkip }: Props) {
       if (!(e instanceof ApiError) || e.status !== 403) throw e
     }
     forgetLiveToken()
-    const token = askLiveToken(TOKEN_MESSAGE)
+    const token = await askLiveToken(TOKEN_MESSAGE)
     if (!token) return null
     try {
       return await intake(input, token)
