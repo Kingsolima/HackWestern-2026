@@ -13,6 +13,7 @@ import httpx
 from app.agents.triage import Lead, TriageInput, TriageLabel, route_page
 from app.orchestrator.context import JobContext
 from app.orchestrator.events import RunFinished, RunProgress, RunStarted
+from app.schemas import Project
 from app.tfclient.recorder import ReplayMiss
 
 EXCLUDED_DOMAINS = (
@@ -38,7 +39,7 @@ FETCH_BATCH = 10
 TRIAGE_CHARS = 30_000
 
 TRIAGE_QUESTION = (
-    "This is the text of a web page found while searching for a NEMA 23 servo or brushless "
+    "This is the text of a web page found while searching for a NEMA {frame} servo or brushless "
     "motor to buy. Can the motor's specifications be read directly from this text?"
 )
 TRIAGE_OPTIONS: dict[TriageLabel, str] = {
@@ -52,11 +53,20 @@ TRIAGE_OPTIONS: dict[TriageLabel, str] = {
 }
 
 
-def plan_queries() -> list[str]:
+def plan_queries(project: Project | None = None) -> list[str]:
+    """v3 jobs look for US-made motors; project jobs look for any maker of the deep line's frame,
+    since origin is one risk factor among several (BUILD-PLAN-v4 section 1)."""
+    if project is None:
+        return [
+            "NEMA 23 servo motor made in USA",
+            "NEMA 23 integrated servo motor manufactured in the United States",
+            "US made NEMA 23 brushless DC motor 24V",
+        ]
+    f = project.deep_frame
     return [
-        "NEMA 23 servo motor made in USA",
-        "NEMA 23 integrated servo motor manufactured in the United States",
-        "US made NEMA 23 brushless DC motor 24V",
+        f"NEMA {f} servo motor manufacturer datasheet",
+        f"NEMA {f} closed loop stepper motor manufacturer",
+        f"NEMA {f} integrated servo motor price",
     ]
 
 
@@ -121,7 +131,9 @@ async def classify(ctx: JobContext, run_id: str, text: str) -> dict[TriageLabel,
     try:
         async with ctx.fleet.slot("gemini", ctx.budget):
             answer = await ctx.gemini.choose(
-                text[:TRIAGE_CHARS], TRIAGE_QUESTION, dict(TRIAGE_OPTIONS)
+                text[:TRIAGE_CHARS],
+                TRIAGE_QUESTION.format(frame=ctx.project.deep_frame if ctx.project else "23"),
+                dict(TRIAGE_OPTIONS),
             )
     except (httpx.HTTPError, ReplayMiss) as exc:
         await ctx.log.emit(RunProgress(run_id=run_id, purpose=f"Decision 1 unavailable: {exc}"))

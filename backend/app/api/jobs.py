@@ -13,6 +13,7 @@ from app.api.routes import load_demo_robot
 from app.orchestrator.events import Stage
 from app.orchestrator.job import Job
 from app.orchestrator.runtime import Runtime
+from app.projects import UnknownProject, list_projects, load_project
 from app.schemas import JobMode, Robot
 
 router = APIRouter(prefix="/api/jobs")
@@ -21,6 +22,15 @@ router = APIRouter(prefix="/api/jobs")
 class JobRequest(BaseModel):
     robot: Robot | None = None
     mode: JobMode = "replay"
+    project_id: str | None = None  # data/projects/<id>.json; None = the v3 wheeled demo job
+
+
+class ProjectSummary(BaseModel):
+    id: str
+    kind: str
+    name: str
+    robot: str
+    use_case: str
 
 
 class JobStatus(BaseModel):
@@ -69,7 +79,21 @@ async def create_job(
     x_live_token: Annotated[str | None, Header()] = None,
 ) -> JobStatus:
     require_live_permission(body.mode, x_live_token, runtime)
-    return status(runtime.start_job(body.robot or load_demo_robot(), body.mode))
+    project = None
+    if body.project_id is not None:
+        try:
+            project = load_project(body.project_id)
+        except UnknownProject:
+            raise HTTPException(status_code=404, detail=f"no project {body.project_id}") from None
+    return status(runtime.start_job(body.robot or load_demo_robot(), body.mode, project))
+
+
+projects_router = APIRouter(prefix="/api/projects")
+
+
+@projects_router.get("")
+def get_projects() -> list[ProjectSummary]:
+    return [ProjectSummary.model_validate(p, from_attributes=True) for p in list_projects()]
 
 
 @router.get("/{job_id}")

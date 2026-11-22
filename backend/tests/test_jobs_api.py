@@ -1,11 +1,9 @@
 import json
 
 import pytest
-from fastapi.testclient import TestClient
 
 from app.agents.verifier import canonical_url
 from app.config import settings
-from app.main import app
 from app.orchestrator.job import PIPELINE, VERIFY_PASSES
 from app.orchestrator.workers import FAKE_HTML, FAKE_URL
 from app.tfclient.recorder import Recorder
@@ -16,15 +14,6 @@ class NoClaimWorker:
 
     async def run(self, ctx):
         return []
-
-
-@pytest.fixture
-def client(monkeypatch):
-    monkeypatch.setattr(settings, "replay_speed", 0)
-    # Never reach a real CAD worker on the dev machine; tests that need one install fake_cad.
-    monkeypatch.setattr(settings, "cad_worker_url", "http://cad.invalid")
-    with TestClient(app) as c:
-        yield c
 
 
 def sse_events(client, job_id, last_event_id=None):
@@ -435,7 +424,9 @@ async def test_frames_the_cad_worker_cannot_model_are_not_sent(frame):
 def test_failed_discovery_degrades_the_job_but_seeds_still_run(client, monkeypatch):
     from app.orchestrator.workers import FakeSwapWorker
 
-    monkeypatch.setattr("app.orchestrator.job.plan_queries", lambda: ["never recorded"])
+    monkeypatch.setattr(
+        "app.orchestrator.job.plan_queries", lambda project=None: ["never recorded"]
+    )
     events = sse_events(client, start(client, FakeSwapWorker()))
     error = next(e["data"] for e in events if e["type"] == "error")
     assert error["stage"] == "DISCOVER" and error["message"].startswith("ReplayMiss")

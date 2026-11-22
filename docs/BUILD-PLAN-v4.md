@@ -1,6 +1,7 @@
 # Build plan v4: supply-risk redesign engine (design checkpoint)
 
-Status: DRAFT for Tygo's approval. Builds on BUILD-PLAN-v3.md and HANDOFF-v3.md; everything
+Status: APPROVED 2026-11-21 ("go with your assumptions"), with decision 1 changed: Stretch also
+gets the deep loop and CAD, on an illustrative actuator. Builds on BUILD-PLAN-v3.md and HANDOFF-v3.md; everything
 there that is not changed here stays (live agents, the verifier, code-only numbers and verdicts,
 record/replay, SSE contract, the regenerated part in CAD).
 
@@ -32,8 +33,8 @@ extract a fact with a quote; the verifier confirms the quote; code applies the r
 | Facts | verified live from bostondynamics.com (use case, markets, uptime statements) | stated by the club, labelled "stated" |
 | BOM | ILLUSTRATIVE (real parts of the right class, labelled as not BD's) | real, public (Annin AR4 MK5 + StepperOnline motors) |
 | What drives requirements | uptime-critical logistics, deploys in the US | budget, need-by date, imports into Canada |
-| Deep component | none in v4 (risk map + alternatives table) | J2 shoulder actuator (NEMA 23 + 50:1 gearbox) |
-| CAD | none (BD geometry is not public) | J2 motor mount regenerated in the AR4 arm |
+| Deep component | ILLUSTRATIVE arm shoulder actuator (motor + gearbox, sized from the public 50 lb case weight) | J2 shoulder actuator (NEMA 23 + 50:1 gearbox) |
+| CAD | ILLUSTRATIVE Stretch-like model (mobile base + arm), mount regenerated, labelled | J2 motor mount regenerated in the AR4 arm |
 
 Pitch: same engine, two users, opposite priorities.
 
@@ -89,7 +90,7 @@ class BomLine(BaseModel):                 # extends today's BomRow fields
     lead_time_days: int | None; illustrative: bool = False; sources: list[Source]
 
 class Criteria(BaseModel):
-    objectives: list[Objective]           # adds "supply_risk", "lead_time", "domestic"
+    objectives: list[Objective]           # adds "supply_risk", "lead_time"; domestic reuses us_first
     domestic_threshold: float | None      # 0.65 only when a rule switches it on
     max_lead_time_days: int | None
     blocking_lists: list[str]             # "fcc_covered", "dod_1260h", "uflpa"
@@ -130,7 +131,7 @@ Criteria rules:
 | C4 | uptime_critical | objective supply_risk |
 | C5 | need_by_days set | objective lead_time; max_lead_time_days = need_by_days |
 | C6 | budget_usd set | objective cost; BOM total over budget is a finding |
-| always | | objective performance (spec checks are a hard gate) |
+| always | | objectives performance (spec checks are a hard gate) and cost (as built: every trade-off reports its cost delta) |
 
 Risk factor levels per line (overall = worst known factor; unknown factors are shown, never
 counted as low):
@@ -165,26 +166,45 @@ Inputs come from the AR4 research file with sources; t_accel and SF are project 
 The existing torque, speed and voltage checks then run unchanged. The 50:1 gearbox stays a
 separate line, so the agents keep searching NEMA 23 motors with the existing pipeline.
 
-## 7. Asks for Omar
+## 7. Asks for Omar (as built, 2026-11-22 1am)
+
+Backend contract is live on `tygo/core-scaffold` (all additive; v3 jobs unchanged).
 
 UI (frontend/):
-1. Project switcher: Stretch / AR4 club (`POST /api/jobs` gains optional `project_id`).
-2. Project card from `project`: facts with a verified (quote link) or stated badge, criteria
-   with the rule reason for each.
-3. Risk table from `risk_line`: one row per BOM line, five factor chips, overall level,
-   ILLUSTRATIVE badge on Stretch lines.
-4. Alternatives per line from `alternative`; recommendations from `recommendation`, ranked.
-5. Domestic % only when `criteria.domestic_threshold` is set.
+1. Project switcher: `GET /api/projects` -> `[{id, kind, name, robot, use_case}]`;
+   `POST /api/jobs {mode, project_id}` with `ar4_club` or `stretch`. No project_id = v3 job.
+2. New stages, in order: INTAKE, CRITERIA, (COMPLIANCE_BASELINE, empty on projects),
+   RISK_BASELINE, PLAN ... RANK, ALTERNATIVES, RECOMMEND, BUILD, REPORT.
+3. `project` event (after CRITERIA): `{project_id, kind, name, robot, use_case, facts[],
+   criteria}`. Fact: `{field, value, basis: verified|stated, quote, source_url}`; show the quote
+   and link for verified, a "stated by the team" badge otherwise. Criteria: `objectives[],
+   domestic_threshold, max_lead_time_days, budget_usd, duty_countries[], blocking_lists[],
+   reasons[{rule, fact, text}]`. Show domestic % only when domestic_threshold is set.
+   INTAKE also emits claim_verified / claim_rejected for company facts
+   (candidate_id `project:<id>`).
+4. `risk_line`: `{line: BomLine, risk: {line_id, factors[{name, level, value, reason,
+   source_urls}], overall, blocked}}`. One per BOM line at RISK_BASELINE; the deep line is sent
+   again after ALTERNATIVES with its `sources` factor: the latest per line_id wins. Levels:
+   low / medium / high / unknown (grey). `line.illustrative` true -> ILLUSTRATIVE badge.
+5. `alternative`: `{alternative: {id, line_id, manufacturer, part_number, product_url,
+   origin_country, origin_tier, unit_price_usd, verdict, risk, live}}`.
+6. `recommendation`: `{rank, recommendation: {line_id, action: keep|dual_source|re_source,
+   alternative_id, cost_delta_usd, risk_before, risk_after, blocked, reason}}`, sent in rank
+   order. This is the product's answer; make it the headline.
+7. `design_ready` for projects: baseline label is the deep line's part, e.g.
+   "Before: STEPPERONLINE 34E1K-85 (ILLUSTRATIVE)".
 
-CAD (cad/), he offered any capability needed:
-1. `POST /build` gains `robot: "wheeled" | "ar4"` (default wheeled, so nothing breaks).
-2. For ar4: the arm in context with the J2 motor + gearbox + mount plate, the regenerated mount
-   highlighted. Inputs: frame (17/23/34), pilot diameter, bolt spacing, shaft diameter, body
-   length. Arm geometry: ar4_ros_driver URDF meshes (repo is MIT; Omar to confirm the meshes'
-   licence, since Annin's STLs are non-commercial).
-3. Fit result as generic rows, additive next to today's keys:
-   `fit_checks: [{name, value, limit, unit, ok}]`, e.g. `j2_envelope` (body length vs turret
-   space), `shaft_to_gearbox_bore`. The backend turns each row into a check.
+CAD (cad/):
+1. `POST /build` gains `robot`: absent = today's wheeled robot; `"ar4_club"` = the AR4 arm
+   with the J2 NEMA 23 motor + 50:1 gearbox + mount plate; `"stretch"` = an ILLUSTRATIVE
+   Stretch-like body (mobile base, mast, arm) with a NEMA 34 shoulder motor mount. The
+   regenerated mount is highlighted (`highlight`), the baseline is not.
+2. Inputs as today (`frame` 17/23/34, `body_len`, `shaft_d`); arm geometry from
+   ar4_ros_driver URDF meshes if their licence allows (Annin STLs are non-commercial).
+3. Fit for arm robots as generic rows: `fit_checks: [{name, value, limit, unit, ok}]`, e.g.
+   `{"name": "J2 motor length vs turret space", "value": 128, "limit": 140, "unit": "mm",
+   "ok": true}`. The backend turns each row into a `fit_cad` check; with no rows the fit check
+   shows Review ("CAD worker returned no fit checks").
 
 ## 8. Core for Tygo
 
@@ -205,9 +225,10 @@ scaffold. Alternative: Tygo takes `line_risk` (factor levels) instead.
 
 ## 10. Decisions (recommendation first)
 
-1. Stretch scope: risk map + alternatives table only, no live deep loop and no CAD.
-   Alternative: also run the deep loop on an illustrative Stretch actuator (more agent time,
-   numbers that are illustrative anyway).
+1. Stretch scope: CHANGED BY TYGO to the full deep loop and CAD on an ILLUSTRATIVE shoulder
+   actuator. Its requirement uses the public 50 lb (23 kg) max case weight plus illustrative
+   arm geometry; every illustrative input is labelled, and the agents' finds are real parts.
+   Rejected: risk map only (less to show for the company case).
 2. AR4 deep line: J2 motor only, gearbox kept as its own line. Alternative: search geared
    motors as one unit (new agent goal and schema, fewer vendors sell exact matches).
 3. Risk overall = worst known factor, no weighted score. Alternative: weighted sum (needs

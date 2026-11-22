@@ -17,7 +17,7 @@ from pydantic import ValidationError
 from app.agents.targets import GENERIC_GOAL, MOTOR_SCHEMA, SWAP_TARGETS, SwapTarget
 from app.agents.triage import Lead
 from app.agents.verifier import classify_outcome
-from app.engineering.spec_checks import requirement
+from app.engineering.requirements import requirement_for
 from app.orchestrator.context import JobContext
 from app.orchestrator.discovery import TRIAGE_CHARS, domain_of
 from app.orchestrator.events import RunFinished, RunProgress, RunStarted, RunStreamingUrl
@@ -115,7 +115,7 @@ class FakeSwapWorker:
 MAX_AGENT_LEADS = 2
 
 EXTRACT_PROMPT = """\
-You read one web page and fill the JSON schema for ONE NEMA 23 motor described on it. Use only
+You read one web page and fill the JSON schema for ONE NEMA {frame} motor described on it. Use only
 this page's text. Rules: value = the number exactly as written, unit = the unit exactly as
 written, never convert; quote = the label and value exactly as they appear in the text,
 character for character, adding no colons or words; null (or omit a spec) when not stated;
@@ -128,6 +128,17 @@ Page URL: {url}
 Page text:
 {text}
 """
+
+
+def pin_to_page(raw: object, url: str) -> object:
+    """Flash read only this page, so every spec comes from it; fill what the model left null
+    before validation. Anything else malformed still fails validation."""
+    if not isinstance(raw, dict):
+        return raw
+    specs = raw.get("specs")
+    if isinstance(specs, list):
+        specs = [{**sp, "source_url": url} if isinstance(sp, dict) else sp for sp in specs]
+    return {**raw, "reason": raw.get("reason") or "", "specs": specs if specs is not None else []}
 
 
 class SwapWorker:
@@ -169,14 +180,18 @@ class SwapWorker:
                 live=ctx.mode != "replay",
             )
         )
-        prompt = EXTRACT_PROMPT.format(url=lead.url, text=(lead.text or "")[:TRIAGE_CHARS])
+        prompt = EXTRACT_PROMPT.format(
+            frame=ctx.project.deep_frame if ctx.project else "23",
+            url=lead.url,
+            text=(lead.text or "")[:TRIAGE_CHARS],
+        )
         outcome: Outcome = "success"
         reason = ""
         output = None
         try:
             async with ctx.fleet.slot("gemini", ctx.budget):
-                raw = await ctx.gemini.extract_json(prompt, MOTOR_SCHEMA)
-            output = AgentMotorCandidate.model_validate(raw)
+                raw = await ctx.gemini.extract_json(prompt, MOTOR_SCHEMA, enforce_schema=False)
+            output = AgentMotorCandidate.model_validate(pin_to_page(raw, lead.url))
             reason = output.reason
             if output.status != "success":
                 outcome = output.status
@@ -210,8 +225,9 @@ class SwapWorker:
         self, ctx: JobContext, target: SwapTarget, stealth: bool
     ) -> tuple[Outcome, AgentRunResult, bool]:
         domain = urlparse(target.url).hostname or target.url
-        req = requirement(ctx.robot.requirements)
-        goal = target.goal_for(req.t_cont_nm, req.t_peak_nm, req.v_bus)
+        req = requirement_for(ctx.robot, ctx.project)
+        frame = ctx.project.deep_frame if ctx.project else "23"
+        goal = target.goal_for(req.t_cont_nm, req.t_peak_nm, req.v_bus, frame)
         events: list[AgentEvent] = []
         async with ctx.fleet.slot("agent", ctx.budget, domain):
             async for event in ctx.tf.agent_run(

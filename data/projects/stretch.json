@@ -1,0 +1,122 @@
+{
+  "id": "stretch",
+  "kind": "company",
+  "name": "Boston Dynamics",
+  "robot": "Stretch",
+  "use_case": "Autonomous mobile robot that unloads trailers and containers and picks cases in warehouses.",
+  "robot_kind": "arm",
+  "arm": {
+    "joint": "arm shoulder (ILLUSTRATIVE)",
+    "payload_kg": 22.68,
+    "reach_m": 1.0,
+    "links": [
+      {
+        "name": "arm beyond the shoulder (ILLUSTRATIVE)",
+        "mass_kg": 15.0,
+        "com_m": 0.5
+      }
+    ],
+    "gear_ratio": 160,
+    "efficiency": 0.8,
+    "omega_max_dps": 60,
+    "t_accel_s": 0.5,
+    "safety_factor": 1.5,
+    "bus_voltage_v": 48,
+    "illustrative": true,
+    "notes": [
+      "payload 22.68 kg = 50 lb: https://bostondynamics.com/products/stretch 'Stretch can handle a wide range of package types and sizes, from standard brown to highly graphical, up to 50 pounds.' (checked 2026-11-22)",
+      "ILLUSTRATIVE: reach, arm mass, 160:1 strain-wave gearbox, efficiency, speed, acceleration and 48 V bus are not published by Boston Dynamics"
+    ]
+  },
+  "deep_line": "shoulder_motor",
+  "bom": [
+    {
+      "id": "shoulder_motor",
+      "domain": "actuation",
+      "qty": 1,
+      "part": "Arm shoulder motor, NEMA 34 closed-loop stepper (ILLUSTRATIVE stand-in)",
+      "manufacturer": "STEPPERONLINE",
+      "part_number": "34E1K-85",
+      "unit_price_usd": 76.21,
+      "origin_country": "CN",
+      "origin_tier": "T3",
+      "availability": "in_stock",
+      "hts_code": "8501.31.40",
+      "component_class": "motor",
+      "illustrative": true,
+      "sources": [
+        "https://omc-stepperonline.com/p-series-nema-34-closed-loop-stepper-motor-8-5nm-1203-94oz-in-with-encoder-1000ppr-4000cpr-34e1k-85"
+      ],
+      "notes": "Not Boston Dynamics' part. Price 'from $76.21', 'In stock' in the same-series table (2026-11-22)."
+    },
+    {
+      "id": "shoulder_gearbox",
+      "domain": "actuation",
+      "qty": 1,
+      "part": "Strain-wave (harmonic) gearbox, 160:1 (ILLUSTRATIVE)",
+      "unit_price_usd": null,
+      "origin_country": null,
+      "availability": "unknown",
+      "component_class": "harmonic_drive",
+      "illustrative": true,
+      "notes": "Class only; no specific product priced. The article names Harmonic Drive, Nabtesco and Leaderdrive as the concentrated supplier group."
+    },
+    {
+      "id": "lidar",
+      "domain": "sensing",
+      "qty": 1,
+      "part": "2D lidar (ILLUSTRATIVE stand-in)",
+      "manufacturer": "SLAMTEC",
+      "part_number": "RPLIDAR A1M8-R6",
+      "unit_price_usd": 99.0,
+      "origin_country": "CN",
+      "origin_tier": "T2",
+      "availability": "unknown",
+      "component_class": "lidar",
+      "illustrative": true,
+      "sources": [
+        "https://www.dfrobot.com/product-1125.html",
+        "https://botland.store/laser-scanners-lidar/19625-rplidar-a1m8-r6-360-degree-laser-scanner-kit-12m-range-seeedstudio-114992561-5904422369248.html"
+      ],
+      "notes": "From research pass 1: '$99.00' (DFRobot), 'Country of origin | China' (EU distributor GPSR field)."
+    },
+    {
+      "id": "battery",
+      "domain": "power",
+      "qty": 1,
+      "part": "LiFePO4 battery pack (ILLUSTRATIVE stand-in)",
+      "manufacturer": "Bioenno Power",
+      "part_number": "BLF-2410AS",
+      "unit_price_usd": 189.99,
+      "origin_country": null,
+      "availability": "out_of_stock",
+      "hts_code": "8507.60.00",
+      "component_class": "battery_cells",
+      "illustrative": true,
+      "sources": [
+        "https://www.bioennopower.com/collections/24v-lifepo4-batteries"
+      ],
+      "notes": "From research pass 1: 'From $189.99 | Sold out'. Origin not stated."
+    }
+  ],
+  "intake_sources": [
+    {
+      "url": "https://bostondynamics.com/products/stretch",
+      "reason": "product page: use case and payload"
+    },
+    {
+      "url": "https://bostondynamics.com/news/boston-dynamics-launches-next-generation-stretch-robot",
+      "reason": "Stretch Gen 2 launch: uptime statements"
+    },
+    {
+      "url": "https://bostondynamics.com/news/dhl-signs-mou-for-additional-1000-robot-deployment",
+      "reason": "DHL deployments: where Stretch works"
+    },
+    {
+      "url": "https://bostondynamics.com/news/nfi-to-deploy-boston-dynamics-stretch-robot-in-10-million-deal/",
+      "reason": "NFI deal: Stretch across U.S. warehousing operations"
+    }
+  ],
+  "deep_frame": "34",
+  "cad_robot": "stretch"
+}

@@ -13,7 +13,7 @@ from app.orchestrator.events import EventLog
 from app.orchestrator.fleet import Fleet, JobBudget
 from app.orchestrator.job import Job, run_job
 from app.orchestrator.workers import SwapWorker, Worker
-from app.schemas import JobMode, Robot
+from app.schemas import JobMode, Project, Robot
 from app.tfclient.client import TFClient
 from app.tfclient.gemini import GeminiClient
 from app.tfclient.recorder import Recorder
@@ -46,7 +46,7 @@ class Runtime:
             recorder, self.http, self.settings.gemini_api_key, self.settings.gemini_flash_model
         )
 
-    def start_job(self, robot: Robot, mode: JobMode) -> Job:
+    def start_job(self, robot: Robot, mode: JobMode, project: Project | None = None) -> Job:
         job_id = uuid.uuid4().hex[:12]
         recorder = Recorder(self.settings.recordings_dir, mode, self.settings.replay_speed)
         ctx = JobContext(
@@ -62,6 +62,7 @@ class Runtime:
             gemini=GeminiClient(
                 recorder, self.http, self.settings.gemini_api_key, self.settings.gemini_flash_model
             ),
+            project=project,
         )
         job = Job(ctx=ctx)
         job.task = asyncio.create_task(run_job(ctx, self.workers(mode)))

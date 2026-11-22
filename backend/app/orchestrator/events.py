@@ -13,7 +13,20 @@ from pydantic import BaseModel
 
 from app.engineering.compliance import ComplianceCard
 from app.engineering.spec_checks import FitBadge, SpecCheck, Verdict
-from app.schemas import Claim, Objective, OriginEvidence, Outcome, Product
+from app.schemas import (
+    Alternative,
+    BomLine,
+    Claim,
+    Criteria,
+    Fact,
+    LineRisk,
+    Objective,
+    OriginEvidence,
+    Outcome,
+    Product,
+    ProjectFacts,
+    Recommendation,
+)
 
 EventType = Literal[
     "stage",
@@ -26,6 +39,10 @@ EventType = Literal[
     "check_result",
     "compliance",
     "design_ready",
+    "project",
+    "risk_line",
+    "alternative",
+    "recommendation",
     "advocate",
     "synthesis",
     "error",
@@ -33,7 +50,10 @@ EventType = Literal[
 
 Stage = Literal[
     "CREATED",
+    "INTAKE",
+    "CRITERIA",
     "COMPLIANCE_BASELINE",
+    "RISK_BASELINE",
     "PLAN",
     "DISCOVER",
     "TRIAGE",
@@ -41,6 +61,8 @@ Stage = Literal[
     "VERIFY",
     "CHECK",
     "RANK",
+    "ALTERNATIVES",
+    "RECOMMEND",
     "BUILD",
     "REPORT",
     "DONE",
@@ -100,6 +122,54 @@ class ClaimRejected(Payload):
     type: ClassVar[EventType] = "claim_rejected"
     claim: Claim
     reason: str
+
+
+class ProjectView(BaseModel):
+    """The project as the UI shows it: the file's fields plus the facts the rules read (merged
+    stated + verified) and where each came from."""
+
+    id: str
+    kind: Literal["company", "club"]
+    name: str
+    robot: str
+    use_case: str
+    robot_kind: Literal["wheeled", "arm"]
+    robot_params: dict[str, Any]
+    deep_line: str
+    bom: list[BomLine]
+    facts: ProjectFacts
+    fact_basis: list[Fact]
+
+
+class ProjectPayload(Payload):
+    """After CRITERIA: who the team is, the facts the rules read (each verified by quote or stated
+    by the team) and the criteria code derived from them, with the rule behind each."""
+
+    type: ClassVar[EventType] = "project"
+    project: ProjectView
+    criteria: Criteria
+
+
+class RiskLinePayload(Payload):
+    """Supply risk of one BOM line. Sent at RISK_BASELINE for every line, and again for the deep
+    line after ALTERNATIVES (its sources factor needs them): the latest per line_id wins."""
+
+    type: ClassVar[EventType] = "risk_line"
+    line: BomLine
+    risk: LineRisk
+
+
+class AlternativePayload(Payload):
+    type: ClassVar[EventType] = "alternative"
+    alternative: Alternative
+
+
+class RecommendationPayload(Payload):
+    """One per BOM line, sent in rank order (rank 1 = act on this first)."""
+
+    type: ClassVar[EventType] = "recommendation"
+    rank: int
+    recommendation: Recommendation
 
 
 class CompliancePayload(Payload):

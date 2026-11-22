@@ -85,7 +85,8 @@ async def intake(
 @router.get("/example")
 def example() -> Answers:
     """The answers behind "Use the example". Their reading is recorded, and their numbers are
-    the demo robot's, so the whole demo replays offline (tests/test_onboarding_intake.py keeps that true)."""
+    the demo robot's, so the whole demo replays offline (tests/test_onboarding_intake.py keeps
+    that true)."""
     return load_example()
 
 

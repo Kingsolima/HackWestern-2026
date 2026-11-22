@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.designs import router as designs_router
 from app.api.intake import router as intake_router
+from app.api.jobs import projects_router
 from app.api.jobs import router as jobs_router
 from app.api.routes import router
 from app.config import settings
@@ -29,6 +30,7 @@ app.add_middleware(
 )
 app.include_router(router)
 app.include_router(jobs_router)
+app.include_router(projects_router)
 app.include_router(designs_router)
 app.include_router(intake_router)
 

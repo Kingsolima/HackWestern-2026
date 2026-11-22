@@ -195,3 +195,17 @@ async def test_click_leads_get_the_generic_goal_seed_sites_are_skipped_and_cappe
     generic = json.loads(next(r.content for r in seen if b"m0.com" in r.content))
     assert generic["goal"].startswith("You are a sourcing engineer")
     assert "Starting from this page" in generic["goal"]
+
+
+async def test_flash_nulls_for_reason_and_spec_urls_are_filled_from_the_page(tmp_path):
+    out = FLASH_OUT | {"reason": None}
+    out["specs"] = [FLASH_OUT["specs"][0] | {"source_url": None}]
+    ctx, seen = context(tmp_path, lambda r: flash_response(out))
+    ctx.leads = [
+        Lead(url="https://maker.example/m", domain="maker.example", route="readable", text="t")
+    ]
+    [candidate] = await SwapWorker(targets=[]).run(ctx)
+    assert {c.source.url for c in candidate.claims} == {"https://maker.example/m"}
+    body = json.loads(seen[0].content)
+    assert "responseSchema" not in body["generationConfig"]
+    assert "JSON Schema" in body["contents"][0]["parts"][0]["text"]
