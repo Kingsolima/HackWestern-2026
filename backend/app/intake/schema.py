@@ -10,6 +10,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas import ArmParams
+
 RobotKind = Literal["wheeled"]
 Source = Literal["answer", "bom", "cad", "default"]
 # What a number measures: picks the unit table in extract.py.
@@ -163,8 +165,18 @@ class Answers(BaseModel):
         return "\n\n".join(a for a in (self.who, self.market, self.limits, self.drivetrain) if a)
 
 
+class KnownArm(BaseModel):
+    """The parts list holds the motor of a researched arm (intake/to_project.py known_arm), so
+    the job runs on that arm's joint numbers and the drivetrain question does not apply."""
+
+    robot: str
+    cad_robot: str
+    arm: ArmParams
+
+
 class IntakeResult(BaseModel):
     robot_kind: RobotKind
+    known_arm: KnownArm | None = None
     company: list[CompanyFact]
     specs: list[SpecRow]
     dropped: list[str]

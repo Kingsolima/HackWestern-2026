@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Any, Literal
 
 import httpx
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from app.agents.verifier import canonical_url
 from app.schemas import AgentRunResult, TfStatus
@@ -75,6 +75,18 @@ class AgentEvent(_Loose):
     profile_hint: dict[str, Any] | None = None
     recovered: bool = False
     live: bool
+
+    @model_validator(mode="before")
+    @classmethod
+    def _result_is_an_object(cls, data: Any) -> Any:
+        """An agent can ignore the output schema and return a list or a string. That run has no
+        usable result (classify_outcome: incomplete); it must not fail the whole job."""
+        if isinstance(data, dict) and data.get("result") is not None:
+            result = data["result"]
+            if not isinstance(result, dict):
+                note = f"agent returned a {type(result).__name__}, not the requested object"
+                return {**data, "result": None, "error": data.get("error") or note}
+        return data
 
 
 class RunStep(_Loose):

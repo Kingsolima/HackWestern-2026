@@ -13,6 +13,7 @@ import {
   type CadMeasure,
   type CompanyFact,
   type IntakeResult,
+  type KnownArm,
   type SpecRow,
 } from '../onboarding/intake'
 import { EMPTY_ANSWERS, QUESTIONS, listOf, type OpenAnswers } from '../onboarding/questions'
@@ -35,6 +36,7 @@ interface Props {
 // who, market, limits, then files, then the drivetrain question, then review.
 const STEPS = ['who', 'market', 'limits', 'files', 'drivetrain', 'review'] as const
 const REVIEW = STEPS.indexOf('review')
+const FILES = STEPS.indexOf('files')
 const TOKEN_MESSAGE = 'Reading new answers makes a real Gemini call. Enter the live token:'
 
 /** Typeform-style intake: one open question on screen, files in the middle, then every number
@@ -49,6 +51,8 @@ export function Onboarding({ demo, example, initial, onDone, onSkip }: Props) {
   const [specs, setSpecs] = useState<SpecRow[]>(initial?.specs ?? [])
   const [company, setCompany] = useState<CompanyFact[]>(initial?.company ?? [])
   const [dropped, setDropped] = useState<string[]>([])
+  // A parts list we recognise as a researched arm: no drivetrain question, no wheel numbers.
+  const [arm, setArm] = useState<KnownArm | null>(initial?.arm ?? null)
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const inputsKey = (a: OpenAnswers, b: BomRow[], c: CadMeasure | null) => JSON.stringify([a, b, c])
   const [readKey, setReadKey] = useState(initial ? inputsKey(initial.answers, initial.bom, null) : '')
@@ -105,7 +109,20 @@ export function Onboarding({ demo, example, initial, onDone, onSkip }: Props) {
     if (!country || !/^[A-Za-z]{2}$/.test(country.value)) {
       return setError('Final assembly needs a 2-letter country code, like US or CA.')
     }
-    onDone({ answers, bom, company: cleaned, specs: applied.specs })
+    onDone({ answers, bom, company: cleaned, specs: applied.specs, arm })
+  }
+
+  /** Read the open answers (once per set of inputs) and open the review screen. */
+  const readAnswers = async () => {
+    if (readKey === inputsKey(answers, bom, cad)) return go(REVIEW) // nothing changed: keep edits
+    const result = await read()
+    if (!result) return setError('Reading new answers needs the live token.')
+    setSpecs(result.specs)
+    setCompany(withDefaults(result.company, demo))
+    setDropped(result.dropped)
+    setDrafts({})
+    setReadKey(inputsKey(answers, bom, cad))
+    go(REVIEW)
   }
 
   /** Check the current step and move on. */
@@ -115,23 +132,14 @@ export function Onboarding({ demo, example, initial, onDone, onSkip }: Props) {
     if (step === 'files') {
       if (bom.length === 0) return setError('Upload a BOM CSV, or use the sample BOM.')
       return void work('Reading your files…', async () => {
-        setFromFiles((await intake({ bom, cad, answers: null })).specs)
-        go(index + 1)
+        const fromBom = await intake({ bom, cad, answers: null })
+        setFromFiles(fromBom.specs)
+        setArm(fromBom.known_arm ?? null)
+        if (fromBom.known_arm) await readAnswers() // an arm has no drivetrain to ask about
+        else go(index + 1)
       })
     }
-    if (step === 'drivetrain') {
-      if (readKey === inputsKey(answers, bom, cad)) return go(REVIEW) // nothing changed: keep edits
-      return void work('Reading your answers…', async () => {
-        const result = await read()
-        if (!result) return setError('Reading new answers needs the live token.')
-        setSpecs(result.specs)
-        setCompany(withDefaults(result.company, demo))
-        setDropped(result.dropped)
-        setDrafts({})
-        setReadKey(inputsKey(answers, bom, cad))
-        go(REVIEW)
-      })
-    }
+    if (step === 'drivetrain') return void work('Reading your answers…', readAnswers)
     if (question?.required && !answers[question.id].trim()) return setError('Please type an answer.')
     go(index + 1)
   }
@@ -241,17 +249,53 @@ export function Onboarding({ demo, example, initial, onDone, onSkip }: Props) {
         {step === 'review' && (
           <>
             <h1 className="ob-prompt">Does this look right?</h1>
-            <p className="ob-help muted">
-              These are the numbers the job will use. Change any of them; each one shows where it came from.
-            </p>
-            <SpecsReview
-              rows={specs}
-              drafts={drafts}
-              onDraft={(field, text) => {
-                setDrafts({ ...drafts, [field]: text })
-                setError(null)
-              }}
-            />
+            {arm ? (
+              <>
+                <p className="ob-help muted">
+                  Your parts list matches the {arm.robot}, so we did not ask about a drivetrain. Check what we read
+                  about you below.
+                </p>
+                <div className="ob-specs">
+                  <table>
+                    <caption>{arm.arm.joint} joint: what a replacement motor is checked against</caption>
+                    <tbody>
+                      {[
+                        ['Payload', `${arm.arm.payload_kg} kg`],
+                        ['Reach', `${Math.round(arm.arm.reach_m * 1000)} mm`],
+                        ['Gear ratio', `${arm.arm.gear_ratio} : 1`],
+                        ['Bus voltage', `${arm.arm.bus_voltage_v} V`],
+                        ['Safety factor', String(arm.arm.safety_factor)],
+                      ].map(([label, value]) => (
+                        <tr key={label}>
+                          <th scope="row">{label}</th>
+                          <td className="ob-spec-value">{value}</td>
+                          <td>
+                            <span className="badge source-default">from our research</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="ob-help muted">
+                  These come from our research on the {arm.robot}, not from your parts list.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="ob-help muted">
+                  These are the numbers the job will use. Change any of them; each one shows where it came from.
+                </p>
+                <SpecsReview
+                  rows={specs}
+                  drafts={drafts}
+                  onDraft={(field, text) => {
+                    setDrafts({ ...drafts, [field]: text })
+                    setError(null)
+                  }}
+                />
+              </>
+            )}
             <div className="ob-specs">
               <table>
                 <caption>About you</caption>
@@ -293,7 +337,7 @@ export function Onboarding({ demo, example, initial, onDone, onSkip }: Props) {
                 </ul>
               </details>
             )}
-            {live && (
+            {live && !arm && (
               <p className="ob-live">
                 Your drivetrain differs from the recorded demo, so agents will run live (up to 8 TinyFish agent
                 runs, needs the live token).
@@ -318,7 +362,7 @@ export function Onboarding({ demo, example, initial, onDone, onSkip }: Props) {
             </span>
           )}
           {index > 0 && (
-            <button type="button" className="secondary" onClick={() => go(index - 1)} disabled={busy != null}>
+            <button type="button" className="secondary" onClick={() => go(step === 'review' && arm ? FILES : index - 1)} disabled={busy != null}>
               Back
             </button>
           )}
