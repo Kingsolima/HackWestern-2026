@@ -95,7 +95,11 @@ def test_recorded_teknic_job_replays_offline(client):
         if e["type"] == "claim_verified" and e["data"]["claim"]["verify_method"] == "agent_dom"
     }
     assert by_dom == {"continuous_torque", "peak_torque", "max_speed"}
-    [design] = [e["data"] for e in events if e["type"] == "design_ready"]
+    [design] = [
+        e["data"]
+        for e in events
+        if e["type"] == "design_ready" and e["data"]["role"] == "candidate"
+    ]
     assert design["part_number"] == "CPM-SDSK-2310S-RLN"
     assert design["origin"]["tier"] == "T1"
     torque = next(
@@ -349,18 +353,23 @@ def test_fake_job_checks_ranks_and_publishes_a_design(client):
     }
     assert checks["torque_cont"]["verdict"] == "pass"
     assert checks["voltage"]["verdict"] == "review"
-    [design] = [e["data"] for e in events if e["type"] == "design_ready"]
+    baseline, design = [e["data"] for e in events if e["type"] == "design_ready"]
+    assert baseline["role"] == "baseline" and baseline["frame"] == "23"
+    assert design["role"] == "candidate" and design["label"].startswith("After: ")
     assert design["verdict"] == "review" and design["fit_badge"] == "needs_review"
     assert design["origin"]["tier"] == "T1"
     assert design["objectives"] == ["performance", "us_first"]
-    assert design["glb_url"] == f"/api/designs/{design['design_id']}/glb"
-    assert built == [{"design_id": design["design_id"], "frame": "23", "wheel_r": 60.0}]
-    glb = client.get(design["glb_url"])
+    assert design["glb_url"] == f"/designs/{design['design_id']}/glb"  # served via /cad
+    assert built == [
+        {"design_id": design["design_id"], "frame": "23", "wheel_r": 60.0, "highlight": True},
+        {"design_id": baseline["design_id"], "frame": "23", "wheel_r": 60.0, "highlight": False},
+    ]
+    glb = client.get(f"/api/designs/{design['design_id']}/glb")
     assert glb.status_code == 200 and glb.content == b"glTF-bytes"
     assert client.get(f"/api/designs/{design['design_id']}/step").status_code == 404
 
 
-def test_unreachable_cad_leaves_fit_in_review_and_no_model(client):
+def test_unreachable_cad_is_reported_leaves_fit_in_review_and_the_job_finishes(client):
     import httpx
 
     from app.cad_client import CadClient
@@ -372,15 +381,18 @@ def test_unreachable_cad_leaves_fit_in_review_and_no_model(client):
     cad = CadClient(httpx.AsyncClient(transport=httpx.MockTransport(down)), "http://cad.test")
     client.app.state.runtime.cad = cad
     events = sse_events(client, start(client, FakeSwapWorker()))
-    [design] = [e["data"] for e in events if e["type"] == "design_ready"]
-    assert design["glb_url"] is None and design["fit"] is None
+    assert not [e for e in events if e["type"] == "design_ready"]
+    errors = [e["data"] for e in events if e["type"] == "error"]
+    assert {e["stage"] for e in errors} == {"CHECK", "BUILD"}
+    assert all("unreachable" in e["message"] for e in errors)
+    assert events[-1]["data"]["stage"] == "DONE"
     fits = [
         e["data"]["check"]
         for e in events
         if e["type"] == "check_result" and e["data"]["check"]["check"].startswith("fit")
     ]
     assert {f["verdict"] for f in fits} == {"review"}
-    assert client.get(f"/api/designs/{design['design_id']}/glb").status_code == 502
+    assert client.get("/api/designs/any-id/glb").status_code == 502
 
 
 def test_design_file_rejects_bad_ids(client):

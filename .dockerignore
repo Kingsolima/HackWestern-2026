@@ -1,0 +1,6 @@
+# Only the web image builds from the repo root; it needs frontend/ and deploy/.
+*
+!frontend
+!deploy
+frontend/node_modules
+frontend/dist

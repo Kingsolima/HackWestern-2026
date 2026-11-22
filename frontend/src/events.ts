@@ -105,9 +105,41 @@ export type ClaimVerifiedEvent = Envelope<'claim_verified', { claim: Claim }>
 export type ClaimRejectedEvent = Envelope<'claim_rejected', { claim: Claim; reason: string }>
 export type ComplianceEvent = Envelope<'compliance', { card: ComplianceCard }>
 export type ErrorEvent = Envelope<'error', { message: string; stage: Stage | null }>
+
+/** CAD worker fit numbers for one design (cad/cad_worker/robot.py measure()). */
+export interface DesignFit {
+  flange_mm?: number
+  ground_clearance_mm?: number
+  fit_ground?: boolean
+  needs_hub_adapter?: boolean
+  shaft_diameter_mm?: number
+  wheel_bore_mm?: number
+  bracket?: {
+    thickness_mm?: number
+    width_mm?: number
+    height_mm?: number
+    foot_len_mm?: number
+    bolt_spacing_mm?: number
+    pilot_hole_mm?: number
+  }
+  [key: string]: unknown
+}
+
+export interface Design {
+  design_id: string
+  role: 'baseline' | 'candidate'
+  label: string
+  motor: string
+  frame: string
+  /** Path on the CAD worker (/designs/{id}/glb); the UI fetches it through the /cad proxy. */
+  glb_url: string
+  step_url: string
+  fit: DesignFit
+}
+export type DesignReadyEvent = Envelope<'design_ready', Design>
 /** Declared in the catalog, payload models not written yet; kept so they don't break the UI. */
 export type PendingEvent = Envelope<
-  'check_result' | 'design_ready' | 'advocate' | 'synthesis',
+  'check_result' | 'advocate' | 'synthesis',
   Record<string, unknown>
 >
 
@@ -121,6 +153,7 @@ export type JobEvent =
   | ClaimRejectedEvent
   | ComplianceEvent
   | ErrorEvent
+  | DesignReadyEvent
   | PendingEvent
 
 /** GET/POST /api/jobs response (backend/app/api/jobs.py JobStatus). */

@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     gemini_flash_model: str = "gemini-2.5-flash"
 
     tinyfish_api_key: str = ""
+    # Live jobs spend TinyFish credit. On a public deploy set REQUIRE_LIVE_TOKEN=true and
+    # LIVE_JOBS_TOKEN; then a live/mixed job needs header X-Live-Token. With no token set,
+    # every live job is refused. Replay jobs are always open.
+    require_live_token: bool = False
+    live_jobs_token: str = ""
 
     database_url: str = "postgresql://postgres:postgres@localhost:5432/redesign"
 

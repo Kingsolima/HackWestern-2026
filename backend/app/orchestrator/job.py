@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from app.agents.verifier import origin_evidence, same_page, verify_claim
+from app.cad_client import CadError
 from app.engineering.compliance import compliance_card
 from app.engineering.ranking import RankInput, rank
 from app.engineering.spec_checks import (
@@ -177,13 +178,18 @@ async def check(ctx: JobContext, workers: Sequence[Worker]) -> None:
     for found in ctx.candidates:
         candidate = found.model_copy(update={"origin": origin_evidence(found)})
         facts = si_facts(candidate)
-        build = await ctx.cad.build(
-            design_id(ctx.job_id, candidate.id),
-            candidate.nema_frame,
-            wheel_r_mm,
-            body_len_mm=facts["body_length"][0] if "body_length" in facts else None,
-            shaft_d_mm=facts["shaft_diameter"][0] if "shaft_diameter" in facts else None,
-        )
+        try:
+            build = await ctx.cad.build(
+                design_id(ctx.job_id, candidate.id),
+                candidate.nema_frame,
+                wheel_r_mm,
+                body_len_mm=facts["body_length"][0] if "body_length" in facts else None,
+                shaft_d_mm=facts["shaft_diameter"][0] if "shaft_diameter" in facts else None,
+                highlight=True,
+            )
+        except CadError as exc:
+            await ctx.log.emit(ErrorPayload(message=str(exc), stage="CHECK"))
+            build = None
         fit = build.fit if build else None
         checks = check_candidate(candidate, req, fit)
         for row in checks:
@@ -219,25 +225,60 @@ async def rank_designs(ctx: JobContext, workers: Sequence[Worker]) -> None:
         d.objectives = wins[d.candidate.id]
 
 
+# Before design (HANDOFF-v3 decision 13: the demo robot's NEMA 23 bracket and its 6.35 mm wheel
+# bore). Geometry for the viewer only, not a sourcing claim; the CAD worker's default body length.
+BASELINE_LABEL = "Before: NEMA 23 stepper"
+BASELINE_MOTOR = "NEMA 23 stepper (baseline)"
+
+
 async def build(ctx: JobContext, workers: Sequence[Worker]) -> None:
-    """Brackets were built during CHECK (fit numbers come from the CAD worker); publish them."""
+    """Build the baseline robot, then publish every candidate bracket built during CHECK (fit
+    numbers come from the CAD worker there). CAD trouble is reported, never fatal."""
+    wheel_r_mm = ctx.robot.requirements.wheel_radius_m * 1000
+    baseline_id = design_id(ctx.job_id, "before")
+    try:
+        before = await ctx.cad.build(baseline_id, BASELINE_FRAME, wheel_r_mm, highlight=False)
+    except CadError as exc:
+        await ctx.log.emit(ErrorPayload(message=str(exc), stage="BUILD"))
+        return
+    if before is None:  # unreachable: BASELINE_FRAME is a frame the worker models
+        return
+    await ctx.log.emit(
+        DesignReady(
+            design_id=before.design_id,
+            role="baseline",
+            label=BASELINE_LABEL,
+            motor=BASELINE_MOTOR,
+            frame=BASELINE_FRAME,
+            glb_url=before.glb_url,
+            step_url=before.step_url,
+            fit=before.fit,
+        )
+    )
     for d in ctx.designs:
-        built = d.build is not None
+        if d.build is None:
+            continue
+        c = d.candidate
+        name = " ".join(x for x in (c.manufacturer, c.part_number) if x) or c.id
         await ctx.log.emit(
             DesignReady(
                 design_id=d.design_id,
-                candidate_id=d.candidate.id,
-                manufacturer=d.candidate.manufacturer,
-                part_number=d.candidate.part_number,
-                product_url=d.candidate.product_url,
+                role="candidate",
+                label=f"After: {name}",
+                motor=name,
+                frame=c.nema_frame or "",
+                glb_url=d.build.glb_url,
+                step_url=d.build.step_url,
+                fit=d.build.fit,
+                candidate_id=c.id,
+                manufacturer=c.manufacturer,
+                part_number=c.part_number,
+                product_url=c.product_url,
                 verdict=d.verdict,
                 fit_badge=d.fit_badge,
                 objectives=d.objectives,
-                origin=d.candidate.origin,
+                origin=c.origin,
                 price_usd=d.price_usd,
-                glb_url=f"/api/designs/{d.design_id}/glb" if built else None,
-                step_url=f"/api/designs/{d.design_id}/step" if built else None,
-                fit=d.build.fit if d.build else None,
             )
         )
 

@@ -113,23 +113,28 @@ class CheckResultPayload(Payload):
 
 
 class DesignReady(Payload):
-    """One per checked candidate. objectives = the tournament objectives it won (maybe none);
-    glb_url / step_url are backend paths, None when the CAD worker could not build it."""
+    """A design the CAD worker built: the baseline robot first, then one per checked candidate
+    the worker could model. Urls are CAD-worker paths (/designs/{id}/glb); the UI serves them via
+    /cad. The candidate fields after `fit` are empty on the baseline."""
 
     type: ClassVar[EventType] = "design_ready"
     design_id: str
-    candidate_id: str
-    manufacturer: str | None
-    part_number: str | None
-    product_url: str | None
-    verdict: Verdict
-    fit_badge: FitBadge | None
-    objectives: list[Objective]
-    origin: OriginEvidence
-    price_usd: float | None
-    glb_url: str | None
-    step_url: str | None
-    fit: dict[str, Any] | None
+    role: Literal["baseline", "candidate"]
+    label: str
+    motor: str
+    frame: str
+    glb_url: str
+    step_url: str
+    fit: dict[str, Any]
+    candidate_id: str | None = None
+    manufacturer: str | None = None
+    part_number: str | None = None
+    product_url: str | None = None
+    verdict: Verdict | None = None
+    fit_badge: FitBadge | None = None
+    objectives: list[Objective] = []
+    origin: OriginEvidence | None = None
+    price_usd: float | None = None
 
 
 class ErrorPayload(Payload):

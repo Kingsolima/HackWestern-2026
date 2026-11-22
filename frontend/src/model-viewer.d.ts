@@ -8,6 +8,8 @@ declare module 'react' {
         src?: string
         'camera-controls'?: boolean
         'auto-rotate'?: boolean
+        'camera-orbit'?: string
+        'interaction-prompt'?: 'auto' | 'none'
       }
     }
   }

@@ -34,14 +34,8 @@ If ROS (or anything else) sets `PYTHONPATH` in your shell, use the `make` target
 
 ## Deploying (Vultr)
 
-`docker compose up -d --build` on the VM. For **live** jobs (real TinyFish runs) the server needs:
-
-- `TINYFISH_API_KEY` (and `GEMINI_API_KEY`) in the server's `.env`, never committed.
-- A writable recordings folder. Compose binds `./data/recordings` to `/recordings` and sets
-  `RECORDINGS_DIR`; the rest of `data/` stays read-only. Live runs are recorded there, so the
-  demo can replay them offline later.
-
-Replay jobs (`POST /api/jobs {"mode": "replay"}`) need neither.
+See [docs/DEPLOY.md](docs/DEPLOY.md). Short version: `make prod-up` to try the production stack
+locally on :8080, `make deploy` to update the VM.
 
 ## Working on a feature
 

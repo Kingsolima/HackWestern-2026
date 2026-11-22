@@ -1,5 +1,6 @@
 """Job API: start a redesign job and stream its events (docs/design/04 section 8)."""
 
+import secrets
 from collections.abc import AsyncIterator
 from datetime import datetime
 from typing import Annotated
@@ -51,10 +52,23 @@ def status(job: Job) -> JobStatus:
     )
 
 
+def require_live_permission(mode: JobMode, token: str | None, runtime: Runtime) -> None:
+    """Live and mixed jobs spend TinyFish credit; on a public deploy they need the token."""
+    settings = runtime.settings
+    if mode == "replay" or not settings.require_live_token:
+        return
+    expected = settings.live_jobs_token
+    if not expected or not token or not secrets.compare_digest(token, expected):
+        raise HTTPException(status_code=403, detail="live jobs need a valid X-Live-Token")
+
+
 @router.post("", status_code=201)
 async def create_job(
-    body: JobRequest, runtime: Annotated[Runtime, Depends(get_runtime)]
+    body: JobRequest,
+    runtime: Annotated[Runtime, Depends(get_runtime)],
+    x_live_token: Annotated[str | None, Header()] = None,
 ) -> JobStatus:
+    require_live_permission(body.mode, x_live_token, runtime)
     return status(runtime.start_job(body.robot or load_demo_robot(), body.mode))
 
 

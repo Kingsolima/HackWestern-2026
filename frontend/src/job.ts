@@ -2,7 +2,7 @@
 // into the state, and `useJob` feeds it from the SSE stream.
 
 import { useCallback, useEffect, useReducer, useRef } from 'react'
-import type { Claim, JobEvent, JobMode, JobStatus, Outcome, Stage } from './events'
+import type { Claim, Design, JobEvent, JobMode, JobStatus, Outcome, Stage } from './events'
 import { TERMINAL_STAGES } from './events'
 import type { ComplianceCard } from './types'
 
@@ -36,6 +36,9 @@ export interface JobState {
   runOrder: string[]
   claims: ClaimRow[]
   compliance: ComplianceCard | null
+  /** The robot before the swap, and each redesigned candidate (one per tournament entry). */
+  baseline: Design | null
+  candidates: Design[]
   errors: string[]
   connection: 'idle' | 'starting' | 'streaming' | 'closed' | 'failed'
 }
@@ -49,6 +52,8 @@ export const initialJobState: JobState = {
   runOrder: [],
   claims: [],
   compliance: null,
+  baseline: null,
+  candidates: [],
   errors: [],
   connection: 'idle',
 }
@@ -113,8 +118,12 @@ export function applyEvent(prev: JobState, ev: JobEvent): JobState {
       return { ...state, compliance: ev.data.card }
     case 'error':
       return { ...state, errors: [...state.errors, ev.data.message] }
+    case 'design_ready':
+      return ev.data.role === 'baseline'
+        ? { ...state, baseline: ev.data }
+        : { ...state, candidates: [...state.candidates, ev.data] }
     default:
-      return state // check_result, design_ready, advocate, synthesis: not rendered yet
+      return state // check_result, advocate, synthesis: not rendered yet
   }
 }
 
@@ -167,18 +176,12 @@ export function useJob() {
   useEffect(() => stop, [stop]) // close on unmount
 
   const start = useCallback(
-    async (mode: JobMode = 'replay') => {
+    async (mode: JobMode = 'replay', liveToken?: string) => {
       stop()
       dispatch({ kind: 'reset' })
       let status: JobStatus
       try {
-        const res = await fetch(`${BASE}/api/jobs`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode }),
-        })
-        if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0, 200)}`)
-        status = (await res.json()) as JobStatus
+        status = await createJob(mode, liveToken)
       } catch (e) {
         dispatch({ kind: 'failed', message: `could not start job: ${String(e)}` })
         return
@@ -196,6 +199,26 @@ export function useJob() {
   )
 
   return { state, start, stop }
+}
+
+/**
+ * POST /api/jobs. On the public deploy, live/mixed jobs need the X-Live-Token header (they spend
+ * TinyFish credit); replay jobs never send it. `fetchImpl` is injectable for tests.
+ */
+export async function createJob(
+  mode: JobMode,
+  liveToken?: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<JobStatus> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (mode !== 'replay' && liveToken) headers['X-Live-Token'] = liveToken
+  const res = await fetchImpl(`${BASE}/api/jobs`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ mode }),
+  })
+  if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0, 200)}`)
+  return (await res.json()) as JobStatus
 }
 
 type EventSourceLike = Pick<EventSource, 'onmessage' | 'onerror' | 'readyState' | 'close'>
