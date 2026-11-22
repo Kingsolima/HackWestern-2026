@@ -1,0 +1,50 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M81ETPRTEA64ZZMZYKH4Q15P",
+  "strategy": "manual-commit",
+  "branch": "live-run-fix-arm-onboarding",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "backend/app/api/intake.py",
+    "backend/app/intake/schema.py",
+    "backend/app/orchestrator/workers.py",
+    "backend/app/tfclient/client.py",
+    "backend/tests/test_onboarding_intake.py",
+    "backend/tests/test_swap_worker.py",
+    "docs/DEMO-COMPANY.md",
+    "frontend/src/App.tsx",
+    "frontend/src/components/Onboarding.tsx",
+    "frontend/src/onboarding/answers.ts",
+    "frontend/src/onboarding/intake.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 56,
+    "cache_creation_tokens": 301430,
+    "cache_read_tokens": 6536995,
+    "output_tokens": 17834,
+    "api_call_count": 24
+  },
+  "redaction": {
+    "replacements": 14,
+    "layers": {
+      "betterleaks": 6,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 4,
+      "credentialed_uri": 2,
+      "entropy": 0,
+      "key_context": 8,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
