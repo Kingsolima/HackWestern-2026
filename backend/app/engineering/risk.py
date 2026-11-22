@@ -162,7 +162,57 @@ def recommend(line: BomLine, current: LineRisk, alternatives: list[Alternative])
     risk_before is always current.overall; risk_after is the chosen alternative's overall.
     reason: one plain sentence a team lead can read.
     """
-    raise NotImplementedError("Tygo: core of chunk B (recommend)")
+
+    def delta(a: Alternative) -> float | None:
+        if a.unit_price_usd is None or line.unit_price_usd is None:
+            return None
+        return (a.unit_price_usd - line.unit_price_usd) * line.qty
+
+    def decide(action, a: Alternative | None, reason: str) -> Recommendation:
+        return Recommendation(
+            line_id=line.id,
+            action=action,
+            alternative_id=a.id if a else None,
+            cost_delta_usd=delta(a) if a else None,
+            risk_before=current.overall,
+            risk_after=a.risk.overall if a else current.overall,
+            blocked=current.blocked,
+            reason=reason,
+        )
+
+    eligible = [a for a in alternatives if a.verdict != "rejected" and not a.risk.blocked]
+    if current.blocked:
+        if not eligible:
+            return decide(
+                "keep", None, "The current part is blocked and no eligible alternative was found."
+            )
+        a = min(eligible, key=lambda a: (a.unit_price_usd is None, a.unit_price_usd or 0.0, a.id))
+        return decide(
+            "re_source",
+            a,
+            f"The current part is blocked: move to {a.manufacturer} {a.part_number}, "
+            "the cheapest eligible alternative.",
+        )
+
+    safer = [a for a in eligible if lower(a.risk.overall, current.overall)]
+    no_dearer = [a for a in safer if (d := delta(a)) is not None and d <= 0]
+    if no_dearer:
+        a = min(no_dearer, key=lambda a: (RANK[a.risk.overall], delta(a), a.id))
+        return decide(
+            "re_source", a, f"{a.manufacturer} {a.part_number} is lower risk at no extra cost."
+        )
+    if safer:
+        a = min(
+            safer,
+            key=lambda a: (RANK[a.risk.overall], delta(a) is None, delta(a) or 0.0, a.id),
+        )
+        return decide(
+            "dual_source",
+            a,
+            f"{a.manufacturer} {a.part_number} is lower risk but costs more: "
+            "add it as a second source.",
+        )
+    return decide("keep", None, "No eligible alternative lowers the risk.")
 
 
 def risk_reduction(r: Recommendation) -> int:
