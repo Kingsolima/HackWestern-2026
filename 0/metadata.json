@@ -27,19 +27,53 @@
     "api_call_count": 168
   },
   "redaction": {
-    "replacements": 60,
+    "replacements": 61,
     "layers": {
-      "betterleaks": 57,
+      "betterleaks": 60,
       "connection_string": 0,
       "credential_key": 0,
       "credential_value": 12,
-      "credentialed_uri": 16,
+      "credentialed_uri": 17,
       "entropy": 0,
       "key_context": 23,
       "provider_token": 0,
       "shell_stdin": 0
     }
   },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01L6j23sT8dKoDrMyLSczKkv",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "anthropic-skills:built-in-browser"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "aa80b39bdcfc",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 1697,
+        "end": 1698,
+        "entry_ids": [
+          "efd69ec6-dd29-4410-8bdc-7b6bf691e05b"
+        ],
+        "tool_use_id": "toolu_01L6j23sT8dKoDrMyLSczKkv"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01L6j23sT8dKoDrMyLSczKkv"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: anthropic-skills:built-in-browser",
+        "default_collapsed": true
+      }
+    }
+  ],
   "session_metrics": {
     "turn_count": 24
   }
