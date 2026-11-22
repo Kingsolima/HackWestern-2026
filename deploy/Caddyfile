@@ -7,7 +7,7 @@
 			flush_interval -1
 		}
 	}
-	handle /health {
+	handle /health* {
 		reverse_proxy backend:8000
 	}
 

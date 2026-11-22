@@ -6,7 +6,6 @@ import { ChecksTable } from './components/ChecksTable'
 import { ClaimsList } from './components/ClaimsList'
 import { CompanyCard } from './components/CompanyCard'
 import { ComplianceCard } from './components/ComplianceCard'
-import { DesignTabs } from './components/DesignTabs'
 import { JobBar } from './components/JobBar'
 import { ModelViewer } from './components/ModelViewer'
 import { Onboarding } from './components/Onboarding'
@@ -25,13 +24,11 @@ import {
   type Onboarded,
 } from './onboarding/answers'
 import type { OpenAnswers } from './onboarding/questions'
-import type { CheckResult, ComplianceCard as Card, DesignVariant, Robot } from './types'
+import type { ComplianceCard as Card, Robot } from './types'
 
 // ?live=1 shows a "Run live" button. The token is asked once per tab and kept in sessionStorage.
 const params = new URLSearchParams(window.location.search)
 const LIVE_ENABLED = params.get('live') === '1'
-// ?v4=1 shows the project switcher. Hidden until the backend handles project_id.
-const V4_ENABLED = params.get('v4') === '1'
 
 /** Start a job that makes real calls ('mixed' replays what is recorded and runs the rest). */
 function startWithToken(
@@ -45,17 +42,16 @@ function startWithToken(
 
 /** What the robot panel shows before a job: the CAD worker's starter design for the project. */
 function starterRobot(project: ProjectId) {
-  return project === 'ar4_club'
-    ? { src: '/cad/designs/starter_ar4/glb', title: 'Robot: AR4 arm, NEMA 23 J2 motor' }
-    : { src: '/cad/designs/starter/glb', title: 'Robot: NEMA 23 stepper baseline' }
+  if (project === 'ar4_club')
+    return { src: '/cad/designs/starter_ar4/glb', title: 'Robot: AR4 arm, NEMA 23 J2 motor' }
+  if (project === 'stretch')
+    return { src: '/cad/designs/starter_stretch/glb', title: 'Robot: Stretch, NEMA 34 shoulder motor' }
+  return { src: '/cad/designs/starter/glb', title: 'Robot: NEMA 23 stepper baseline' }
 }
 
 export default function App() {
   const [health, setHealth] = useState<string>('checking…')
   const [baselineCard, setBaselineCard] = useState<Card | null>(null)
-  // Checks and designs stay on the pre-v3 endpoints until the coordinated shape switch.
-  const [results, setResults] = useState<CheckResult[]>([])
-  const [designs, setDesigns] = useState<DesignVariant[]>([])
   const { state: job, start } = useJob()
   const [project, setProject] = useState<ProjectId>('')
   const projectId = project || undefined
@@ -72,16 +68,12 @@ export default function App() {
     api.robot().then(setDemo, console.error)
     api.example().then(setExample, console.error)
     api.compliance().then(setBaselineCard, console.error)
-    api.designs().then(setDesigns, console.error)
-    api
-      .seedCandidates()
-      .then((cs) => Promise.all(cs.map(api.checks)))
-      .then(setResults, console.error)
   }, [])
 
   const jobOptions = (o: Onboarded | null): CreateJobOptions => ({
     projectId,
     robot: o && demo && !projectId ? toRobot(o, demo) : undefined,
+    company: o && demo && !projectId ? o.company : undefined,
   })
   /** Replay when the recordings fit this robot; otherwise a mixed job, which needs the token. */
   const run = (o: Onboarded | null) => {
@@ -116,8 +108,8 @@ export default function App() {
   }
 
   const runs = job.runOrder.map((id) => job.runs[id])
-  // These panels come from endpoints that always use the demo robot, so they are only right
-  // when the user's robot gives the same numbers.
+  // The baseline compliance card comes from an endpoint that always uses the demo robot, so it
+  // is only right when the user's robot gives the same numbers.
   const demoPanels = !onboarded || (demo != null && matchesDemo(onboarded, demo))
   const card = job.compliance ?? (demoPanels ? baselineCard : null)
 
@@ -137,7 +129,7 @@ export default function App() {
         onStart={() => run(onboarded)}
         onStartLive={LIVE_ENABLED ? () => startWithToken('live', start, jobOptions(onboarded)) : undefined}
         project={project}
-        onProjectChange={V4_ENABLED ? setProject : undefined}
+        onProjectChange={setProject}
       />
       {onboarded && !job.project && <CompanyCard company={onboarded.company} />}
       {job.project && <ProjectCard project={job.project} criteria={job.criteria} claims={job.claims} />}
@@ -159,8 +151,7 @@ export default function App() {
         <AgentTiles runs={runs} />
       </div>
       <ClaimsList claims={job.claims} />
-      {demoPanels && <ChecksTable results={results} />}
-      {demoPanels && <DesignTabs designs={designs} />}
+      {job.jobId && <ChecksTable checks={job.checks} candidates={job.candidates} />}
       <footer className="muted">
         Not legal advice. Pass* = passes the checks we implemented, not engineering certification.
       </footer>

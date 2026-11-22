@@ -1,7 +1,8 @@
 # Production overrides for the Vultr VM:
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build web backend cad
 # Caddy (web) is the only public service; backend and CAD are reachable only inside Docker.
-# SITE_ADDRESS (and the API keys, LIVE_JOBS_TOKEN) come from the server's .env.
+# SITE_ADDRESS, DATABASE_URL (Tiger Cloud), the API keys and LIVE_JOBS_TOKEN come from the
+# server's .env. TIGER_ENABLED=true in that file puts the board and agent_runs on Tiger Data.
 services:
   web:
     build:
@@ -20,8 +21,10 @@ services:
 
   backend:
     ports: !reset []
-    depends_on: !reset [cad] # no database in use yet (the board is in memory)
+    depends_on: !reset [cad] # the database is Tiger Cloud, not the local db service
     environment:
+      # The base file points at the local db service; in production the .env value wins.
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/redesign}
       REQUIRE_LIVE_TOKEN: "true"
       # Recorded agent runs replay 10x faster than they ran (a live Teknic run takes ~8 min).
       REPLAY_SPEED: "0.1"

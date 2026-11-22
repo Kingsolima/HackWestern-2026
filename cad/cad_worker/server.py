@@ -6,11 +6,13 @@
     GET  /designs/{id}/fit     geometry numbers for the checks (05-checks-spec §4)
     POST /measure              STEP bytes -> parts with bounding boxes and volumes (onboarding)
 
-robot is "wheeled" (default, the v3 demo robot) or "ar4" (the arm's J2 drive, BUILD-PLAN-v4 §7).
+robot is "wheeled" (default, the v3 demo robot), "ar4" (the arm's J2 drive, BUILD-PLAN-v4 §7) or
+"stretch" (a block-level mobile manipulator with a NEMA 34 shoulder drive).
 Every fit has generic `fit_checks` rows {name, value, limit, unit, ok} for the backend.
 
 Starter designs are built at startup, so the page has a robot to show before any job has run:
-"starter" (wheeled, NEMA 23 stepper baseline) and "starter_ar4" (AR4 arm, NEMA 23 J2 motor).
+"starter" (wheeled, NEMA 23 stepper baseline), "starter_ar4" (AR4 arm, NEMA 23 J2 motor) and
+"starter_stretch" (Stretch, NEMA 34 shoulder motor).
 
 Part names in the GLB (bracket_left, motor_right, hub_adapter_left, ...) let the viewer
 highlight what changed. TODO(owner 1): upload outputs to Vultr Object Storage.
@@ -33,22 +35,28 @@ from cad_worker.arm import ArmParams, arm, measure_arm
 from cad_worker.export import export
 from cad_worker.measure import measure_step
 from cad_worker.robot import RobotParams, measure, robot
+from cad_worker.stretch import StretchParams, measure_stretch, stretch
 
 OUT_DIR = Path(os.environ.get("CAD_OUT_DIR", "out"))
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 DESIGN_ID = r"^[A-Za-z0-9_-]{1,64}$"
 
-STARTERS: dict[str, RobotParams | ArmParams] = {
+Params = RobotParams | ArmParams | StretchParams
+
+STARTERS: dict[str, Params] = {
     # Same robot as the orchestrator's BUILD baseline (backend/app/orchestrator/job.py): NEMA 23
     # stepper, default body length, 6.35 mm shaft and wheel bore, 60 mm wheels.
     "starter": RobotParams(),
     "starter_ar4": ArmParams(),
+    "starter_stretch": StretchParams(),
 }
 
 
-def build_design(design_id: str, params: RobotParams | ArmParams) -> dict:
+def build_design(design_id: str, params: Params) -> dict:
     if isinstance(params, ArmParams):
         fit, assy = measure_arm(params), arm(params)
+    elif isinstance(params, StretchParams):
+        fit, assy = measure_stretch(params), stretch(params)
     else:
         fit, assy = measure(params), robot(params)
     export(assy, OUT_DIR, design_id)
@@ -76,9 +84,10 @@ app.mount("/files", StaticFiles(directory=OUT_DIR), name="files")
 
 class BuildRequest(BaseModel):
     design_id: str = Field(pattern=DESIGN_ID)
-    robot: Literal["wheeled", "ar4"] = "wheeled"
+    robot: Literal["wheeled", "ar4", "stretch"] = "wheeled"
     frame: Literal["17", "23", "34"] = "23"
-    body_len: float = Field(56.0, gt=0, le=300)
+    # None = the robot model's own baseline motor length (56 mm; 120 mm on stretch)
+    body_len: float | None = Field(None, gt=0, le=300)
     shaft_d: float | None = Field(None, gt=0, le=30)
     pilot_d: float | None = Field(None, gt=0, le=120)
     bolt_spacing: float | None = Field(None, gt=0, le=120)
@@ -87,16 +96,19 @@ class BuildRequest(BaseModel):
     wheel_r: float = Field(60.0, gt=0)
     wheel_bore: float = Field(6.35, gt=0)
     min_ground_clearance: float = 10.0
-    # ar4 only
+    # ar4 only (stretch uses its own gearbox bore and shoulder space)
     gearbox_bore: float = Field(6.35, gt=0, le=30)
     j2_space: float = Field(190.0, gt=0, le=500)
 
-    def params(self) -> RobotParams | ArmParams:
+    def params(self) -> Params:
         common = self.model_dump(
-            include={"frame", "body_len", "shaft_d", "pilot_d", "bolt_spacing", "highlight"}
+            include={"frame", "body_len", "shaft_d", "pilot_d", "bolt_spacing", "highlight"},
+            exclude_none=True,
         )
         if self.robot == "ar4":
             return ArmParams(**common, gearbox_bore=self.gearbox_bore, j2_space=self.j2_space)
+        if self.robot == "stretch":
+            return StretchParams(**common)
         return RobotParams(
             **common,
             wheel_r=self.wheel_r,

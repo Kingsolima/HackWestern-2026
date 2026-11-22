@@ -16,9 +16,11 @@ import type {
   Outcome,
   Project,
   Recommendation,
+  SpecCheck,
   Stage,
 } from './events'
 import { TERMINAL_STAGES } from './events'
+import type { CompanyFact } from './onboarding/intake'
 import type { ComplianceCard, Robot } from './types'
 
 const BASE = import.meta.env.VITE_API_URL ?? ''
@@ -54,6 +56,8 @@ export interface JobState {
   /** The robot before the swap, and each redesigned candidate (one per tournament entry). */
   baseline: Design | null
   candidates: Design[]
+  /** Engineering checks by candidate id; a later result for the same check replaces it. */
+  checks: Record<string, SpecCheck[]>
   errors: string[]
   connection: 'idle' | 'starting' | 'streaming' | 'closed' | 'failed'
   // v4 supply-risk view; empty for the wheeled demo job.
@@ -82,6 +86,7 @@ export const initialJobState: JobState = {
   compliance: null,
   baseline: null,
   candidates: [],
+  checks: {},
   errors: [],
   connection: 'idle',
   project: null,
@@ -211,8 +216,13 @@ export function applyEvent(prev: JobState, ev: JobEvent): JobState {
       const others = state.recommendations.filter((r) => r.line_id !== rec.line_id)
       return { ...state, recommendations: rankRecommendations([...others, rec]) }
     }
+    case 'check_result': {
+      const c = ev.data.check
+      const rows = (state.checks[c.candidate_id] ?? []).filter((r) => r.check !== c.check)
+      return { ...state, checks: { ...state.checks, [c.candidate_id]: [...rows, c] } }
+    }
     default:
-      return state // check_result, advocate, synthesis: not rendered yet
+      return state // advocate, synthesis: not rendered yet
   }
 }
 
@@ -297,6 +307,9 @@ export interface CreateJobOptions {
   projectId?: string
   /** The robot from onboarding; left out to run the backend's demo robot. */
   robot?: Robot
+  /** The company facts confirmed in onboarding. With `robot` they make the job a project job:
+   * risk map, alternatives and recommendations for the user's own parts list. */
+  company?: CompanyFact[]
 }
 
 /**
@@ -305,7 +318,7 @@ export interface CreateJobOptions {
  */
 export async function createJob(
   mode: JobMode,
-  { liveToken, projectId, robot }: CreateJobOptions = {},
+  { liveToken, projectId, robot, company }: CreateJobOptions = {},
   fetchImpl: typeof fetch = fetch,
 ): Promise<JobStatus> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -317,6 +330,7 @@ export async function createJob(
       mode,
       ...(projectId ? { project_id: projectId } : {}),
       ...(robot ? { robot } : {}),
+      ...(company && !projectId ? { company } : {}),
     }),
   })
   if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0, 200)}`)

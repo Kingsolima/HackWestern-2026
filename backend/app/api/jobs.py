@@ -10,6 +10,8 @@ from fastapi.sse import EventSourceResponse, ServerSentEvent
 from pydantic import BaseModel
 
 from app.api.routes import load_demo_robot
+from app.intake.schema import CompanyFact
+from app.intake.to_project import project_from_onboarding
 from app.orchestrator.events import Stage
 from app.orchestrator.job import Job
 from app.orchestrator.runtime import Runtime
@@ -23,6 +25,9 @@ class JobRequest(BaseModel):
     robot: Robot | None = None
     mode: JobMode = "replay"
     project_id: str | None = None  # data/projects/<id>.json; None = the v3 wheeled demo job
+    # The company facts confirmed in onboarding. With `robot` (its numbers and BOM) they make a
+    # project, so the job runs the risk map and recommendations. Ignored when project_id is set.
+    company: list[CompanyFact] | None = None
 
 
 class ProjectSummary(BaseModel):
@@ -85,7 +90,10 @@ async def create_job(
             project = load_project(body.project_id)
         except UnknownProject:
             raise HTTPException(status_code=404, detail=f"no project {body.project_id}") from None
-    return status(runtime.start_job(body.robot or load_demo_robot(), body.mode, project))
+    robot = body.robot or load_demo_robot()
+    if project is None and body.company is not None:
+        project = project_from_onboarding(body.company, robot)
+    return status(runtime.start_job(robot, body.mode, project))
 
 
 projects_router = APIRouter(prefix="/api/projects")
