@@ -100,9 +100,8 @@ export default function App() {
   const candidate = job.candidates[0]
   const designs = job.baseline && candidate ? { before: job.baseline, after: candidate } : null
   const shown = designs ? (showAfter ? designs.after : designs.before) : null
-  const starter = starterModel(
-    job.project?.cad_robot ?? (project ? PROJECT_ROBOT[project] : (progress.arm?.cad_robot ?? 'wheeled')),
-  )
+  const robot = job.project?.cad_robot ?? (project ? PROJECT_ROBOT[project] : (progress.arm?.cad_robot ?? 'wheeled'))
+  const starter = starterModel(robot)
   const src = welcome === 'on' ? null : shown ? cadUrl(shown.glb_url) : starter.src
   const deep = launched && job.stage !== null && job.stage !== 'CREATED'
 
@@ -141,7 +140,7 @@ export default function App() {
   return (
     <>
       <Suspense fallback={null}>
-        <CadViewer src={src} deep={deep} build={designs !== null && showAfter} lines={lines} area={area} onStatus={setModel} />
+        <CadViewer src={src} robot={robot} deep={deep} build={designs !== null && showAfter} lines={lines} area={area} onStatus={setModel} />
       </Suspense>
 
       {welcome !== 'off' && (

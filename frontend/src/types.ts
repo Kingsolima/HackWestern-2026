@@ -13,6 +13,9 @@ export interface BomRow {
   unit_cost_usd: string | null
   origin: string
   supply_risk?: string | null
+  hts_code?: string
+  availability?: 'in_stock' | 'lead_time' | 'out_of_stock' | 'unknown'
+  lead_time_days?: number
   part_number?: string
   supplier?: string
   source_page?: string

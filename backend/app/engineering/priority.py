@@ -261,6 +261,10 @@ def decide(line: BomLine, current: LineRisk, alternatives: list[Alternative]) ->
                 f"Before switching: {'; '.join(open_points) or 'confirm the conflict'}.",
                 a,
             )
+        if alternatives:
+            n = len(alternatives)
+            tried = "The 1 alternative found was" if n == 1 else f"All {n} alternatives found were"
+            return out("investigate", f"{label}: {why}. {tried} rejected by the checks or blocked.")
         return out("investigate", f"{label}: {why}. No alternative was searched for this part.")
     if c is None:
         return out(

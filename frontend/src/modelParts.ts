@@ -1,6 +1,7 @@
 // What each part of a CAD-worker model is: its role in the job, and what the hover label says.
 // Node names come from the CAD worker's assemblies (cad/cad_worker/robot.py, arm.py, stretch.py).
 
+import type { CadRobot } from './events'
 import { isMotorLine } from './onboarding/bomCsv'
 
 export type PartRole = 'deep' | 'build'
@@ -14,17 +15,16 @@ export interface PartLine {
   origin: string | null
 }
 
-const ROLES: Record<string, { deep: RegExp; build: RegExp }> = {
-  robot: { deep: /^motor_/, build: /^(bracket|hub_adapter)_/ },
+const ROLES: Record<CadRobot, { deep: RegExp; build: RegExp }> = {
+  wheeled: { deep: /^motor_/, build: /^(bracket|hub_adapter)_/ },
   ar4: { deep: /^j2_motor$/, build: /^(mount_plate|bore_sleeve)$/ },
   stretch: { deep: /^shoulder_motor$/, build: /^(mount_plate|bore_sleeve)$/ },
 }
 const SIDES = new Set(['left', 'right', 'front', 'back', 'l', 'r', 'f', 'b'])
 
 /** The part's role: the deep line once a job runs, the regenerated mount once the redesign is shown. */
-export function partRole(root: string, node: string, show: { deep: boolean; build: boolean }): PartRole | null {
-  const r = ROLES[root]
-  if (!r) return null
+export function partRole(robot: CadRobot, node: string, show: { deep: boolean; build: boolean }): PartRole | null {
+  const r = ROLES[robot]
   if (show.build && r.build.test(node)) return 'build'
   if (show.deep && r.deep.test(node)) return 'deep'
   return null

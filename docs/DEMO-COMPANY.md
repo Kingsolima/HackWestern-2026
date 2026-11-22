@@ -17,12 +17,15 @@ for the live token and makes real Gemini calls.
 the component name, quantity and part number as the PDF prints them, and the PDF page it comes
 from.
 
-- The PDF states no price, country of origin or lead time for any part. Those columns say
-  `unknown` on every line. Nothing was filled in from memory or estimated.
-- Supplier is filled in only where the PDF names one: Stepperonline for the motors, the stepper
-  drivers and the J4 motor bracket.
-- The PDF is the source of the parts list. It is not evidence of supply risk, and not evidence
-  that any part meets a rule or regulation.
+- **Real, from the PDF:** component names, quantities, part numbers, source pages, the
+  Stepperonline supplier on the motors, drivers and J4 bracket, and the bracket's $1.96 price.
+- **Real, from our research:** the J2 motor's price ($152.52), origin (CN) and stock
+  (`data/projects/ar4_club.json`, with its sources).
+- **Illustrative, made up for the demo:** every other price, country of origin, supplier, stock
+  status, lead time and customs code. The PDF states none of these. They are plausible values
+  chosen so the risk engine has something to score, and each line's `notes` says so. Do not
+  quote them as facts about the AR4 or its suppliers.
+- The parts list is not evidence that any part meets a rule or regulation.
 - Lines are grouped into six subsystems in the `category` column:
 
 | Subsystem | Lines | What is in it |
@@ -95,19 +98,25 @@ club project (`data/projects/ar4_club.json`), so the job reuses that research:
 
 ## What to expect in the results
 
-Checked in replay with the recordings in this repo:
+Checked in replay with the recordings in this repo and the answers above:
 
-- A risk row and a recommendation for all 60 parts.
-- The J2 motor ranks first (priority 7 of 9): it is made in China, the company sells to US
-  federal buyers, and a motor of this kind likely depends on rare-earth magnets (inferred, shown
-  as inferred). The action is "investigate", with Teknic CPM-SDSK-2331S-RLN (US) as the best
-  candidate so far and the open points listed.
-- The other 59 parts are "investigate" too, because their country of origin is unknown and a
-  federal buyer needs it. This is the honest result of a parts list with no origins: the engine
-  never treats unknown as safe. Filling in real origins and prices in the CSV is what moves
-  those lines to keep, dual-source or re-source.
+- A risk row and a recommendation for all 60 parts: 42 to investigate, 18 to keep. Parts total
+  about $1,461 per arm, inside the $2,500 budget.
+- **J5 linear drive motor first (priority 8 of 9):** its 45 day lead time is past the 30 day
+  need-by, so the line is blocked.
+- **The other five motors next (priority 7):** made in China for a company that sells to US
+  federal buyers, with 41.5% added US duty, and likely dependent on rare-earth magnets
+  (inferred, shown as inferred). The J2 motor names Teknic CPM-SDSK-2331S-RLN (US) as the best
+  candidate so far.
+- **The 4 mm magnets (priority 6):** the parts list marks them `ndfeb_magnets`, which is what
+  the company said it wants to avoid, so this is a stated conflict, not an inferred one.
+- **Other parts made outside the US** are a concern for the federal buyer; **US-made parts**
+  (machined aluminum, the Teensy, inch-size thrust bearings, belts) are kept.
 - Three alternatives for the J2 motor from the recorded TinyFish runs: two for review, one
   rejected.
+
+Only the J2 motor gets alternatives, so no line reaches "re-source" or "dual-source" in this
+case: those actions need a checked alternative.
 
 For live TinyFish research on the J2 motor, open the site with `?live=1` and press "Run live".
 That spends TinyFish and Gemini credit and needs the live token.

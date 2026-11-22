@@ -4,11 +4,14 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { partInfo, partRole, type PartLine, type PartRole } from '../modelParts'
+import type { CadRobot } from '../events'
 import type { FreeArea } from '../stageArea'
 
 interface Props {
   /** GLB url; null shows the empty grid. */
   src: string | null
+  /** Which robot `src` draws: decides which parts are the deep line and the regenerated mount. */
+  robot: CadRobot
   /** Highlight the deep line (a job is running) and the regenerated mount (the redesign is shown). */
   deep: boolean
   build: boolean
@@ -46,7 +49,7 @@ interface World {
   controls: OrbitControls
   clip: THREE.Plane
   model: THREE.Object3D | null
-  root: string
+  robot: CadRobot
   parts: Map<string, THREE.Object3D>
   box: THREE.Box3
   roles: Map<string, PartRole>
@@ -80,12 +83,14 @@ function paint(w: World, name: string) {
 
 /** The full-screen CAD stage: dark solids with hairline edges, hover names a part, and the job's
  * parts turn orange. Camera and framing survive a model swap (before/after). */
-export function CadViewer({ src, deep, build, lines, area, onStatus }: Props) {
+export function CadViewer({ src, robot, deep, build, lines, area, onStatus }: Props) {
   const host = useRef<HTMLDivElement>(null)
   const tip = useRef<HTMLDivElement>(null)
   const world = useRef<World | null>(null)
   const linesRef = useRef(lines)
   linesRef.current = lines
+  const robotRef = useRef(robot)
+  robotRef.current = robot
   const [offline, setOffline] = useState(false)
 
   useEffect(() => {
@@ -122,7 +127,7 @@ export function CadViewer({ src, deep, build, lines, area, onStatus }: Props) {
     const w: World = {
       renderer, scene, camera, controls,
       clip: new THREE.Plane(new THREE.Vector3(0, -1, 0), 10),
-      model: null, root: '', parts: new Map(), box: new THREE.Box3(), roles: new Map(),
+      model: null, robot: 'wheeled', parts: new Map(), box: new THREE.Box3(), roles: new Map(),
       hover: null, shift: 0, shiftGoal: 0, freeFrac: 1, grow: null, tween: null,
       applyView: () => {
         const r = el.getBoundingClientRect()
@@ -232,12 +237,13 @@ export function CadViewer({ src, deep, build, lines, area, onStatus }: Props) {
       (gltf) => {
         if (cancelled) return
         const first = w.model === null
-        const kind = w.root
+        const before = w.robot
         clear()
         const model = gltf.scene
-        const root = model.children[0]
-        w.root = root?.name ?? ''
-        for (const child of root?.children ?? []) w.parts.set(child.name, child)
+        w.robot = robotRef.current
+        // The CAD worker nests a robot's parts under one root node, or writes them flat.
+        const top = model.children
+        for (const part of top.length === 1 && top[0].children.length ? top[0].children : top) w.parts.set(part.name, part)
         model.traverse((o) => {
           if (!(o instanceof THREE.Mesh)) return
           o.material = new THREE.MeshStandardMaterial({
@@ -266,7 +272,7 @@ export function CadViewer({ src, deep, build, lines, area, onStatus }: Props) {
           const home = center.clone().add(HOME_DIR.clone().multiplyScalar(fitDistance(w)))
           w.tween = { s: performance.now(), t0: w.controls.target.clone(), t1: center, p0: w.camera.position.clone(), p1: home }
         }
-        else if (kind !== w.root) frame(w, w.box.getCenter(new THREE.Vector3())) // another robot
+        else if (before !== w.robot) frame(w, w.box.getCenter(new THREE.Vector3())) // another robot
         setRoles(w, deep, build)
       },
       undefined,
@@ -315,7 +321,7 @@ function setRoles(w: World, deep: boolean, build: boolean) {
   const hadDeep = [...w.roles.values()].includes('deep')
   w.roles.clear()
   for (const name of w.parts.keys()) {
-    const role = partRole(w.root, name, { deep, build })
+    const role = partRole(w.robot, name, { deep, build })
     if (role) w.roles.set(name, role)
   }
   for (const name of w.parts.keys()) paint(w, name)

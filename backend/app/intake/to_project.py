@@ -71,6 +71,8 @@ def bom_line(n: int, row: BomRow) -> BomLine:
         unit_price_usd=float(row.unit_cost_usd) if row.unit_cost_usd is not None else None,
         origin_country=origin if re.fullmatch(r"[A-Z]{2}", origin) else None,
         origin_tier=row.origin_tier,
+        availability=row.availability,
+        lead_time_days=row.lead_time_days,
         hts_code=row.hts_code,
         component_class=component_class,
         stated_risk=row.supply_risk,

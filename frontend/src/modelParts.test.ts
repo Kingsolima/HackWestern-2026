@@ -15,13 +15,12 @@ const BOM: PartLine[] = [
 
 describe('partRole', () => {
   it('marks the deep line once a job runs and the mount once the redesign shows', () => {
-    expect(partRole('robot', 'motor_left', { deep: false, build: false })).toBeNull()
-    expect(partRole('robot', 'motor_left', { deep: true, build: false })).toBe('deep')
-    expect(partRole('robot', 'bracket_right', { deep: true, build: false })).toBeNull()
-    expect(partRole('robot', 'bracket_right', { deep: true, build: true })).toBe('build')
+    expect(partRole('wheeled', 'motor_left', { deep: false, build: false })).toBeNull()
+    expect(partRole('wheeled', 'motor_left', { deep: true, build: false })).toBe('deep')
+    expect(partRole('wheeled', 'bracket_right', { deep: true, build: false })).toBeNull()
+    expect(partRole('wheeled', 'bracket_right', { deep: true, build: true })).toBe('build')
     expect(partRole('ar4', 'j2_motor_shaft', { deep: true, build: true })).toBeNull()
     expect(partRole('stretch', 'mount_plate', { deep: true, build: true })).toBe('build')
-    expect(partRole('unknown_root', 'motor_left', { deep: true, build: true })).toBeNull()
   })
 })
 
