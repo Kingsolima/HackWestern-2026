@@ -1,0 +1,82 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M814HYV2ZSCVQQVD65FYKTVX",
+  "session_id": "5be95761-abff-4bd0-b5d0-831f2933cab9",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-22T08:04:29.707990094Z",
+  "branch": "e2e-onboarding",
+  "checkpoints_count": 1,
+  "save_step_count": 2,
+  "files_touched": [
+    "data/recordings/agent/00a415c9b7ef370dd5152d1a451dd967de230a8dee7dd77c1c16c4eee0abef7b.json.gz"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-fable-5-2",
+  "turn_id": "4fc1fe348854",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 7264,
+    "cache_read_tokens": 960746,
+    "output_tokens": 3625,
+    "api_call_count": 3
+  },
+  "session_token_usage": {
+    "input_tokens": 196,
+    "cache_creation_tokens": 337347,
+    "cache_read_tokens": 17558237,
+    "output_tokens": 164341,
+    "api_call_count": 92
+  },
+  "redaction": {
+    "replacements": 22,
+    "layers": {
+      "betterleaks": 18,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 4,
+      "credentialed_uri": 4,
+      "entropy": 0,
+      "key_context": 8,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01DJ7wiWVMdXDVkcLdpR4Sgr",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "mattpocock-skills:pr"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "4fc1fe348854",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 822,
+        "end": 823,
+        "entry_ids": [
+          "a3c93d41-2320-4bad-a953-d4731e9af527"
+        ],
+        "tool_use_id": "toolu_01DJ7wiWVMdXDVkcLdpR4Sgr"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01DJ7wiWVMdXDVkcLdpR4Sgr"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: mattpocock-skills:pr",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 7
+  }
+}
