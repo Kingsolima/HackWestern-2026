@@ -368,6 +368,9 @@ class BomLine(BaseModel):
     )
     illustrative: bool = False
     sources: list[str] = Field(default_factory=list, description="URLs behind price and origin")
+    stated_risk: str | None = Field(
+        default=None, description="Supply risk the team wrote on this line, e.g. ndfeb_magnets"
+    )
     notes: str | None = None
 
 
@@ -387,6 +390,9 @@ class Project(BaseModel):
     )
     bom: list[BomLine]
     intake_sources: list[IntakeSource] = Field(default_factory=list)
+    avoid: str | None = Field(
+        default=None, description="What the team wants to stay away from, in its own words"
+    )
     stated: ProjectFacts = Field(default_factory=ProjectFacts, description="Team-stated facts")
 
 
@@ -394,6 +400,28 @@ class CriterionReason(BaseModel):
     rule_id: str
     fact_field: FactField | None
     text: str
+
+
+class Concern(BaseModel):
+    """One thing the customer said it wants to avoid. Read from their own words by the model;
+    kept only when `quote` is in those words (engineering/concerns.py)."""
+
+    id: str
+    kind: Literal["material", "country", "supplier"]
+    label: str = Field(description="Short name, e.g. 'rare-earth magnets'")
+    country: str | None = Field(default=None, description="ISO-2 the concern is about, if any")
+    quote: str
+
+
+class Dependency(BaseModel):
+    """Whether a part may depend on a material the customer wants to avoid. INFERRED by the
+    model from the part's class, never verified: it can prioritise a part for investigation,
+    it is never shown as a fact."""
+
+    line_id: str
+    concern_id: str
+    depends: Literal["likely", "unlikely", "unknown"]
+    why: str = ""
 
 
 class Criteria(BaseModel):
@@ -404,6 +432,11 @@ class Criteria(BaseModel):
     duty_countries: list[str] = Field(default_factory=list, description="Whose import duty counts")
     blocking_lists: list[Literal["fcc_covered", "dod_1260h", "uflpa"]] = Field(default_factory=list)
     reasons: list[CriterionReason] = Field(default_factory=list)
+    uptime_critical: bool = False
+    concerns: list[Concern] = Field(default_factory=list)
+    concerns_unread: bool = Field(
+        default=False, description="The customer stated concerns but they could not be read"
+    )
 
 
 RiskFactorName = Literal["sources", "bottleneck", "trade", "restricted", "availability"]
@@ -417,11 +450,34 @@ class RiskFactor(BaseModel):
     source_urls: list[str] = Field(default_factory=list)
 
 
+class Score(BaseModel):
+    """One 0-3 dimension of a part's risk priority. value None = unknown: the evidence is
+    missing, which asks for investigation and is never counted as 0."""
+
+    value: int | None
+    basis: Literal["stated", "inferred", "rule", "unknown"] = "rule"
+    reasons: list[str] = Field(default_factory=list)
+    missing: list[str] = Field(default_factory=list, description="Evidence we do not have")
+
+
+class Priority(BaseModel):
+    """Risk priority = supply + customer + impact (0-9). An unknown score adds 0 to `lo` and 3
+    to `hi`. level reads `lo`: high >= 6, medium 3-5, low <= 2."""
+
+    supply: Score
+    customer: Score
+    impact: Score
+    lo: int
+    hi: int
+    level: Level
+
+
 class LineRisk(BaseModel):
     line_id: str
     factors: list[RiskFactor]
     overall: Level = Field(description="Worst known factor; unknown only if every factor is")
     blocked: bool = Field(description="A blocking-list hit, out of stock, or over the need-by")
+    priority: Priority | None = None
 
 
 class Alternative(BaseModel):
@@ -444,7 +500,7 @@ class Alternative(BaseModel):
 
 class Recommendation(BaseModel):
     line_id: str
-    action: Literal["keep", "dual_source", "re_source"]
+    action: Literal["keep", "dual_source", "re_source", "investigate"]
     alternative_id: str | None = None
     cost_delta_usd: float | None = Field(
         default=None, description="(alternative - current) unit price x qty; None if unknown"
@@ -452,4 +508,6 @@ class Recommendation(BaseModel):
     risk_before: Level
     risk_after: Level
     blocked: bool = Field(default=False, description="Current part is blocked")
+    priority_lo: int | None = None
+    priority_hi: int | None = None
     reason: str

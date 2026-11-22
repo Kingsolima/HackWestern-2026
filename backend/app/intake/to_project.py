@@ -54,6 +54,7 @@ def bom_line(n: int, row: BomRow) -> BomLine:
         origin_tier=row.origin_tier,
         hts_code=row.hts_code,
         component_class=component_class,
+        stated_risk=row.supply_risk,
     )
 
 
@@ -113,5 +114,6 @@ def project_from_onboarding(company: list[CompanyFact], robot: Robot) -> Project
         deep_frame=frame.group(1) if frame else "23",
         cad_robot="wheeled",
         bom=bom,
+        avoid=by_field.get("avoid") or None,
         stated=stated_facts(company),
     )

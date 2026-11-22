@@ -84,4 +84,5 @@ def derive_criteria(facts: ProjectFacts) -> Criteria:
         duty_countries=duty,
         blocking_lists=blocking,
         reasons=reasons,
+        uptime_critical=bool(facts.uptime_critical),
     )

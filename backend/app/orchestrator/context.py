@@ -11,6 +11,7 @@ from app.schemas import (
     Candidate,
     Claim,
     Criteria,
+    Dependency,
     Fact,
     JobMode,
     LineRisk,
@@ -58,5 +59,6 @@ class JobContext:
     project: Project | None = None  # None: the v3 wheeled demo job
     verified_facts: list[Fact] = field(default_factory=list)
     criteria: Criteria | None = None
+    dependencies: list[Dependency] = field(default_factory=list)
     line_risks: dict[str, LineRisk] = field(default_factory=dict)
     alternatives: list[Alternative] = field(default_factory=list)
