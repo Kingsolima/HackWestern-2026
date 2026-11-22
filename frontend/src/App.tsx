@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from './api'
 import { AgentTiles } from './components/AgentTiles'
+import { BeforeAfterViewer } from './components/BeforeAfterViewer'
 import { ChecksTable } from './components/ChecksTable'
 import { ClaimsList } from './components/ClaimsList'
 import { ComplianceCard } from './components/ComplianceCard'
@@ -37,7 +38,11 @@ export default function App() {
         <span className="muted">API: {health}</span>
       </header>
       <JobBar state={job} onStart={() => start('replay')} />
-      <ModelViewer src="/cad/files/test_23.glb" />
+      {job.baseline && job.candidates[0] ? (
+        <BeforeAfterViewer before={job.baseline} after={job.candidates[0]} />
+      ) : (
+        <ModelViewer src="/cad/files/test_23.glb" />
+      )}
       <div className="grid">
         <ComplianceCard card={job.compliance ?? baselineCard} />
         <AgentTiles runs={runs} />
