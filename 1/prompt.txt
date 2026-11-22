@@ -1,0 +1,17 @@
+what is the purpose of each of these buttons. just give short and simple explanations
+
+---
+
+can you confirm how they actually work in the current code that we have?
+
+---
+
+assume that i dont read the code or know any of the variables. just allow me to understand
+
+---
+
+for the actual proper demo, what would we need for the input so that we can do the work for them. do we need a cad file of their robot?
+
+---
+
+can you explain for how the whole process is supposed to go from the onboarding page to the actual results that help the robotics company to see the new version of what they have but with new parts and all the results that we wanted in our plans
