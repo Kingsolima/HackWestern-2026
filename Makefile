@@ -1,7 +1,7 @@
 # Keep a sourced ROS (or other) PYTHONPATH from leaking into the uv envs.
 unexport PYTHONPATH
 
-.PHONY: help install dev-backend dev-cad dev-frontend up down db test lint
+.PHONY: help install dev-backend dev-cad dev-frontend up down db test test-cad lint
 
 help:
 	@echo "install       install backend + frontend deps"
@@ -11,6 +11,7 @@ help:
 	@echo "up / down     start / stop the full docker compose stack"
 	@echo "db            start only the local TimescaleDB"
 	@echo "test          backend tests"
+	@echo "test-cad      CAD worker tests (inside the CadQuery image)"
 	@echo "lint          ruff + frontend lint"
 
 install:
@@ -37,6 +38,11 @@ db:
 
 test:
 	cd backend && uv run pytest
+
+test-cad:
+	docker compose build cad
+	docker compose run --rm --no-deps -v ./cad/tests:/app/tests:ro cad \
+	  sh -c "pip install -q pytest httpx && python -m pytest -q -p no:cacheprovider tests"
 
 lint:
 	cd backend && uv run ruff check . && uv run ruff format --check .

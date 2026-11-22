@@ -26,8 +26,12 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/redesign
       CAD_WORKER_URL: http://cad:8001
       DATA_DIR: /data
+      # Record/replay store. Must be writable: live jobs record every TinyFish/Gemini call
+      # here, and replay jobs read the committed recordings from it.
+      RECORDINGS_DIR: /recordings
     volumes:
       - ./data:/data:ro
+      - ./data/recordings:/recordings
     ports: ["8000:8000"]
     depends_on: [db, cad]
 
