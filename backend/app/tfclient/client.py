@@ -14,6 +14,7 @@ from typing import Any, Literal
 import httpx
 from pydantic import BaseModel, ConfigDict
 
+from app.agents.verifier import canonical_url
 from app.schemas import AgentRunResult, TfStatus
 from app.tfclient.recorder import Recorder
 
@@ -74,6 +75,11 @@ class AgentEvent(_Loose):
     profile_hint: dict[str, Any] | None = None
     recovered: bool = False
     live: bool
+
+
+class RunStep(_Loose):
+    id: str
+    action: str
 
 
 class TFClient:
@@ -163,6 +169,54 @@ class TFClient:
 
         async for event, is_live in self.recorder.stream("agent", request, live):
             yield AgentEvent.model_validate(event | {"live": is_live})
+
+    async def run_steps(self, run_id: str) -> list[RunStep]:
+        """Steps of a finished run that captured a page snapshot (capture_config html)."""
+        request = {"op": "run_steps", "run_id": run_id}
+
+        async def live() -> dict[str, Any]:
+            r = await self._http.get(f"{RUNS_URL}/{run_id}", headers=self._headers)
+            r.raise_for_status()
+            steps = r.json().get("steps") or []
+            kept = [
+                {"id": s["id"], "action": s.get("action") or ""} for s in steps if s.get("html")
+            ]
+            return {"steps": kept}
+
+        body, _ = await self.recorder.call("agent", request, live)
+        return [RunStep.model_validate(s) for s in body["steps"]]
+
+    async def _step_snapshot(self, run_id: str, step_id: str) -> str | None:
+        url = f"{RUNS_URL}/{run_id}/steps/{step_id}/html"
+        r = await self._http.get(url, headers=self._headers, follow_redirects=True)
+        if r.status_code == 404:
+            return None
+        r.raise_for_status()
+        return r.text
+
+    async def step_canonical(self, run_id: str, step_id: str) -> str | None:
+        """Canonical URL of the page the agent's browser showed at that step; None if TinyFish
+        has no snapshot (404, seen on a run's final step) or the page declares none. Only the
+        URL is recorded: snapshots are ~1.4 MB and most are of pages no claim needs."""
+        request = {"op": "step_canonical", "run_id": run_id, "step_id": step_id}
+
+        async def live() -> dict[str, Any]:
+            snapshot = await self._step_snapshot(run_id, step_id)
+            return {"canonical": canonical_url(snapshot) if snapshot else None}
+
+        body, _ = await self.recorder.call("agent", request, live)
+        return body["canonical"]
+
+    async def step_html(self, run_id: str, step_id: str) -> str | None:
+        """The page DOM as the agent's browser rendered it at that step (recorded in full: it is
+        the evidence for agent_dom claims)."""
+        request = {"op": "step_html", "run_id": run_id, "step_id": step_id}
+
+        async def live() -> dict[str, Any]:
+            return {"html": await self._step_snapshot(run_id, step_id)}
+
+        body, _ = await self.recorder.call("agent", request, live)
+        return body["html"]
 
     async def _wait_for_run(self, run_id: str, deadline_s: float) -> dict[str, Any]:
         """The stream dropped after the run started: poll it to the end, never resubmit

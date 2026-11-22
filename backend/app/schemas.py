@@ -30,7 +30,9 @@ SpecName = Literal[
     "price",
     "lead_time",
 ]
-VerifyMethod = Literal["html_quote", "pdf_text"]
+VerifyMethod = Literal["html_quote", "pdf_text", "agent_dom"]
+ExtractedBy = Literal["tinyagent", "gemini_text", "gemini_vision"]
+Via = Literal["tinyfetch", "tinyagent", "replay"]
 
 
 class RobotRequirements(BaseModel):
@@ -189,7 +191,8 @@ class Source(BaseModel):
     kind: Literal["page", "pdf"]
     fetched_at: datetime
     html_key: str | None = Field(default=None, description="Storage key of the captured html/pdf")
-    via: Literal["tinyfetch", "tinyagent", "replay"]
+    via: Via
+    run_id: str | None = Field(default=None, description="TinyAgent run that read this page")
 
 
 class Claim(BaseModel):
@@ -203,9 +206,9 @@ class Claim(BaseModel):
     quote: str
     source: Source
     si_value: float | None = Field(default=None, description="Set by units code, never an LLM")
-    extracted_by: Literal["tinyagent", "gemini_text", "gemini_vision"]
+    extracted_by: ExtractedBy
     verified: bool = False
-    verify_method: Literal["html_quote", "pdf_text", "none"] = "none"
+    verify_method: Literal["html_quote", "pdf_text", "agent_dom", "none"] = "none"
 
 
 class OriginEvidence(BaseModel):
@@ -223,6 +226,7 @@ class Candidate(BaseModel):
     claims: list[Claim]
     origin: OriginEvidence
     status: Literal["found", "blocked", "not_found", "auth_required", "incomplete"]
+    product_url: str | None = None
 
 
 class AgentRunResult(BaseModel):

@@ -2,16 +2,28 @@
 plain async function over the JobContext."""
 
 import asyncio
+import re
 from collections import defaultdict
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-from app.agents.verifier import verify_claim
+from app.agents.verifier import origin_evidence, same_page, verify_claim
+from app.cad_client import CadError
 from app.engineering.compliance import compliance_card
-from app.orchestrator.cad import CadError
-from app.orchestrator.context import JobContext
+from app.engineering.ranking import RankInput, rank
+from app.engineering.spec_checks import (
+    BASELINE_FRAME,
+    check_candidate,
+    fit_badge,
+    requirement,
+    si_facts,
+    verdict,
+)
+from app.orchestrator.context import Design, JobContext
+from app.orchestrator.discovery import discover, plan_queries, triage
 from app.orchestrator.events import (
+    CheckResultPayload,
     ClaimRejected,
     ClaimVerified,
     CompliancePayload,
@@ -41,9 +53,21 @@ async def compliance_baseline(ctx: JobContext, workers: Sequence[Worker]) -> Non
     await ctx.log.emit(CompliancePayload(card=compliance_card(ctx.robot)))
 
 
+async def plan(ctx: JobContext, workers: Sequence[Worker]) -> None:
+    ctx.queries = plan_queries()
+
+
+async def discover_leads(ctx: JobContext, workers: Sequence[Worker]) -> None:
+    ctx.leads = await discover(ctx, ctx.queries)
+
+
+async def triage_leads(ctx: JobContext, workers: Sequence[Worker]) -> None:
+    ctx.leads = await triage(ctx, ctx.leads)
+
+
 async def extract(ctx: JobContext, workers: Sequence[Worker]) -> None:
     results = await asyncio.gather(*(w.run(ctx) for w in workers))
-    ctx.raw_claims = [claim for claims in results for claim in claims]
+    ctx.candidates = [candidate for found in results for candidate in found]
 
 
 # Fetch's default html keeps only the main content block; on Teknic model pages that drops the
@@ -54,8 +78,9 @@ VERIFY_PASSES: tuple[list[str] | None, ...] = (None, ["table"])
 async def verify(ctx: JobContext, workers: Sequence[Worker]) -> None:
     """Re-fetch every source page fresh (ttl=0) and promote matching claims to board facts."""
     by_url: defaultdict[str, list[Claim]] = defaultdict(list)
-    for claim in ctx.raw_claims:
-        by_url[claim.source.url].append(claim)
+    for candidate in ctx.candidates:
+        for claim in candidate.claims:
+            by_url[claim.source.url].append(claim)
 
     for url, claims in by_url.items():
         if claims[0].source.kind == "pdf":
@@ -82,13 +107,47 @@ async def verify(ctx: JobContext, workers: Sequence[Worker]) -> None:
                 else:
                     still_pending.append(claim)
             pending = still_pending
+        pending = await verify_on_agent_snapshot(ctx, url, pending)
         reason = (
-            "quote or value not on the freshly fetched page"
+            "quote or value not on the freshly fetched page or the agent's page snapshot"
             if fetched_any
             else "fresh fetch failed"
         )
         for claim in pending:
             await ctx.log.emit(ClaimRejected(claim=claim, reason=reason))
+
+    checked = {fact.id: fact for fact in ctx.facts}
+    ctx.candidates = [
+        c.model_copy(update={"claims": [checked.get(cl.id, cl) for cl in c.claims]})
+        for c in ctx.candidates
+    ]
+
+
+async def verify_on_agent_snapshot(ctx: JobContext, url: str, claims: list[Claim]) -> list[Claim]:
+    """Last pass, for values a page fills in with JavaScript (fresh fetches never run it): the
+    most recent DOM snapshot TinyFish captured of this page during the claim's own run. The
+    snapshot counts only if its canonical URL is the claim's page. Returns claims still open."""
+    pending = list(claims)
+    for run_id in {c.source.run_id for c in claims if c.source.run_id}:
+        from_run = [c for c in pending if c.source.run_id == run_id]
+        async with ctx.fleet.slot("fetch", ctx.budget):
+            steps = await ctx.tf.run_steps(run_id)
+        for step in reversed(steps):
+            async with ctx.fleet.slot("fetch", ctx.budget):
+                canonical = await ctx.tf.step_canonical(run_id, step.id)
+            if canonical is None or not same_page(canonical, url):
+                continue
+            async with ctx.fleet.slot("fetch", ctx.budget):
+                snapshot = await ctx.tf.step_html(run_id, step.id)
+            if snapshot is None:
+                continue
+            for claim in from_run:
+                checked = verify_claim(claim, snapshot, "agent_dom")
+                if checked.verified:
+                    await promote(ctx, checked)
+                    pending.remove(claim)
+            break
+    return pending
 
 
 async def promote(ctx: JobContext, fact: Claim) -> None:
@@ -107,52 +166,119 @@ async def promote(ctx: JobContext, fact: Claim) -> None:
     await ctx.log.emit(ClaimVerified(claim=fact))
 
 
-# Before/after designs for the demo. TODO(RANK): take the candidate from the ranked, checked
-# motors instead of this constant once RANK exists. Values from the Teknic CPM-SDSK-2310D-RLN
-# model page (length 3.34 in = 84.84 mm, shaft 0.375 in = 9.52 mm).
-WHEEL_BORE_MM = 5.0  # the baseline stepper's shaft; anything else needs a hub adapter
-BASELINE_DESIGN = {
-    "label": "Before: NEMA 17 stepper",
-    "motor": "NEMA 17 stepper (baseline)",
-    "params": {"frame": "17", "body_len": 48.0, "shaft_d": 5.0, "wheel_bore": WHEEL_BORE_MM},
-}
-CANDIDATE_DESIGN = {
-    "label": "After: Teknic NEMA 23 servo",
-    "motor": "Teknic CPM-SDSK-2310D-RLN",
-    "params": {
-        "frame": "23",
-        "body_len": 84.84,
-        "shaft_d": 9.52,
-        "wheel_bore": WHEEL_BORE_MM,
-        "highlight": True,
-    },
-}
+def design_id(job_id: str, candidate_id: str) -> str:
+    """Matches the CAD worker's id pattern ^[A-Za-z0-9_-]{1,64}$."""
+    return re.sub(r"[^A-Za-z0-9_-]", "-", f"{job_id}-{candidate_id}")[:64]
+
+
+async def check(ctx: JobContext, workers: Sequence[Worker]) -> None:
+    """Origin tier, bracket build (for fit numbers) and the 05 checks, per candidate."""
+    req = requirement(ctx.robot.requirements)
+    wheel_r_mm = ctx.robot.requirements.wheel_radius_m * 1000
+    for found in ctx.candidates:
+        candidate = found.model_copy(update={"origin": origin_evidence(found)})
+        facts = si_facts(candidate)
+        try:
+            build = await ctx.cad.build(
+                design_id(ctx.job_id, candidate.id),
+                candidate.nema_frame,
+                wheel_r_mm,
+                body_len_mm=facts["body_length"][0] if "body_length" in facts else None,
+                shaft_d_mm=facts["shaft_diameter"][0] if "shaft_diameter" in facts else None,
+                highlight=True,
+            )
+        except CadError as exc:
+            await ctx.log.emit(ErrorPayload(message=str(exc), stage="CHECK"))
+            build = None
+        fit = build.fit if build else None
+        checks = check_candidate(candidate, req, fit)
+        for row in checks:
+            await ctx.log.emit(CheckResultPayload(check=row))
+        overall = verdict(checks)
+        ctx.designs.append(
+            Design(
+                design_id=design_id(ctx.job_id, candidate.id),
+                candidate=candidate,
+                checks=checks,
+                verdict=overall,
+                fit_badge=fit_badge(overall, candidate.nema_frame, BASELINE_FRAME, fit),
+                price_usd=facts["price"][0] if "price" in facts else None,
+                build=build,
+            )
+        )
+
+
+async def rank_designs(ctx: JobContext, workers: Sequence[Worker]) -> None:
+    wins = rank(
+        [
+            RankInput(
+                candidate_id=d.candidate.id,
+                verdict=d.verdict,
+                price_usd=d.price_usd,
+                origin_tier=d.candidate.origin.tier,
+                checks=d.checks,
+            )
+            for d in ctx.designs
+        ]
+    )
+    for d in ctx.designs:
+        d.objectives = wins[d.candidate.id]
+
+
+# Before design (HANDOFF-v3 decision 13: the demo robot's NEMA 23 bracket and its 6.35 mm wheel
+# bore). Geometry for the viewer only, not a sourcing claim; the CAD worker's default body length.
+BASELINE_LABEL = "Before: NEMA 23 stepper"
+BASELINE_MOTOR = "NEMA 23 stepper (baseline)"
 
 
 async def build(ctx: JobContext, workers: Sequence[Worker]) -> None:
-    """Ask the CAD worker for the before and after robots. CAD trouble is reported, not fatal:
-    the rest of the job (claims, checks) is still worth showing."""
-    if ctx.cad is None:
-        await ctx.log.emit(ErrorPayload(message="no CAD worker configured", stage="BUILD"))
+    """Build the baseline robot, then publish every candidate bracket built during CHECK (fit
+    numbers come from the CAD worker there). CAD trouble is reported, never fatal."""
+    wheel_r_mm = ctx.robot.requirements.wheel_radius_m * 1000
+    baseline_id = design_id(ctx.job_id, "before")
+    try:
+        before = await ctx.cad.build(baseline_id, BASELINE_FRAME, wheel_r_mm, highlight=False)
+    except CadError as exc:
+        await ctx.log.emit(ErrorPayload(message=str(exc), stage="BUILD"))
         return
-    for role, design in (("baseline", BASELINE_DESIGN), ("candidate", CANDIDATE_DESIGN)):
-        suffix = "before" if role == "baseline" else "after"
-        design_id = f"{ctx.job_id}-{suffix}"
-        try:
-            built = await ctx.cad.build(design_id, **design["params"])
-        except CadError as exc:
-            await ctx.log.emit(ErrorPayload(message=str(exc), stage="BUILD"))
-            return
+    if before is None:  # unreachable: BASELINE_FRAME is a frame the worker models
+        return
+    await ctx.log.emit(
+        DesignReady(
+            design_id=before.design_id,
+            role="baseline",
+            label=BASELINE_LABEL,
+            motor=BASELINE_MOTOR,
+            frame=BASELINE_FRAME,
+            glb_url=before.glb_url,
+            step_url=before.step_url,
+            fit=before.fit,
+        )
+    )
+    for d in ctx.designs:
+        if d.build is None:
+            continue
+        c = d.candidate
+        name = " ".join(x for x in (c.manufacturer, c.part_number) if x) or c.id
         await ctx.log.emit(
             DesignReady(
-                design_id=design_id,
-                role=role,
-                label=design["label"],
-                motor=design["motor"],
-                frame=design["params"]["frame"],
-                glb_url=built["glb_url"],
-                step_url=built["step_url"],
-                fit=built["fit"],
+                design_id=d.design_id,
+                role="candidate",
+                label=f"After: {name}",
+                motor=name,
+                frame=c.nema_frame or "",
+                glb_url=d.build.glb_url,
+                step_url=d.build.step_url,
+                fit=d.build.fit,
+                candidate_id=c.id,
+                manufacturer=c.manufacturer,
+                part_number=c.part_number,
+                product_url=c.product_url,
+                verdict=d.verdict,
+                fit_badge=d.fit_badge,
+                objectives=d.objectives,
+                origin=c.origin,
+                price_usd=d.price_usd,
             )
         )
 
@@ -160,30 +286,53 @@ async def build(ctx: JobContext, workers: Sequence[Worker]) -> None:
 StageFn = Callable[[JobContext, Sequence[Worker]], Awaitable[None]]
 HANDLERS: dict[Stage, StageFn] = {
     "COMPLIANCE_BASELINE": compliance_baseline,
+    "PLAN": plan,
+    "DISCOVER": discover_leads,
+    "TRIAGE": triage_leads,
     "EXTRACT": extract,
     "VERIFY": verify,
+    "CHECK": check,
+    "RANK": rank_designs,
     "BUILD": build,
 }
 
 
+# Discovery only adds leads beyond the seed targets: when it fails the job continues with the
+# seeds and ends DEGRADED instead of FAILED (docs/design/04 section 3).
+OPTIONAL_STAGES: frozenset[Stage] = frozenset({"PLAN", "DISCOVER", "TRIAGE"})
+
+
 async def run_job(ctx: JobContext, workers: Sequence[Worker]) -> Stage:
-    """Run every stage in order. Any exception ends the job FAILED with an `error` event; the
-    log always closes, so SSE subscribers never wait on a dead job."""
+    """Run every stage in order. An exception in an optional stage is reported and the job ends
+    DEGRADED; anywhere else it ends the job FAILED. The log always closes, so SSE subscribers
+    never wait on a dead job."""
     final: Stage = "FAILED"
     current: Stage = "CREATED"
+    degraded = False
     try:
         for current in PIPELINE:
             await ctx.log.emit(StagePayload(stage=current))
             handler = HANDLERS.get(current)
-            if handler is not None:
+            if handler is None:
+                continue
+            try:
                 await handler(ctx, workers)
-        final = "DONE"
+            except Exception as exc:
+                if current not in OPTIONAL_STAGES:
+                    raise
+                degraded = True
+                await ctx.log.emit(ErrorPayload(message=_describe(exc), stage=current))
+        final = "DEGRADED" if degraded else "DONE"
     except Exception as exc:
-        await ctx.log.emit(ErrorPayload(message=f"{type(exc).__name__}: {exc}", stage=current))
+        await ctx.log.emit(ErrorPayload(message=_describe(exc), stage=current))
     finally:
         await ctx.log.emit(StagePayload(stage=final))
         await ctx.log.close()
     return final
+
+
+def _describe(exc: Exception) -> str:
+    return f"{type(exc).__name__}: {exc}"
 
 
 @dataclass

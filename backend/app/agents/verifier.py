@@ -10,8 +10,17 @@ import html
 import re
 from decimal import Decimal
 from typing import Literal
+from urllib.parse import urlsplit
 
-from app.schemas import AgentRunResult, Claim, OriginTier, Outcome, VerifyMethod
+from app.schemas import (
+    AgentRunResult,
+    Candidate,
+    Claim,
+    OriginEvidence,
+    OriginTier,
+    Outcome,
+    VerifyMethod,
+)
 
 
 def classify_outcome(run: AgentRunResult) -> Outcome:
@@ -66,8 +75,8 @@ def verify_claim(claim: Claim, text: str, method: VerifyMethod) -> Claim:
     - the normalized quote occurs in the normalized text, and
     - the normalized `raw_value` equals a number inside the normalized quote, compared as
       decimals ("0.5" == "0.50"; a decimal comma "0,50" reads as 0.50).
-    Normalization: html tags become spaces, unescape entities (incl. &nbsp;), remove thousands
-    separators ("1,200" -> "1200"), collapse whitespace, casefold.
+    Normalization: html tags and colons become spaces, unescape entities (incl. &nbsp;), remove
+    thousands separators ("1,200" -> "1200"), collapse whitespace, casefold.
     A non-numeric `raw_value` (e.g. country_of_origin "US") needs only the quote match; the
     origin rules read the quote itself.
     Verified -> `verified=True, verify_method=method`; else `verified=False, verify_method="none"`.
@@ -90,8 +99,9 @@ _NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
 
 
 def _normalize(text: str) -> str:
-    """Tags become spaces, so a tag inside a word fails the match instead of gluing words."""
-    text = html.unescape(_TAG.sub(" ", text))
+    """Tags become spaces, so a tag inside a word fails the match instead of gluing words.
+    Colons become spaces: agents write "Length: 3.34 in" where the page has two table cells."""
+    text = html.unescape(_TAG.sub(" ", text)).replace(":", " ")
     text = _THOUSANDS_COMMA.sub("", text)
     return " ".join(text.split()).casefold()
 
@@ -104,6 +114,28 @@ def _value_in_quote(value: str, quote: str) -> bool:
 
 def _decimal(number: str) -> Decimal:
     return Decimal(number.replace(",", "."))
+
+
+_CANONICAL = re.compile(
+    r"<link\b[^>]*\brel=[\"']?canonical[\"']?[^>]*\bhref=[\"']([^\"']+)[\"']"
+    r"|<link\b[^>]*\bhref=[\"']([^\"']+)[\"'][^>]*\brel=[\"']?canonical",
+    re.I,
+)
+
+
+def same_page(a: str, b: str) -> bool:
+    """Same host and path; query, fragment, scheme and a trailing slash are ignored."""
+
+    def key(url: str) -> tuple[str, str]:
+        parts = urlsplit(url.strip())
+        return (parts.hostname or "").removeprefix("www."), parts.path.rstrip("/")
+
+    return key(a) == key(b)
+
+
+def canonical_url(html_text: str) -> str | None:
+    match = _CANONICAL.search(html_text)
+    return html.unescape(match.group(1) or match.group(2)) if match else None
 
 
 OriginClass = Literal[
@@ -160,7 +192,9 @@ _RULES: list[tuple[OriginClass, re.Pattern[str]]] = [
     (
         "us_made_site_unstated",
         re.compile(
-            rf"{_MAKE}(?:\s+\w+){{0,3}}?\s+in\s+{_US}(?!\w)|\b(?:usa|american)-made\b", re.I
+            rf"{_MAKE}(?:\s+\w+){{0,3}}?\s+in\s+{_US}(?!\w)|\b(?:usa|american)-made\b"
+            rf"|\bcountry\s+of\s+origin\s*:?\s*{_US}(?!\w)",
+            re.I,
         ),
     ),
     ("assembled_in_us", re.compile(rf"\bassembled\s+in\s+{_US}(?!\w)", re.I)),
@@ -197,3 +231,24 @@ _TIER_RANK: dict[OriginTier, int] = {"rejected": 0, "none": 1, "T3": 2, "T2": 3,
 
 def lower_tier(a: OriginTier, b: OriginTier) -> OriginTier:
     return a if _TIER_RANK[a] <= _TIER_RANK[b] else b
+
+
+_US_CLASSES: frozenset[OriginClass] = frozenset(
+    {"made_at_named_us_plant", "us_made_site_unstated", "assembled_in_us", "us_hq_only"}
+)
+
+
+def origin_evidence(candidate: Candidate) -> OriginEvidence:
+    """Tier from the candidate's verified origin claim by code rules. The quote is model
+    specific when it sits on the candidate's own product page."""
+    claim = next(
+        (c for c in candidate.claims if c.field == "country_of_origin" and c.verified), None
+    )
+    if claim is None:
+        return OriginEvidence(country=None, tier="none", claim_id=None)
+    cls = origin_class(claim.quote)
+    on_model_page = candidate.product_url is not None and same_page(
+        claim.source.url, candidate.product_url
+    )
+    country = "US" if cls in _US_CLASSES else claim.raw_value
+    return OriginEvidence(country=country, tier=origin_tier(cls, on_model_page), claim_id=claim.id)

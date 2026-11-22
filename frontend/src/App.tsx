@@ -43,7 +43,7 @@ function startLive(start: (mode: 'live', opts: CreateJobOptions) => void, projec
 function starterRobot(project: ProjectId) {
   return project === 'ar4_club'
     ? { src: '/cad/designs/starter_ar4/glb', title: 'Robot: AR4 arm, NEMA 23 J2 motor' }
-    : { src: '/cad/designs/starter/glb', title: 'Robot: NEMA 17 stepper baseline' }
+    : { src: '/cad/designs/starter/glb', title: 'Robot: NEMA 23 stepper baseline' }
 }
 
 export default function App() {

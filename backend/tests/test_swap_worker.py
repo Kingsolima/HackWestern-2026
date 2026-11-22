@@ -6,6 +6,7 @@ import pytest
 
 from app.agents.targets import MOTOR_SCHEMA, TEKNIC, SwapTarget
 from app.api.routes import load_demo_robot
+from app.cad_client import CadClient
 from app.orchestrator.board import MemoryBoard
 from app.orchestrator.context import JobContext
 from app.orchestrator.events import EventLog
@@ -13,6 +14,7 @@ from app.orchestrator.fleet import Fleet, JobBudget
 from app.orchestrator.workers import SwapWorker, claims_from_candidate
 from app.schemas import AgentMotorCandidate
 from app.tfclient.client import AGENT_SSE_URL, RUNS_URL, TFClient
+from app.tfclient.gemini import GeminiClient
 from app.tfclient.recorder import Recorder
 
 pytestmark = pytest.mark.anyio
@@ -27,8 +29,7 @@ def test_packaged_schema_is_the_contract():
     assert MOTOR_SCHEMA == json.loads(contract.read_text())
 
 
-def test_teknic_goal_is_the_one_omar_ran_live():
-    assert REAL_RUN["request"]["goal"] == TEKNIC.goal
+def test_omars_live_run_used_the_contract_schema():
     assert REAL_RUN["request"]["output_schema"] == MOTOR_SCHEMA
 
 
@@ -97,6 +98,8 @@ def context(tmp_path, handler) -> tuple[JobContext, list[httpx.Request]]:
         fleet=Fleet({"agent": 2}),
         budget=JobBudget(),
         board=MemoryBoard(),
+        cad=CadClient(http, "http://cad.invalid"),
+        gemini=GeminiClient(Recorder(tmp_path, "replay"), http, "", "flash"),
     )
     return ctx, seen
 
@@ -109,8 +112,14 @@ async def test_successful_run_emits_tile_events_and_returns_claims(tmp_path):
     ctx, seen = context(
         tmp_path, lambda r: sse_response(sse(STARTED, STREAM, PROGRESS, complete()))
     )
-    claims = await SwapWorker().run(ctx)
-    assert len(claims) == 9
+    [candidate] = await SwapWorker().run(ctx)
+    assert len(candidate.claims) == 9
+    assert (candidate.id, candidate.motor_type, candidate.nema_frame) == (
+        "CPM-SDSK-2310D-RLN",
+        "servo_integrated",
+        "23",
+    )
+    assert candidate.product_url == "https://teknic.com/model-info/CPM-SDSK-2310D-RLN/"
     types = [e.type for e in ctx.log.events]
     assert types == ["run_started", "run_streaming_url", "run_progress", "run_finished"]
     finished = ctx.log.events[-1].data
@@ -124,7 +133,8 @@ async def test_blocked_run_is_retried_once_with_stealth_and_us_proxy(tmp_path):
         return sse_response(sse(STARTED, complete("success" if stealth else "blocked")))
 
     ctx, seen = context(tmp_path, handler)
-    assert len(await SwapWorker().run(ctx)) == 9
+    [candidate] = await SwapWorker().run(ctx)
+    assert len(candidate.claims) == 9
     bodies = [json.loads(r.content) for r in seen]
     assert [b["browser_profile"] for b in bodies] == ["lite", "stealth"]
     assert bodies[1]["proxy_config"] == {"enabled": True, "country_code": "US"}

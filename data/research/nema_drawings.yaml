@@ -1,0 +1,156 @@
+# NEMA frame dimensions from real vendor drawings (checked 2026-11-21).
+# Report only: the code tables were NOT edited.
+# Caveat: the drawing PDFs carry dimension numbers without labels in their text layer. Which
+# number is the flange, pilot or bolt circle was inferred from the drawing layout, the inch
+# conversions printed beside each number, and the usual NEMA layout. Check against the drawing
+# images before cutting metal.
+# Bolt spacing: Teknic prints the bolt-circle DIAMETER. Square hole spacing = bolt circle / sqrt(2);
+# that conversion is left to code (units table), the raw printed values are given here.
+date_checked: "2026-11-21"
+
+sources:
+  teknic_manual:
+    url: "https://teknic.com/files/downloads/clearpath_user_manual.pdf"
+    title: "ClearPath User Manual, models MCVC, MCPV, SDSK, SDHP, NEMA 23 and NEMA 34 frame sizes, Rev. 3.30 (Feb 9, 2025), Appendix B pages 164-165"
+  teknic_model_page:
+    url: "https://teknic.com/model-info/CPM-SDSK-2310S-RLN/"
+  stepperonline_isv57t:
+    url: "https://www.omc-stepperonline.com/nema-23-integrated-easy-servo-motor-90w-3000rpm-0-3nm-42-49oz-in-20-50vdc-servo-motor-short-shaft-isv57t-090s"
+  oriental_pk24_rs:
+    url: "https://docs.rs-online.com/17cd/A700000011340721.pdf"
+    note: "Oriental Motor PK series catalog hosted by RS. Only a search-engine snippet of the 42 mm drawing was readable; the full extract returned the catalog front matter only. Treat NEMA 17 values as WEAK until someone opens the PDF."
+
+frames:
+  "17":
+    vendor: "Oriental Motor PKP/PK24x (42 mm frame)"
+    flange_square_mm: 42
+    flange_quote: "Frame Size 42 mm  PK24"
+    bolt_spacing_mm: 31
+    bolt_spacing_quote: "4-M3P0.5 7 DEEP MIN. 6 LEAD WIRES 300mm LONG"
+    bolt_spacing_quote_2: "31+-0.15 31+-0.15"
+    pilot_diameter_mm: null
+    pilot_note: "Not readable in the snippet (a 'phi18' value appears but its meaning is unclear). Common NEMA 17 pilot is 22 mm but we did not source it from a drawing."
+    bolt_hole: "M3 x 0.5 thread, 7 mm deep min (tapped, not through)"
+    shaft_diameters_mm: [5]
+    shaft_quote: "phi5 0 -0.012"
+    source: "oriental_pk24_rs"
+    quote_source_type: "search snippet (web_search result description), ASCII-normalized: plus-minus -> '+-', phi symbol -> 'phi', full-width dash -> '-'"
+    confidence: "low"
+  "23":
+    vendor: "Teknic ClearPath NEMA 23 (CPM-xxxx-23xx)"
+    flange_square_mm: 59.10
+    flange_quote: "59.10+-0.76 2.327+-.030"
+    flange_note: "Teknic's model page says 'NEMA 23 - 2.33 in (59.18 mm) sq.' The StepperOnline iSV57T-090S page says 'Frame Size(mm) 57 x 57'. NEMA 23 flanges vary by vendor."
+    bolt_circle_mm: 66.68
+    bolt_circle_quote: "66.68 2.625"
+    bolt_spacing_mm: null
+    bolt_spacing_note: "Square spacing = 66.68 / sqrt(2); compute in code. Code tables use 47.14."
+    pilot_diameter_mm: 38.10
+    pilot_quote: "38.10- 0 0.051 1.500+ - .000 .002"
+    pilot_tolerance: "+0 / -0.051 mm"
+    bolt_hole: "4x 5.20 mm through"
+    bolt_hole_quote: "4x 5.20 .205 THRU"
+    shaft_diameters_mm: [9.525, 6.35]
+    shaft_quote: "9.533 9.500 .3753 .3740"
+    shaft_quote_2: "6.358 6.325 .2503 .2490 20.57 .810 Optional 1/4\" Full Round Shaft"
+    shaft_note: "Standard 3/8 in keyed shaft; 1/4 in round shaft only on 231x/232x models ('1/4\" shaft svailable 231x and 232x models only' - typo is Teknic's). Baseline iSV57T-090S shaft is 8 mm ('Shaft Diameter: 8mm')."
+    body_length_mm_2310: 84.81
+    body_length_quote: "CPM-_ _ _ _ -2310_ - _ _ 84.81 [3.339]"
+    source: "teknic_manual"
+    confidence: "medium (labels inferred)"
+  "34":
+    vendor: "Teknic ClearPath NEMA 34 (CPM-xxxx-34xx)"
+    flange_square_mm: 86.87
+    flange_quote: "86.87 +-0.76 3.420 +-0.030"
+    bolt_circle_mm: 98.43
+    bolt_circle_quote: "0.220 5.60 THRU98.43 3.875"
+    bolt_spacing_mm: null
+    bolt_spacing_note: "Square spacing = 98.43 / sqrt(2); compute in code. Code tables use 69.6."
+    pilot_diameter_mm: 73.03
+    pilot_quote: "73.03 - 0 0.051 2.875 - 0.000 0.002"
+    bolt_hole: "5.60 mm through (0.220 in)"
+    bolt_hole_quote: "0.220 5.60 THRU"
+    shaft_diameters_mm: [12.7]
+    shaft_quote: "12.708 12.675 0.5003 0.4990"
+    source: "teknic_manual"
+    confidence: "medium (labels inferred)"
+    note: "Quotes ASCII-normalized: the PDF uses the plus-minus sign, written here as '+-'."
+
+discrepancies:
+  # backend/app/engineering/nema.py  NEMA[frame] = NemaFrame(frame, bolt_spacing_mm, pilot_diameter_mm, common_shaft_mm, face_mm)
+  # cad/cad_worker/nema.py           NEMA[frame] = (bolt_spacing_mm, pilot_diameter_mm, face_mm); BOLT_HOLE_MM; SHAFT_MM
+  - frame: "23"
+    field: "common shaft"
+    code_backend: [6.35, 8.0]
+    code_cad: 6.35
+    drawing: [9.525, 6.35]
+    impact: "HIGH for the demo: the Teknic swap ships with a 3/8 in (9.525 mm) shaft by default and the baseline has 8 mm. Neither table lists 9.525, so fit_shaft will flag a hub adapter (which is true) or mis-model the bore. The CAD table's single 6.35 matches only the optional Teknic shaft."
+  - frame: "23"
+    field: "bolt hole"
+    code_backend: "not stored"
+    code_cad: 5.1
+    drawing: 5.20
+    impact: "low (0.1 mm); 05-checks-spec says '~5.1 through'. Teknic drawing says 5.20 through."
+  - frame: "23"
+    field: "flange / face"
+    code_backend: 57.2
+    code_cad: 57.2
+    drawing: 59.10
+    impact: "medium for fit_ground: 1.9 mm bigger flange on the Teknic motor reduces ground clearance by ~0.95 mm on a 60 mm wheel. The baseline iSV57T is 57 x 57."
+  - frame: "23"
+    field: "bolt spacing"
+    code_backend: 47.14
+    code_cad: 47.14
+    drawing: "bolt circle 66.68 (square spacing to be computed)"
+    impact: "expected to agree once converted; confirm in code"
+  - frame: "23"
+    field: "pilot"
+    code_backend: 38.1
+    code_cad: 38.1
+    drawing: 38.10
+    impact: "agrees"
+  - frame: "34"
+    field: "flange / face"
+    code_backend: 86.0
+    code_cad: 86.0
+    drawing: 86.87
+    impact: "low"
+  - frame: "34"
+    field: "pilot"
+    code_backend: 73.0
+    code_cad: 73.0
+    drawing: 73.03
+    impact: "agrees within tolerance"
+  - frame: "34"
+    field: "bolt hole"
+    code_backend: "not stored"
+    code_cad: 5.5
+    drawing: 5.60
+    impact: "low"
+  - frame: "34"
+    field: "common shaft"
+    code_backend: [9.5, 12.7, 14.0]
+    code_cad: 9.5
+    drawing: [12.7]
+    impact: "CAD default 9.5 does not match the Teknic NEMA 34 (12.7). 14 mm is common on other NEMA 34 motors but was not sourced here."
+  - frame: "34"
+    field: "bolt spacing"
+    code_backend: 69.6
+    code_cad: 69.6
+    drawing: "bolt circle 98.43 (square spacing to be computed)"
+    impact: "expected to agree once converted; confirm in code"
+  - frame: "17"
+    field: "pilot"
+    code_backend: 22.0
+    code_cad: 22.0
+    drawing: null
+    impact: "unverified; no drawing value read"
+  - frame: "17"
+    field: "face / bolt spacing / hole / shaft"
+    code_backend: {face: 42.3, bolt_spacing: 31.0, shaft: [5.0]}
+    code_cad: {face: 42.3, bolt_spacing: 31.0, hole: 3.4, shaft: 5.0}
+    drawing: {face: 42, bolt_spacing: 31, hole: "M3 tapped", shaft: 5}
+    impact: "agrees within the weak NEMA 17 evidence. CAD 3.4 mm is a bracket clearance hole for M3, which is fine; the motor itself has tapped M3 holes."
+  - frame: "all"
+    field: "table sync"
+    impact: "backend stores no bolt-hole size; CAD stores one shaft per frame while backend stores a tuple. 05-checks-spec section 4 lists bolt holes; backend should carry them too."

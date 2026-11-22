@@ -1,6 +1,6 @@
 import pytest
 
-from app.agents.verifier import lower_tier, origin_class, origin_tier
+from app.agents.verifier import canonical_url, lower_tier, origin_class, origin_tier, same_page
 
 
 @pytest.mark.parametrize(
@@ -16,6 +16,8 @@ from app.agents.verifier import lower_tier, origin_class, origin_tier
         ("Designed and manufactured in the United States", "us_made_site_unstated"),
         ("Teknic designs and builds products in the USA.", "us_made_site_unstated"),
         ("We manufacture every motor in the United States", "us_made_site_unstated"),
+        ("Country of Origin USA", "us_made_site_unstated"),
+        ("Country of origin: United States", "us_made_site_unstated"),
         ("Assembled in USA", "assembled_in_us"),
         ("Designed in USA", "designed_in_us"),
         ("Engineered in America", "designed_in_us"),
@@ -66,3 +68,86 @@ def test_origin_tier(cls, model_specific, tier):
 )
 def test_model_can_only_lower_the_tier(a, b, low):
     assert lower_tier(a, b) == low
+
+
+@pytest.mark.parametrize(
+    ("a", "b", "same"),
+    [
+        (
+            "https://teknic.com/model-info/X/?model_voltage=75VDC",
+            "https://teknic.com/model-info/X",
+            True,
+        ),
+        ("http://www.teknic.com/model-info/X/", "https://teknic.com/model-info/X/#specs", True),
+        ("https://teknic.com/model-info/X/", "https://teknic.com/model-info/Y/", False),
+        ("https://teknic.com/model-info/X/", "https://other.com/model-info/X/", False),
+    ],
+)
+def test_same_page(a, b, same):
+    assert same_page(a, b) is same
+
+
+def test_canonical_url_in_either_attribute_order():
+    assert (
+        canonical_url('<link rel="canonical" href="https://a/x?b=1&amp;c=2">')
+        == "https://a/x?b=1&c=2"
+    )
+    assert canonical_url("<link href='https://a/y' rel=canonical>") == "https://a/y"
+    assert canonical_url("<link rel='stylesheet' href='https://a/s.css'>") is None
+
+
+def _candidate(quote, claim_url, product_url, verified=True):
+    from datetime import UTC, datetime
+
+    from app.schemas import Candidate, Claim, OriginEvidence, Source
+
+    claim = Claim(
+        id="o1",
+        candidate_id="m",
+        field="country_of_origin",
+        raw_value="USA",
+        raw_unit=None,
+        quote=quote,
+        source=Source(url=claim_url, kind="page", fetched_at=datetime.now(UTC), via="tinyfetch"),
+        extracted_by="tinyagent",
+        verified=verified,
+    )
+    return Candidate(
+        id="m",
+        manufacturer="M",
+        part_number="P",
+        motor_type="servo_integrated",
+        nema_frame="23",
+        claims=[claim],
+        origin=OriginEvidence(country=None, tier="none", claim_id=None),
+        status="found",
+        product_url=product_url,
+    )
+
+
+def test_origin_row_on_the_models_own_page_is_t1():
+    from app.agents.verifier import origin_evidence
+
+    model = "https://teknic.com/model-info/X/"
+    got = origin_evidence(_candidate("Country of Origin USA", model + "?v=75", model))
+    assert (got.country, got.tier, got.claim_id) == ("US", "T1", "o1")
+
+
+def test_company_wide_statement_is_t3_and_unverified_is_none():
+    from app.agents.verifier import origin_evidence
+
+    about = _candidate(
+        "Teknic designs and builds products in the USA.",
+        "https://teknic.com/about/",
+        "https://teknic.com/model-info/X/",
+    )
+    assert origin_evidence(about).tier == "T3"
+    unverified = _candidate("Country of Origin USA", "https://a/x", "https://a/x", verified=False)
+    assert origin_evidence(unverified).tier == "none"
+
+
+def test_designed_in_usa_is_rejected_even_on_the_model_page():
+    from app.agents.verifier import origin_evidence
+
+    got = origin_evidence(_candidate("Designed in USA", "https://a/x", "https://a/x"))
+    assert got.tier == "rejected"

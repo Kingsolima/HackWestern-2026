@@ -12,7 +12,8 @@ from typing import Any, ClassVar, Literal
 from pydantic import BaseModel
 
 from app.engineering.compliance import ComplianceCard
-from app.schemas import Claim, Outcome, Product
+from app.engineering.spec_checks import FitBadge, SpecCheck, Verdict
+from app.schemas import Claim, Objective, OriginEvidence, Outcome, Product
 
 EventType = Literal[
     "stage",
@@ -106,9 +107,15 @@ class CompliancePayload(Payload):
     card: ComplianceCard
 
 
+class CheckResultPayload(Payload):
+    type: ClassVar[EventType] = "check_result"
+    check: SpecCheck
+
+
 class DesignReady(Payload):
-    """A design the CAD worker built. One event per design: the baseline robot first, then
-    each candidate. Urls are CAD-worker paths (/designs/{id}/glb); the UI serves them via /cad."""
+    """A design the CAD worker built: the baseline robot first, then one per checked candidate
+    the worker could model. Urls are CAD-worker paths (/designs/{id}/glb); the UI serves them via
+    /cad. The candidate fields after `fit` are empty on the baseline."""
 
     type: ClassVar[EventType] = "design_ready"
     design_id: str
@@ -119,6 +126,15 @@ class DesignReady(Payload):
     glb_url: str
     step_url: str
     fit: dict[str, Any]
+    candidate_id: str | None = None
+    manufacturer: str | None = None
+    part_number: str | None = None
+    product_url: str | None = None
+    verdict: Verdict | None = None
+    fit_badge: FitBadge | None = None
+    objectives: list[Objective] = []
+    origin: OriginEvidence | None = None
+    price_usd: float | None = None
 
 
 class ErrorPayload(Payload):

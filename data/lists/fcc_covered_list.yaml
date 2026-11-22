@@ -1,0 +1,91 @@
+# FCC Covered List (47 CFR 1.50002). Entries copied from the FCC page on 2026-11-21.
+# Quotes are verbatim except footnote symbols, which were dropped (ASCII only).
+list: "FCC Covered List"
+official_url: "https://www.fcc.gov/supplychain/coveredlist"
+list_version_on_page: "(November 18, 2026)"
+conditional_approvals_updated: "(Updated November 18, 2026)"
+faq_url: "https://www.fcc.gov/covered-list-faqs-robots-inverters"
+date_checked: "2026-11-21"
+effect_quote: "Equipment on the Covered List (\"covered equipment\") is prohibited from getting FCC equipment authorization."
+effect_source_url: "https://www.fcc.gov/covered-list-faqs-robots-inverters"
+
+# Category entries (apply to any producer that meets the description)
+categories:
+  - entry: "Foreign-produced advanced robotic devices, except advanced robotic devices which have been granted a Conditional Approval by DoW."
+    date_of_inclusion: "July 28, 2026"
+    relevant_to_demo_robot: true
+  - entry: "Foreign-produced power inverters, except power inverters which have been granted a Conditional Approval by DoW or DHS."
+    date_of_inclusion: "July 28, 2026; Updated: August 20, 2026"
+    relevant_to_demo_robot: false
+    note: "Defined as utility-interactive (grid-tied) DC-to-AC inverters (UL 1741). Our robot has no grid-tied inverter; the motor drives are not this."
+  - entry: "Routers produced in a foreign country, except routers which have been granted a Conditional Approval by DoW or DHS."
+    date_of_inclusion: "March 23, 2026"
+    relevant_to_demo_robot: false
+    note: "Only if we ship a stand-alone router. The Raspberry Pi 5 Wi-Fi is not a router product."
+  - entry: "Uncrewed aircraft systems (UAS) and UAS critical components produced in a foreign country (with exceptions for the DCMA Blue UAS Cleared List and domestic end products until January 1, 2028, and Conditional Approvals)"
+    date_of_inclusion: "see page (text truncated in our extract)"
+    relevant_to_demo_robot: false
+    note: "Paraphrase of a long entry; read the page for the exact wording. Ground robots are excluded from 'advanced robotic device' if they are UAS, and vice versa."
+
+# Named-producer entries (entity names as the list states them)
+named_entities:
+  - producer: "Huawei Technologies Company"
+    entry: "Telecommunications equipment produced by Huawei Technologies Company, including telecommunications or video surveillance services provided by such entity or using such equipment."
+    date_of_inclusion: "March 12, 2021"
+  - producer: "ZTE Corporation"
+    entry: "Telecommunications equipment produced by ZTE Corporation, including telecommunications or video surveillance services provided by such entity or using such equipment."
+    date_of_inclusion: "March 12, 2021"
+  - producer: "Hytera Communications Corporation"
+    scope: "Video surveillance and telecommunications equipment ... to the extent it is used for the purpose of public safety, security of government facilities, physical security surveillance of critical infrastructure, and other national security purposes"
+    date_of_inclusion: "March 12, 2021"
+  - producer: "Hangzhou Hikvision Digital Technology Company"
+    scope: "Video surveillance and telecommunications equipment ... to the extent it is used for the purpose of public safety, security of government facilities, physical security surveillance of critical infrastructure, and other national security purposes"
+    date_of_inclusion: "March 12, 2021"
+  - producer: "Dahua Technology Company"
+    scope: "Video surveillance and telecommunications equipment ... to the extent it is used for the purpose of public safety, security of government facilities, physical security surveillance of critical infrastructure, and other national security purposes"
+    date_of_inclusion: "March 12, 2021"
+  - producer: "AO Kaspersky Lab"
+    entry: "Information security products, solutions, and services supplied, directly or indirectly, by AO Kaspersky Lab or any of its predecessors, successors, parents, subsidiaries, or affiliates."
+    date_of_inclusion: "March 25, 2022"
+  - producer: "Kaspersky Lab, Inc."
+    entry: "Cybersecurity and anti-virus software produced or provided by Kaspersky Lab, Inc. or any of its successors and assignees."
+    date_of_inclusion: "July 23, 2024"
+  - producer: "China Mobile International USA Inc."
+    entry: "International telecommunications services provided by China Mobile International USA Inc. subject to section 214 of the Communications Act of 1934."
+    date_of_inclusion: "March 25, 2022"
+  - producer: "China Telecom (Americas) Corp."
+    entry: "Telecommunications services provided by China Telecom (Americas) Corp. subject to section 214 of the Communications Act of 1934."
+    date_of_inclusion: "March 25, 2022"
+  - producer: "Pacific Networks Corp and ComNet (USA) LLC"
+    entry: "International telecommunications services provided by Pacific Networks Corp and its wholly-owned subsidiary ComNet (USA) LLC subject to section 214 of the Communications Act of 1934."
+    date_of_inclusion: "September 20, 2022"
+  - producer: "China Unicom (Americas) Operations Limited"
+    entry: "International telecommunications services provided by China Unicom (Americas) Operations Limited subject to section 214 of the Communications Act of 1934."
+    date_of_inclusion: "September 20, 2022"
+  - producer: "Digitalsystem Technology Inc."
+    entry: "International telecommunications services provided by Digitalsystem Technology Inc., subject to section 214 of the Communications Act of 1934."
+    date_of_inclusion: "July 7, 2026"
+
+# FCC 26-50 (logic-bearing hardware from listed producers) is described in docs/design/01 and 02
+# but its text was NOT opened in this research pass. Treat that hard-stop list as unverified here.
+fcc_26_50_status: "not verified in this pass; see docs/design/01-feasibility.md section 1"
+
+# Ground-robot Conditional Approvals listed on the page (examples of what DoW has cleared)
+advanced_robotic_device_conditional_approvals:
+  - "SYNCROBOTIC CO., LTD.'s \"Jeff\" and \"Adventure\" quadruped robotic platforms (November 18, 2026)"
+  - "BLUEPATH ROBOTICS, INC.'s O1000 PLATFORM advanced mobile robot (AMR) and OM1500 TUNNEL AMR (November 18, 2026)"
+  - "ABB Robotics, LLC's Autonomous Mobile Manipulators, Model Nos. AMMR G0540 and AMMR G1240, and Autonomous Mobile Robot, Model No. P204V (November 6, 2026)"
+  - "Pantograph Industries, PBC's Pandroid Robot Hardware (November 6, 2026)"
+  - "ARAPL RaaS Private Limited's Autonomous Pallet Truck/Maia2000 V1, V3, & V4 and autonomous counterbalance Forklift/Atlas AC2000 V1, V2, and V4 automated mobile robotic equipment (October 30, 2026)"
+  - "ATI Motors, Inc.'s Sherpa 3K, Sherpa 10K, FlexFork 1500, FlexFork 3000, and Sherpa Mecha robotic platforms (October 30, 2026)"
+  - "Lightberry Holdings, Inc.'s Lumi Interactive mobile robots (October 30, 2026)"
+  - "SunScout Holdings, Inc.'s, SunScout Eco, Pro, and Promax Robotic Platforms and SunScout Solar Shelter Mobile Energy Systems (October 30, 2026)"
+  - "Swap Robotics Canada Inc.'s V7 robot (October 30, 2026)"
+  - "OMRON Holdings, Inc.'s LD-150 and LD-300 robotic platforms (October 30, 2026)"
+  - "Haystack Robotics, Inc.'s Violet AI robotic device (October 23, 2026)"
+  - "T-Robotics Co., Ltd.'s entire product class of automated guided vehicles (AGVs) (October 23, 2026)"
+  - "Vulcan Robotics Inc.'s Sourccey mobile robotic platform (October 21, 2026)"
+  - "Volley Automation, Inc.'s automated guided vehicles and autonomous mobile robots (AGV/AMR) (October 16, 2026)"
+  - "Matic Robots, Inc.'s Robotic Floor Cleaner Model 4MA0001 and Charging Dock Model 4DK0008 (October 2, 2026)"
+  - "ANSCER Robotics AR250, AR650, and AR1250 robotic platforms (September 18, 2026)"
+  - "Husqvarna AB 305v IQ, 310v IQ, 420v IQ, and 440v IQ robotic platforms (September 9, 2026)"

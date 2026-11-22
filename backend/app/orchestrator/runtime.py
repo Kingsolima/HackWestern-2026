@@ -5,16 +5,17 @@ import uuid
 
 import httpx
 
+from app.cad_client import CadClient
 from app.config import Settings
 from app.orchestrator.board import MemoryBoard
-from app.orchestrator.cad import CadClient
 from app.orchestrator.context import JobContext
 from app.orchestrator.events import EventLog
 from app.orchestrator.fleet import Fleet, JobBudget
 from app.orchestrator.job import Job, run_job
-from app.orchestrator.workers import FakeSwapWorker, SwapWorker, Worker
+from app.orchestrator.workers import SwapWorker, Worker
 from app.schemas import JobMode, Robot
 from app.tfclient.client import TFClient
+from app.tfclient.gemini import GeminiClient
 from app.tfclient.recorder import Recorder
 
 
@@ -32,11 +33,11 @@ class Runtime:
             }
         )
         self.board = MemoryBoard()
+        self.cad = CadClient(http, settings.cad_worker_url)
         self.jobs: dict[str, Job] = {}
 
     def workers(self, mode: JobMode) -> list[Worker]:
-        """Replay runs the fake page until a live Teknic job has been recorded."""
-        return [FakeSwapWorker()] if mode == "replay" else [SwapWorker()]
+        return [SwapWorker()]
 
     def start_job(self, robot: Robot, mode: JobMode) -> Job:
         job_id = uuid.uuid4().hex[:12]
@@ -50,7 +51,10 @@ class Runtime:
             fleet=self.fleet,
             budget=JobBudget(max_agent_runs=self.settings.max_agent_runs_per_job),
             board=self.board,
-            cad=CadClient(self.settings.cad_worker_url, self.http),
+            cad=self.cad,
+            gemini=GeminiClient(
+                recorder, self.http, self.settings.gemini_api_key, self.settings.gemini_flash_model
+            ),
         )
         job = Job(ctx=ctx)
         job.task = asyncio.create_task(run_job(ctx, self.workers(mode)))

@@ -1,7 +1,7 @@
 """Part workers: code loops, one per BOM line (docs/design/07 section 2).
 
-SwapWorker runs TinyAgent on each swap target. FakeSwapWorker drives the pipeline and the UI
-end to end against a committed recording of a made-up page (data/recordings/fetch, `fake`).
+SwapWorker runs TinyAgent on each swap target. FakeSwapWorker is a test double: a made-up page
+whose fetches are committed under data/recordings/fetch with `fake: true`.
 """
 
 import asyncio
@@ -11,19 +11,36 @@ from decimal import Decimal
 from typing import Literal, Protocol
 from urllib.parse import urlparse
 
-from app.agents.targets import MOTOR_SCHEMA, SWAP_TARGETS, SwapTarget
+import httpx
+from pydantic import ValidationError
+
+from app.agents.targets import GENERIC_GOAL, MOTOR_SCHEMA, SWAP_TARGETS, SwapTarget
+from app.agents.triage import Lead
 from app.agents.verifier import classify_outcome
+from app.engineering.spec_checks import requirement
 from app.orchestrator.context import JobContext
+from app.orchestrator.discovery import TRIAGE_CHARS, domain_of
 from app.orchestrator.events import RunFinished, RunProgress, RunStarted, RunStreamingUrl
-from app.schemas import AgentMotorCandidate, AgentRunResult, Claim, Outcome, Source
+from app.schemas import (
+    AgentMotorCandidate,
+    AgentRunResult,
+    Candidate,
+    Claim,
+    ExtractedBy,
+    OriginEvidence,
+    Outcome,
+    Source,
+    Via,
+)
 from app.tfclient.client import AgentEvent, run_result
+from app.tfclient.recorder import ReplayMiss
 
 
 class Worker(Protocol):
     name: str
 
-    async def run(self, ctx: JobContext) -> list[Claim]:
-        """Dispatch runs, emit run_* events, return raw (unverified) claims."""
+    async def run(self, ctx: JobContext) -> list[Candidate]:
+        """Dispatch runs, emit run_* events, return candidates holding raw (unverified) claims."""
         ...
 
 
@@ -44,11 +61,11 @@ _FAKE_CLAIMS = [
 
 
 class FakeSwapWorker:
-    """Stands in for the swap worker until chunk 2; its run is labelled fake and not live."""
+    """Test double for the swap worker; its run is labelled fake and not live."""
 
     name = "swap:drive_motor"
 
-    async def run(self, ctx: JobContext) -> list[Claim]:
+    async def run(self, ctx: JobContext) -> list[Candidate]:
         run_id = f"fake-{ctx.job_id}"
         log = ctx.log
         await log.emit(
@@ -67,7 +84,7 @@ class FakeSwapWorker:
             RunFinished(run_id=run_id, outcome="success", reason="fake", duration_s=0, live=False)
         )
         source = Source(url=FAKE_URL, kind="page", fetched_at=datetime.now(UTC), via="replay")
-        return [
+        claims = [
             Claim(
                 id=f"{run_id}:{field}",
                 candidate_id="fake-23",
@@ -80,39 +97,126 @@ class FakeSwapWorker:
             )
             for field, value, unit, quote in _FAKE_CLAIMS
         ]
+        return [
+            Candidate(
+                id="fake-23",
+                manufacturer="Fake Motors (not a real product)",
+                part_number="FAKE-23",
+                motor_type="servo_integrated",
+                nema_frame="23",
+                claims=claims,
+                origin=NO_ORIGIN,
+                status="found",
+                product_url=FAKE_URL,
+            )
+        ]
+
+
+MAX_AGENT_LEADS = 2
+
+EXTRACT_PROMPT = """\
+You read one web page and fill the JSON schema for ONE NEMA 23 motor described on it. Use only
+this page's text. Rules: value = the number exactly as written, unit = the unit exactly as
+written, never convert; quote = the label and value exactly as they appear in the text,
+character for character, adding no colons or words; null (or omit a spec) when not stated;
+never guess. "Designed in" or a headquarters address is not a manufacturing statement: leave
+origin fields null then. status: "success" if specs were found, "not_found" if the page has no
+such motor, "incomplete" if some are missing (say which in reason).
+
+Page URL: {url}
+
+Page text:
+{text}
+"""
 
 
 class SwapWorker:
-    """Hunts US-made replacements for the drive motor: one TinyAgent run per target, one
-    stealth + US-proxy retry when a run is blocked (docs/design/04 section 5)."""
+    """Hunts US-made replacements for the drive motor. Seed targets and discovered pages that
+    need clicking get one TinyAgent run each (one stealth + US-proxy retry when blocked, docs/
+    design/04 section 5); discovered pages that triage found readable are extracted by Gemini
+    from the fetched text, with no agent run."""
 
     name = "swap:drive_motor"
 
     def __init__(self, targets: Sequence[SwapTarget] = SWAP_TARGETS) -> None:
         self.targets = targets
 
-    async def run(self, ctx: JobContext) -> list[Claim]:
-        results = await asyncio.gather(*(self._target(ctx, t) for t in self.targets))
-        return [claim for claims in results for claim in claims]
+    async def run(self, ctx: JobContext) -> list[Candidate]:
+        seed_domains = {domain_of(t.url) for t in self.targets}
+        fresh = [lead for lead in ctx.leads if lead.domain not in seed_domains]
+        clicks = [lead for lead in fresh if lead.route == "needs_interaction"][:MAX_AGENT_LEADS]
+        targets = [
+            *self.targets,
+            *(SwapTarget(name=lead.domain, url=lead.url, goal=GENERIC_GOAL) for lead in clicks),
+        ]
+        readable = [lead for lead in fresh if lead.route == "readable"]
+        results = await asyncio.gather(
+            *(self._target(ctx, t) for t in targets),
+            *(self._extract(ctx, lead) for lead in readable),
+        )
+        return [candidate for found in results for candidate in found]
 
-    async def _target(self, ctx: JobContext, target: SwapTarget) -> list[Claim]:
+    async def _extract(self, ctx: JobContext, lead: Lead) -> list[Candidate]:
+        run_id = f"{ctx.job_id}:extract:{lead.domain}:{abs(hash(lead.url)) % 10**8}"
+        await ctx.log.emit(
+            RunStarted(
+                run_id=run_id,
+                worker=self.name,
+                product="gemini",
+                site=lead.domain,
+                url=lead.url,
+                goal="Read specs from the fetched page text",
+                live=ctx.mode != "replay",
+            )
+        )
+        prompt = EXTRACT_PROMPT.format(url=lead.url, text=(lead.text or "")[:TRIAGE_CHARS])
+        outcome: Outcome = "success"
+        reason = ""
+        output = None
+        try:
+            async with ctx.fleet.slot("gemini", ctx.budget):
+                raw = await ctx.gemini.extract_json(prompt, MOTOR_SCHEMA)
+            output = AgentMotorCandidate.model_validate(raw)
+            reason = output.reason
+            if output.status != "success":
+                outcome = output.status
+        except (httpx.HTTPError, ReplayMiss, ValidationError, ValueError) as exc:
+            outcome, reason = "error", f"{type(exc).__name__}: {exc}"[:300]
+        await ctx.log.emit(
+            RunFinished(run_id=run_id, outcome=outcome, reason=reason, duration_s=0, live=False)
+        )
+        if output is None or outcome != "success":
+            return []
+        # The model saw only this page, so every value and the origin quote come from it.
+        pinned = output.model_copy(
+            update={
+                "specs": [sp.model_copy(update={"source_url": lead.url}) for sp in output.specs],
+                "origin_source_url": lead.url if output.origin_quote else None,
+                "product_url": lead.url,
+            }
+        )
+        return [candidate_from_output(pinned, run_id, live=True, extracted_by="gemini_text")]
+
+    async def _target(self, ctx: JobContext, target: SwapTarget) -> list[Candidate]:
         outcome, run, live = await self._dispatch(ctx, target, stealth=False)
         if outcome == "blocked":
             outcome, run, live = await self._dispatch(ctx, target, stealth=True)
         if outcome != "success" or run.result is None:
             return []
-        candidate = AgentMotorCandidate.model_validate(run.result)
-        return claims_from_candidate(candidate, run.run_id, live)
+        output = AgentMotorCandidate.model_validate(run.result)
+        return [candidate_from_output(output, run.run_id, live)]
 
     async def _dispatch(
         self, ctx: JobContext, target: SwapTarget, stealth: bool
     ) -> tuple[Outcome, AgentRunResult, bool]:
         domain = urlparse(target.url).hostname or target.url
+        req = requirement(ctx.robot.requirements)
+        goal = target.goal_for(req.t_cont_nm, req.t_peak_nm, req.v_bus)
         events: list[AgentEvent] = []
         async with ctx.fleet.slot("agent", ctx.budget, domain):
             async for event in ctx.tf.agent_run(
                 target.url,
-                target.goal,
+                goal,
                 MOTOR_SCHEMA,
                 stealth=stealth,
                 proxy_country="US" if stealth else None,
@@ -160,10 +264,41 @@ class SwapWorker:
             await ctx.log.emit(RunProgress(run_id=event.run_id, purpose=event.purpose))
 
 
-def claims_from_candidate(c: AgentMotorCandidate, run_id: str, live: bool) -> list[Claim]:
+NO_ORIGIN = OriginEvidence(country=None, tier="none", claim_id=None)
+
+
+def candidate_from_output(
+    c: AgentMotorCandidate,
+    run_id: str,
+    live: bool,
+    extracted_by: ExtractedBy = "tinyagent",
+) -> Candidate:
+    """Origin starts at tier none; the CHECK stage sets it from the verified origin claim."""
+    return Candidate(
+        id=c.part_number or run_id,
+        manufacturer=c.manufacturer,
+        part_number=c.part_number,
+        motor_type=c.motor_type or "unknown",
+        nema_frame=c.nema_frame,
+        claims=claims_from_candidate(c, run_id, live, extracted_by),
+        origin=NO_ORIGIN,
+        status="found",
+        product_url=c.product_url,
+    )
+
+
+def claims_from_candidate(
+    c: AgentMotorCandidate,
+    run_id: str,
+    live: bool,
+    extracted_by: ExtractedBy = "tinyagent",
+) -> list[Claim]:
     """One raw claim per spec, plus one for the origin statement when the agent gave all of
     country, quote and page. Values become plain decimal strings ("4000.0", never "4e+03")."""
-    via = "tinyagent" if live else "replay"
+    via: Via = (
+        "replay" if not live else ("tinyagent" if extracted_by == "tinyagent" else "tinyfetch")
+    )
+    run = run_id if extracted_by == "tinyagent" else None
     now = datetime.now(UTC)
     candidate_id = c.part_number or run_id
     claims = [
@@ -175,9 +310,13 @@ def claims_from_candidate(c: AgentMotorCandidate, run_id: str, live: bool) -> li
             raw_unit=spec.unit,
             quote=spec.quote,
             source=Source(
-                url=spec.source_url, kind=_kind(spec.source_url), fetched_at=now, via=via
+                url=spec.source_url,
+                kind=_kind(spec.source_url),
+                fetched_at=now,
+                via=via,
+                run_id=run,
             ),
-            extracted_by="tinyagent",
+            extracted_by=extracted_by,
         )
         for i, spec in enumerate(c.specs)
     ]
@@ -191,8 +330,8 @@ def claims_from_candidate(c: AgentMotorCandidate, run_id: str, live: bool) -> li
                 raw_value=c.country_of_origin,
                 raw_unit=None,
                 quote=c.origin_quote,
-                source=Source(url=url, kind=_kind(url), fetched_at=now, via=via),
-                extracted_by="tinyagent",
+                source=Source(url=url, kind=_kind(url), fetched_at=now, via=via, run_id=run),
+                extracted_by=extracted_by,
             )
         )
     return claims

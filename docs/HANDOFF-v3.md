@@ -59,7 +59,9 @@ flowchart TB
 
 1. Code-owned state machine; LLMs are functions. Workers are code loops, not LLM agents.
 2. TRIAGE splits extraction: Fetch + Gemini for readable pages, TinyAgent only for interaction.
-3. Verification: fresh TinyFetch html (`ttl=0`) + PDF text; agent html capture kept as provenance.
+3. Verification: fresh TinyFetch html (`ttl=0`) + PDF text first; for values a page fills in
+   with JavaScript, the agent's own DOM snapshot of the same page (canonical URL must match),
+   labelled `verify_method: agent_dom` (changed by Tygo, 8pm: Teknic torque is JS-only).
 4. Units table in code (no `pint`); the agent returns value + unit as written.
 5. Steppers allowed but capped at Review without verified torque at speed.
 6. SSE to the UI; one FastAPI process, asyncio for I/O, process pool for CadQuery.
