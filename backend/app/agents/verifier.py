@@ -12,7 +12,15 @@ from decimal import Decimal
 from typing import Literal
 from urllib.parse import urlsplit
 
-from app.schemas import AgentRunResult, Claim, OriginTier, Outcome, VerifyMethod
+from app.schemas import (
+    AgentRunResult,
+    Candidate,
+    Claim,
+    OriginEvidence,
+    OriginTier,
+    Outcome,
+    VerifyMethod,
+)
 
 
 def classify_outcome(run: AgentRunResult) -> Outcome:
@@ -223,3 +231,24 @@ _TIER_RANK: dict[OriginTier, int] = {"rejected": 0, "none": 1, "T3": 2, "T2": 3,
 
 def lower_tier(a: OriginTier, b: OriginTier) -> OriginTier:
     return a if _TIER_RANK[a] <= _TIER_RANK[b] else b
+
+
+_US_CLASSES: frozenset[OriginClass] = frozenset(
+    {"made_at_named_us_plant", "us_made_site_unstated", "assembled_in_us", "us_hq_only"}
+)
+
+
+def origin_evidence(candidate: Candidate) -> OriginEvidence:
+    """Tier from the candidate's verified origin claim by code rules. The quote is model
+    specific when it sits on the candidate's own product page."""
+    claim = next(
+        (c for c in candidate.claims if c.field == "country_of_origin" and c.verified), None
+    )
+    if claim is None:
+        return OriginEvidence(country=None, tier="none", claim_id=None)
+    cls = origin_class(claim.quote)
+    on_model_page = candidate.product_url is not None and same_page(
+        claim.source.url, candidate.product_url
+    )
+    country = "US" if cls in _US_CLASSES else claim.raw_value
+    return OriginEvidence(country=country, tier=origin_tier(cls, on_model_page), claim_id=claim.id)

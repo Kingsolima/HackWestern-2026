@@ -13,17 +13,26 @@ from urllib.parse import urlparse
 
 from app.agents.targets import MOTOR_SCHEMA, SWAP_TARGETS, SwapTarget
 from app.agents.verifier import classify_outcome
+from app.engineering.spec_checks import requirement
 from app.orchestrator.context import JobContext
 from app.orchestrator.events import RunFinished, RunProgress, RunStarted, RunStreamingUrl
-from app.schemas import AgentMotorCandidate, AgentRunResult, Claim, Outcome, Source
+from app.schemas import (
+    AgentMotorCandidate,
+    AgentRunResult,
+    Candidate,
+    Claim,
+    OriginEvidence,
+    Outcome,
+    Source,
+)
 from app.tfclient.client import AgentEvent, run_result
 
 
 class Worker(Protocol):
     name: str
 
-    async def run(self, ctx: JobContext) -> list[Claim]:
-        """Dispatch runs, emit run_* events, return raw (unverified) claims."""
+    async def run(self, ctx: JobContext) -> list[Candidate]:
+        """Dispatch runs, emit run_* events, return candidates holding raw (unverified) claims."""
         ...
 
 
@@ -48,7 +57,7 @@ class FakeSwapWorker:
 
     name = "swap:drive_motor"
 
-    async def run(self, ctx: JobContext) -> list[Claim]:
+    async def run(self, ctx: JobContext) -> list[Candidate]:
         run_id = f"fake-{ctx.job_id}"
         log = ctx.log
         await log.emit(
@@ -67,7 +76,7 @@ class FakeSwapWorker:
             RunFinished(run_id=run_id, outcome="success", reason="fake", duration_s=0, live=False)
         )
         source = Source(url=FAKE_URL, kind="page", fetched_at=datetime.now(UTC), via="replay")
-        return [
+        claims = [
             Claim(
                 id=f"{run_id}:{field}",
                 candidate_id="fake-23",
@@ -80,6 +89,19 @@ class FakeSwapWorker:
             )
             for field, value, unit, quote in _FAKE_CLAIMS
         ]
+        return [
+            Candidate(
+                id="fake-23",
+                manufacturer="Fake Motors (not a real product)",
+                part_number="FAKE-23",
+                motor_type="servo_integrated",
+                nema_frame="23",
+                claims=claims,
+                origin=NO_ORIGIN,
+                status="found",
+                product_url=FAKE_URL,
+            )
+        ]
 
 
 class SwapWorker:
@@ -91,28 +113,30 @@ class SwapWorker:
     def __init__(self, targets: Sequence[SwapTarget] = SWAP_TARGETS) -> None:
         self.targets = targets
 
-    async def run(self, ctx: JobContext) -> list[Claim]:
+    async def run(self, ctx: JobContext) -> list[Candidate]:
         results = await asyncio.gather(*(self._target(ctx, t) for t in self.targets))
-        return [claim for claims in results for claim in claims]
+        return [candidate for found in results for candidate in found]
 
-    async def _target(self, ctx: JobContext, target: SwapTarget) -> list[Claim]:
+    async def _target(self, ctx: JobContext, target: SwapTarget) -> list[Candidate]:
         outcome, run, live = await self._dispatch(ctx, target, stealth=False)
         if outcome == "blocked":
             outcome, run, live = await self._dispatch(ctx, target, stealth=True)
         if outcome != "success" or run.result is None:
             return []
-        candidate = AgentMotorCandidate.model_validate(run.result)
-        return claims_from_candidate(candidate, run.run_id, live)
+        output = AgentMotorCandidate.model_validate(run.result)
+        return [candidate_from_output(output, run.run_id, live)]
 
     async def _dispatch(
         self, ctx: JobContext, target: SwapTarget, stealth: bool
     ) -> tuple[Outcome, AgentRunResult, bool]:
         domain = urlparse(target.url).hostname or target.url
+        req = requirement(ctx.robot.requirements)
+        goal = target.goal_for(req.t_cont_nm, req.t_peak_nm, req.v_bus)
         events: list[AgentEvent] = []
         async with ctx.fleet.slot("agent", ctx.budget, domain):
             async for event in ctx.tf.agent_run(
                 target.url,
-                target.goal,
+                goal,
                 MOTOR_SCHEMA,
                 stealth=stealth,
                 proxy_country="US" if stealth else None,
@@ -158,6 +182,24 @@ class SwapWorker:
             )
         elif event.type == "PROGRESS" and event.purpose:
             await ctx.log.emit(RunProgress(run_id=event.run_id, purpose=event.purpose))
+
+
+NO_ORIGIN = OriginEvidence(country=None, tier="none", claim_id=None)
+
+
+def candidate_from_output(c: AgentMotorCandidate, run_id: str, live: bool) -> Candidate:
+    """Origin starts at tier none; the CHECK stage sets it from the verified origin claim."""
+    return Candidate(
+        id=c.part_number or run_id,
+        manufacturer=c.manufacturer,
+        part_number=c.part_number,
+        motor_type=c.motor_type or "unknown",
+        nema_frame=c.nema_frame,
+        claims=claims_from_candidate(c, run_id, live),
+        origin=NO_ORIGIN,
+        status="found",
+        product_url=c.product_url,
+    )
 
 
 def claims_from_candidate(c: AgentMotorCandidate, run_id: str, live: bool) -> list[Claim]:

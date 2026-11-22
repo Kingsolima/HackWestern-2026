@@ -4,6 +4,7 @@ import httpx
 import pytest
 
 from app.api.routes import load_demo_robot
+from app.cad_client import CadClient
 from app.orchestrator.board import MemoryBoard
 from app.orchestrator.context import JobContext
 from app.orchestrator.events import EventLog
@@ -34,6 +35,7 @@ async def test_cancelled_job_still_ends_failed_and_closes_its_log(tmp_path):
             fleet=Fleet({"fetch": 1}),
             budget=JobBudget(),
             board=MemoryBoard(),
+            cad=CadClient(http, "http://cad.invalid"),
         )
         task = asyncio.create_task(run_job(ctx, [SleepyWorker()]))
         await asyncio.sleep(0.05)

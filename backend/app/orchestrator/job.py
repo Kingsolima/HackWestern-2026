@@ -2,18 +2,30 @@
 plain async function over the JobContext."""
 
 import asyncio
+import re
 from collections import defaultdict
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-from app.agents.verifier import canonical_url, same_page, verify_claim
+from app.agents.verifier import origin_evidence, same_page, verify_claim
 from app.engineering.compliance import compliance_card
-from app.orchestrator.context import JobContext
+from app.engineering.ranking import RankInput, rank
+from app.engineering.spec_checks import (
+    BASELINE_FRAME,
+    check_candidate,
+    fit_badge,
+    requirement,
+    si_facts,
+    verdict,
+)
+from app.orchestrator.context import Design, JobContext
 from app.orchestrator.events import (
+    CheckResultPayload,
     ClaimRejected,
     ClaimVerified,
     CompliancePayload,
+    DesignReady,
     ErrorPayload,
     Stage,
     StagePayload,
@@ -41,7 +53,7 @@ async def compliance_baseline(ctx: JobContext, workers: Sequence[Worker]) -> Non
 
 async def extract(ctx: JobContext, workers: Sequence[Worker]) -> None:
     results = await asyncio.gather(*(w.run(ctx) for w in workers))
-    ctx.raw_claims = [claim for claims in results for claim in claims]
+    ctx.candidates = [candidate for found in results for candidate in found]
 
 
 # Fetch's default html keeps only the main content block; on Teknic model pages that drops the
@@ -52,8 +64,9 @@ VERIFY_PASSES: tuple[list[str] | None, ...] = (None, ["table"])
 async def verify(ctx: JobContext, workers: Sequence[Worker]) -> None:
     """Re-fetch every source page fresh (ttl=0) and promote matching claims to board facts."""
     by_url: defaultdict[str, list[Claim]] = defaultdict(list)
-    for claim in ctx.raw_claims:
-        by_url[claim.source.url].append(claim)
+    for candidate in ctx.candidates:
+        for claim in candidate.claims:
+            by_url[claim.source.url].append(claim)
 
     for url, claims in by_url.items():
         if claims[0].source.kind == "pdf":
@@ -89,6 +102,12 @@ async def verify(ctx: JobContext, workers: Sequence[Worker]) -> None:
         for claim in pending:
             await ctx.log.emit(ClaimRejected(claim=claim, reason=reason))
 
+    checked = {fact.id: fact for fact in ctx.facts}
+    ctx.candidates = [
+        c.model_copy(update={"claims": [checked.get(cl.id, cl) for cl in c.claims]})
+        for c in ctx.candidates
+    ]
+
 
 async def verify_on_agent_snapshot(ctx: JobContext, url: str, claims: list[Claim]) -> list[Claim]:
     """Last pass, for values a page fills in with JavaScript (fresh fetches never run it): the
@@ -101,9 +120,12 @@ async def verify_on_agent_snapshot(ctx: JobContext, url: str, claims: list[Claim
             steps = await ctx.tf.run_steps(run_id)
         for step in reversed(steps):
             async with ctx.fleet.slot("fetch", ctx.budget):
-                snapshot = await ctx.tf.step_html(run_id, step.id)
-            canonical = canonical_url(snapshot) if snapshot else None
+                canonical = await ctx.tf.step_canonical(run_id, step.id)
             if canonical is None or not same_page(canonical, url):
+                continue
+            async with ctx.fleet.slot("fetch", ctx.budget):
+                snapshot = await ctx.tf.step_html(run_id, step.id)
+            if snapshot is None:
                 continue
             for claim in from_run:
                 checked = verify_claim(claim, snapshot, "agent_dom")
@@ -130,11 +152,91 @@ async def promote(ctx: JobContext, fact: Claim) -> None:
     await ctx.log.emit(ClaimVerified(claim=fact))
 
 
+def design_id(job_id: str, candidate_id: str) -> str:
+    """Matches the CAD worker's id pattern ^[A-Za-z0-9_-]{1,64}$."""
+    return re.sub(r"[^A-Za-z0-9_-]", "-", f"{job_id}-{candidate_id}")[:64]
+
+
+async def check(ctx: JobContext, workers: Sequence[Worker]) -> None:
+    """Origin tier, bracket build (for fit numbers) and the 05 checks, per candidate."""
+    req = requirement(ctx.robot.requirements)
+    wheel_r_mm = ctx.robot.requirements.wheel_radius_m * 1000
+    for found in ctx.candidates:
+        candidate = found.model_copy(update={"origin": origin_evidence(found)})
+        facts = si_facts(candidate)
+        build = await ctx.cad.build(
+            design_id(ctx.job_id, candidate.id),
+            candidate.nema_frame,
+            wheel_r_mm,
+            body_len_mm=facts["body_length"][0] if "body_length" in facts else None,
+            shaft_d_mm=facts["shaft_diameter"][0] if "shaft_diameter" in facts else None,
+        )
+        fit = build.fit if build else None
+        checks = check_candidate(candidate, req, fit)
+        for row in checks:
+            await ctx.log.emit(CheckResultPayload(check=row))
+        overall = verdict(checks)
+        ctx.designs.append(
+            Design(
+                design_id=design_id(ctx.job_id, candidate.id),
+                candidate=candidate,
+                checks=checks,
+                verdict=overall,
+                fit_badge=fit_badge(overall, candidate.nema_frame, BASELINE_FRAME, fit),
+                price_usd=facts["price"][0] if "price" in facts else None,
+                build=build,
+            )
+        )
+
+
+async def rank_designs(ctx: JobContext, workers: Sequence[Worker]) -> None:
+    wins = rank(
+        [
+            RankInput(
+                candidate_id=d.candidate.id,
+                verdict=d.verdict,
+                price_usd=d.price_usd,
+                origin_tier=d.candidate.origin.tier,
+                checks=d.checks,
+            )
+            for d in ctx.designs
+        ]
+    )
+    for d in ctx.designs:
+        d.objectives = wins[d.candidate.id]
+
+
+async def build(ctx: JobContext, workers: Sequence[Worker]) -> None:
+    """Brackets were built during CHECK (fit numbers come from the CAD worker); publish them."""
+    for d in ctx.designs:
+        built = d.build is not None
+        await ctx.log.emit(
+            DesignReady(
+                design_id=d.design_id,
+                candidate_id=d.candidate.id,
+                manufacturer=d.candidate.manufacturer,
+                part_number=d.candidate.part_number,
+                product_url=d.candidate.product_url,
+                verdict=d.verdict,
+                fit_badge=d.fit_badge,
+                objectives=d.objectives,
+                origin=d.candidate.origin,
+                price_usd=d.price_usd,
+                glb_url=f"/api/designs/{d.design_id}/glb" if built else None,
+                step_url=f"/api/designs/{d.design_id}/step" if built else None,
+                fit=d.build.fit if d.build else None,
+            )
+        )
+
+
 StageFn = Callable[[JobContext, Sequence[Worker]], Awaitable[None]]
 HANDLERS: dict[Stage, StageFn] = {
     "COMPLIANCE_BASELINE": compliance_baseline,
     "EXTRACT": extract,
     "VERIFY": verify,
+    "CHECK": check,
+    "RANK": rank_designs,
+    "BUILD": build,
 }
 
 

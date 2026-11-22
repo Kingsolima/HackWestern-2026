@@ -14,6 +14,7 @@ from typing import Any, Literal
 import httpx
 from pydantic import BaseModel, ConfigDict
 
+from app.agents.verifier import canonical_url
 from app.schemas import AgentRunResult, TfStatus
 from app.tfclient.recorder import Recorder
 
@@ -185,18 +186,34 @@ class TFClient:
         body, _ = await self.recorder.call("agent", request, live)
         return [RunStep.model_validate(s) for s in body["steps"]]
 
+    async def _step_snapshot(self, run_id: str, step_id: str) -> str | None:
+        url = f"{RUNS_URL}/{run_id}/steps/{step_id}/html"
+        r = await self._http.get(url, headers=self._headers, follow_redirects=True)
+        if r.status_code == 404:
+            return None
+        r.raise_for_status()
+        return r.text
+
+    async def step_canonical(self, run_id: str, step_id: str) -> str | None:
+        """Canonical URL of the page the agent's browser showed at that step; None if TinyFish
+        has no snapshot (404, seen on a run's final step) or the page declares none. Only the
+        URL is recorded: snapshots are ~1.4 MB and most are of pages no claim needs."""
+        request = {"op": "step_canonical", "run_id": run_id, "step_id": step_id}
+
+        async def live() -> dict[str, Any]:
+            snapshot = await self._step_snapshot(run_id, step_id)
+            return {"canonical": canonical_url(snapshot) if snapshot else None}
+
+        body, _ = await self.recorder.call("agent", request, live)
+        return body["canonical"]
+
     async def step_html(self, run_id: str, step_id: str) -> str | None:
-        """The page DOM as the agent's browser rendered it at that step; None if TinyFish has
-        no snapshot for it (404, seen on a run's final step)."""
+        """The page DOM as the agent's browser rendered it at that step (recorded in full: it is
+        the evidence for agent_dom claims)."""
         request = {"op": "step_html", "run_id": run_id, "step_id": step_id}
 
         async def live() -> dict[str, Any]:
-            url = f"{RUNS_URL}/{run_id}/steps/{step_id}/html"
-            r = await self._http.get(url, headers=self._headers, follow_redirects=True)
-            if r.status_code == 404:
-                return {"html": None}
-            r.raise_for_status()
-            return {"html": r.text}
+            return {"html": await self._step_snapshot(run_id, step_id)}
 
         body, _ = await self.recorder.call("agent", request, live)
         return body["html"]

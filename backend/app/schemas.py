@@ -224,6 +224,7 @@ class Candidate(BaseModel):
     claims: list[Claim]
     origin: OriginEvidence
     status: Literal["found", "blocked", "not_found", "auth_required", "incomplete"]
+    product_url: str | None = None
 
 
 class AgentRunResult(BaseModel):

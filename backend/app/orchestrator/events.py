@@ -12,7 +12,8 @@ from typing import Any, ClassVar, Literal
 from pydantic import BaseModel
 
 from app.engineering.compliance import ComplianceCard
-from app.schemas import Claim, Outcome, Product
+from app.engineering.spec_checks import FitBadge, SpecCheck, Verdict
+from app.schemas import Claim, Objective, OriginEvidence, Outcome, Product
 
 EventType = Literal[
     "stage",
@@ -104,6 +105,31 @@ class ClaimRejected(Payload):
 class CompliancePayload(Payload):
     type: ClassVar[EventType] = "compliance"
     card: ComplianceCard
+
+
+class CheckResultPayload(Payload):
+    type: ClassVar[EventType] = "check_result"
+    check: SpecCheck
+
+
+class DesignReady(Payload):
+    """One per checked candidate. objectives = the tournament objectives it won (maybe none);
+    glb_url / step_url are backend paths, None when the CAD worker could not build it."""
+
+    type: ClassVar[EventType] = "design_ready"
+    design_id: str
+    candidate_id: str
+    manufacturer: str | None
+    part_number: str | None
+    product_url: str | None
+    verdict: Verdict
+    fit_badge: FitBadge | None
+    objectives: list[Objective]
+    origin: OriginEvidence
+    price_usd: float | None
+    glb_url: str | None
+    step_url: str | None
+    fit: dict[str, Any] | None
 
 
 class ErrorPayload(Payload):

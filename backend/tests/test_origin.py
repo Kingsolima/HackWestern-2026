@@ -94,3 +94,60 @@ def test_canonical_url_in_either_attribute_order():
     )
     assert canonical_url("<link href='https://a/y' rel=canonical>") == "https://a/y"
     assert canonical_url("<link rel='stylesheet' href='https://a/s.css'>") is None
+
+
+def _candidate(quote, claim_url, product_url, verified=True):
+    from datetime import UTC, datetime
+
+    from app.schemas import Candidate, Claim, OriginEvidence, Source
+
+    claim = Claim(
+        id="o1",
+        candidate_id="m",
+        field="country_of_origin",
+        raw_value="USA",
+        raw_unit=None,
+        quote=quote,
+        source=Source(url=claim_url, kind="page", fetched_at=datetime.now(UTC), via="tinyfetch"),
+        extracted_by="tinyagent",
+        verified=verified,
+    )
+    return Candidate(
+        id="m",
+        manufacturer="M",
+        part_number="P",
+        motor_type="servo_integrated",
+        nema_frame="23",
+        claims=[claim],
+        origin=OriginEvidence(country=None, tier="none", claim_id=None),
+        status="found",
+        product_url=product_url,
+    )
+
+
+def test_origin_row_on_the_models_own_page_is_t1():
+    from app.agents.verifier import origin_evidence
+
+    model = "https://teknic.com/model-info/X/"
+    got = origin_evidence(_candidate("Country of Origin USA", model + "?v=75", model))
+    assert (got.country, got.tier, got.claim_id) == ("US", "T1", "o1")
+
+
+def test_company_wide_statement_is_t3_and_unverified_is_none():
+    from app.agents.verifier import origin_evidence
+
+    about = _candidate(
+        "Teknic designs and builds products in the USA.",
+        "https://teknic.com/about/",
+        "https://teknic.com/model-info/X/",
+    )
+    assert origin_evidence(about).tier == "T3"
+    unverified = _candidate("Country of Origin USA", "https://a/x", "https://a/x", verified=False)
+    assert origin_evidence(unverified).tier == "none"
+
+
+def test_designed_in_usa_is_rejected_even_on_the_model_page():
+    from app.agents.verifier import origin_evidence
+
+    got = origin_evidence(_candidate("Designed in USA", "https://a/x", "https://a/x"))
+    assert got.tier == "rejected"

@@ -1,4 +1,5 @@
 import json
+import os
 
 import httpx
 import pytest
@@ -119,6 +120,18 @@ async def test_missing_step_snapshot_is_none_and_recorded(tmp_path):
     http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     tf = TFClient(Recorder(tmp_path, "live"), http, api_key="k")
     assert await tf.step_html("r1", "s9") is None
+    assert await tf.step_canonical("r1", "s9") is None
     replay = TFClient(Recorder(tmp_path, "replay"), http, api_key="k")
     assert await replay.step_html("r1", "s9") is None
-    assert len(seen) == 1
+    assert await replay.step_canonical("r1", "s9") is None
+    assert len(seen) == 2
+
+
+async def test_step_canonical_records_only_the_url(tmp_path):
+    noise = os.urandom(50_000).hex()
+    big = f'<html><head><link rel="canonical" href="https://m/p/"></head>{noise}'
+    http = httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(200, text=big)))
+    rec = Recorder(tmp_path, "live")
+    assert await TFClient(rec, http, api_key="k").step_canonical("r1", "s1") == "https://m/p/"
+    path = rec.path("agent", {"op": "step_canonical", "run_id": "r1", "step_id": "s1"})
+    assert path.stat().st_size < 1000

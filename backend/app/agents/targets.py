@@ -5,6 +5,7 @@ identical to the contract in docs/design/schemas/motor_candidate.tinyfish.json.
 """
 
 import json
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -16,10 +17,21 @@ MOTOR_SCHEMA: dict[str, Any] = json.loads(
 
 @dataclass(frozen=True)
 class SwapTarget:
+    """`goal` is a str.format template over bus_v, cont_oz_in and peak_oz_in, filled from the
+    robot requirement so the agent searches for a motor that can pass; the checks decide."""
+
     name: str
     url: str
     goal: str
-    max_duration_s: int = 240
+    max_duration_s: int = 300
+
+    def goal_for(self, t_cont_nm: float, t_peak_nm: float, bus_v: float) -> str:
+        oz_in = 0.0070615518
+        return self.goal.format(
+            bus_v=f"{bus_v:g}",
+            cont_oz_in=math.ceil(t_cont_nm / oz_in),
+            peak_oz_in=math.ceil(t_peak_nm / oz_in),
+        )
 
 
 # Started from Omar's goal for the first live Teknic run (commit 3e8f9a3). The family page has
@@ -34,8 +46,11 @@ fill forms or sign up for anything.
 
 1. On this Teknic ClearPath-SD page, go to the list of ClearPath-SD models \
 ("All ClearPath models", filtered to SDSK if possible).
-2. Pick ONE NEMA 23 SDSK model (part number starts with CPM-SDSK-23) and open its \
-specification / model information page.
+2. Pick ONE NEMA 23 SDSK model (part number starts with CPM-SDSK-23) for a robot with a \
+{bus_v} VDC bus that needs, at {bus_v} VDC, a Cont. (RMS) Torque of at least {cont_oz_in} oz-in \
+and a Peak Torque of at least {peak_oz_in} oz-in. Compare the models (list filters or model \
+pages) and pick the cheapest one that meets both; if none does, pick the one with the highest \
+Cont. (RMS) Torque. Open its model information page and select the {bus_v} VDC input voltage.
 3. From that model's page, fill `specs` with every one of these that is shown: \
 continuous_torque, peak_torque, max_speed, supply_voltage_min, supply_voltage_max, \
 body_length, shaft_diameter, price. For each spec:
@@ -45,6 +60,8 @@ body_length, shaft_diameter, price. For each spec:
 character. Do not add colons, words or labels that are not on the page. When the label and the \
 value sit in separate table cells, join them with one space (e.g. "Length 3.34 in (84.84 mm)"). \
 For price, quote the price text exactly as displayed (e.g. "$293").
+   - Read torque and speed in the {bus_v} VDC column. For supply_voltage_min and \
+supply_voltage_max, quote the "Input (Bus) Voltage Range" row.
    - source_url = the URL of the page where you read it.
    - at_speed_value / at_speed_unit only if the page ties the torque to a speed, else null.
 4. Find where this model's country of origin or manufacturing location is stated. First look \
