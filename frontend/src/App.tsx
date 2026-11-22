@@ -31,12 +31,12 @@ const params = new URLSearchParams(window.location.search)
 const LIVE_ENABLED = params.get('live') === '1'
 
 /** Start a job that makes real calls ('mixed' replays what is recorded and runs the rest). */
-function startWithToken(
+async function startWithToken(
   mode: 'live' | 'mixed',
   start: (mode: 'live' | 'mixed', opts: CreateJobOptions) => void,
   opts: CreateJobOptions,
 ) {
-  const token = askLiveToken('Live jobs spend TinyFish credit. Enter the live token:')
+  const token = await askLiveToken('Live jobs spend TinyFish credit. Enter the live token:')
   if (token) start(mode, { ...opts, liveToken: token })
 }
 
@@ -77,7 +77,7 @@ export default function App() {
   })
   /** Replay when the recordings fit this robot; otherwise a mixed job, which needs the token. */
   const run = (o: Onboarded | null) => {
-    if (o && !projectId && needsLiveAgents(o.specs)) startWithToken('mixed', start, jobOptions(o))
+    if (o && !projectId && needsLiveAgents(o.specs)) void startWithToken('mixed', start, jobOptions(o))
     else start('replay', jobOptions(o))
   }
   const finishOnboarding = (o: Onboarded | null) => {
@@ -127,7 +127,7 @@ export default function App() {
       <JobBar
         state={job}
         onStart={() => run(onboarded)}
-        onStartLive={LIVE_ENABLED ? () => startWithToken('live', start, jobOptions(onboarded)) : undefined}
+        onStartLive={LIVE_ENABLED ? () => void startWithToken('live', start, jobOptions(onboarded)) : undefined}
         project={project}
         onProjectChange={setProject}
       />

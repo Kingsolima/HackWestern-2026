@@ -1,0 +1,14 @@
+part,category,qty,unit_cost_usd,origin
+Drive motor (NEMA 23 stepper),motor,2,62.00,CN
+Planetary gearbox 5:1,gearbox,2,48.00,CN
+Motor driver,electronics,2,35.00,CN
+Welded aluminum chassis,frame,1,140.00,US
+Drive wheel 150 mm,frame,2,18.00,CN
+Caster wheel,frame,2,9.00,TW
+24V battery pack,battery,1,110.00,KR
+Single-board computer,compute,1,80.00,GB
+2D lidar,lidar,1,99.00,CN
+Wheel encoder,encoder,2,28.00,US
+Electronics enclosure,frame,1,30.00,CA
+Wiring harness,electronics,1,25.00,US
+Fasteners,frame,1,12.00,US
