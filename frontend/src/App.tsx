@@ -36,6 +36,13 @@ function startLive(start: (mode: 'live', opts: CreateJobOptions) => void, projec
   start('live', { liveToken: token, projectId })
 }
 
+/** What the robot panel shows before a job: the CAD worker's starter design for the project. */
+function starterRobot(project: ProjectId) {
+  return project === 'ar4_club'
+    ? { src: '/cad/designs/starter_ar4/glb', title: 'Robot: AR4 arm, NEMA 23 J2 motor' }
+    : { src: '/cad/designs/starter/glb', title: 'Robot: NEMA 17 stepper baseline' }
+}
+
 export default function App() {
   const [health, setHealth] = useState<string>('checking…')
   const [baselineCard, setBaselineCard] = useState<Card | null>(null)
@@ -83,7 +90,7 @@ export default function App() {
       {job.baseline && job.candidates[0] ? (
         <BeforeAfterViewer before={job.baseline} after={job.candidates[0]} />
       ) : (
-        <ModelViewer src="/cad/designs/starter/glb" />
+        <ModelViewer {...starterRobot(project)} />
       )}
       <div className="grid">
         <ComplianceCard card={job.compliance ?? baselineCard} />
