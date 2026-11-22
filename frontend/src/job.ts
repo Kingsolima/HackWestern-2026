@@ -157,7 +157,7 @@ function reducer(state: JobState, action: Action): JobState {
  */
 export function useJob() {
   const [state, dispatch] = useReducer(reducer, initialJobState)
-  const source = useRef<EventSource | null>(null)
+  const source = useRef<EventSourceLike | null>(null)
 
   const stop = useCallback(() => {
     source.current?.close()
@@ -185,23 +185,41 @@ export function useJob() {
       }
       dispatch({ kind: 'started', status })
 
-      const es = new EventSource(`${BASE}/api/jobs/${status.job_id}/events`)
+      const es = followJob(
+        `${BASE}/api/jobs/${status.job_id}/events`,
+        (event) => dispatch({ kind: 'event', event }),
+        () => dispatch({ kind: 'connection', connection: 'failed' }),
+      )
       source.current = es
-      es.onmessage = (msg) => {
-        const event = JSON.parse(msg.data) as JobEvent
-        dispatch({ kind: 'event', event })
-        if (event.type === 'stage' && TERMINAL_STAGES.has(event.data.stage)) {
-          es.close()
-          if (source.current === es) source.current = null
-        }
-      }
-      es.onerror = () => {
-        // CONNECTING = the browser is retrying and will resume from the last event id.
-        if (es.readyState === EventSource.CLOSED) dispatch({ kind: 'connection', connection: 'failed' })
-      }
     },
     [stop],
   )
 
   return { state, start, stop }
+}
+
+type EventSourceLike = Pick<EventSource, 'onmessage' | 'onerror' | 'readyState' | 'close'>
+
+/**
+ * Open the job's event stream, pass each event on, and close the stream at a terminal stage
+ * (otherwise the browser reconnects to the finished job forever). `makeSource` is injectable
+ * for tests.
+ */
+export function followJob(
+  url: string,
+  onEvent: (event: JobEvent) => void,
+  onFailed: () => void,
+  makeSource: (url: string) => EventSourceLike = (u) => new EventSource(u),
+): EventSourceLike {
+  const es = makeSource(url)
+  es.onmessage = (msg: MessageEvent<string>) => {
+    const event = JSON.parse(msg.data) as JobEvent
+    onEvent(event)
+    if (event.type === 'stage' && TERMINAL_STAGES.has(event.data.stage)) es.close()
+  }
+  es.onerror = () => {
+    // readyState CONNECTING (0) = the browser is retrying and will resume from the last id.
+    if (es.readyState === 2) onFailed()
+  }
+  return es
 }

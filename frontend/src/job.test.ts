@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Claim, JobEvent } from './events'
-import { applyEvent, initialJobState, isTerminal, type JobState } from './job'
+import { applyEvent, followJob, initialJobState, isTerminal, type JobState } from './job'
 
 let nextId = 1
 function ev<T extends JobEvent['type']>(type: T, data: Extract<JobEvent, { type: T }>['data']): JobEvent {
@@ -108,5 +108,44 @@ describe('applyEvent', () => {
     }
     const after = applyEvent(before, designReady)
     expect(after.runs).toEqual(before.runs)
+  })
+})
+
+describe('followJob', () => {
+  class FakeSource {
+    onmessage: ((m: MessageEvent<string>) => void) | null = null
+    onerror: (() => void) | null = null
+    readyState = 1
+    closed = false
+    close() {
+      this.closed = true
+      this.readyState = 2
+    }
+    send(e: JobEvent) {
+      this.onmessage?.({ data: JSON.stringify(e) } as MessageEvent<string>)
+    }
+  }
+
+  it('closes the stream at DONE so the browser does not reconnect to a finished job', () => {
+    const fake = new FakeSource()
+    const seen: string[] = []
+    followJob('/x', (e) => seen.push(e.type), () => {}, () => fake as unknown as EventSource)
+    fake.send(ev('stage', { stage: 'VERIFY' }))
+    expect(fake.closed).toBe(false)
+    fake.send(ev('stage', { stage: 'DONE' }))
+    expect(fake.closed).toBe(true)
+    expect(seen).toEqual(['stage', 'stage'])
+  })
+
+  it('reports failure only when the browser gives up, not while it is retrying', () => {
+    const fake = new FakeSource()
+    let failed = 0
+    followJob('/x', () => {}, () => failed++, () => fake as unknown as EventSource)
+    fake.readyState = 0 // CONNECTING: browser will resume from Last-Event-ID
+    fake.onerror?.()
+    expect(failed).toBe(0)
+    fake.readyState = 2 // CLOSED
+    fake.onerror?.()
+    expect(failed).toBe(1)
   })
 })
