@@ -7,6 +7,7 @@ import httpx
 
 from app.config import Settings
 from app.orchestrator.board import MemoryBoard
+from app.orchestrator.cad import CadClient
 from app.orchestrator.context import JobContext
 from app.orchestrator.events import EventLog
 from app.orchestrator.fleet import Fleet, JobBudget
@@ -49,6 +50,7 @@ class Runtime:
             fleet=self.fleet,
             budget=JobBudget(max_agent_runs=self.settings.max_agent_runs_per_job),
             board=self.board,
+            cad=CadClient(self.settings.cad_worker_url, self.http),
         )
         job = Job(ctx=ctx)
         job.task = asyncio.create_task(run_job(ctx, self.workers(mode)))
