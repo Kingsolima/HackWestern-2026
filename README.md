@@ -32,6 +32,17 @@ curl -X POST localhost:8001/build -H 'content-type: application/json' -d '{"desi
 
 If ROS (or anything else) sets `PYTHONPATH` in your shell, use the `make` targets, which unset it. Otherwise pytest loads foreign plugins.
 
+## Deploying (Vultr)
+
+`docker compose up -d --build` on the VM. For **live** jobs (real TinyFish runs) the server needs:
+
+- `TINYFISH_API_KEY` (and `GEMINI_API_KEY`) in the server's `.env`, never committed.
+- A writable recordings folder. Compose binds `./data/recordings` to `/recordings` and sets
+  `RECORDINGS_DIR`; the rest of `data/` stays read-only. Live runs are recorded there, so the
+  demo can replay them offline later.
+
+Replay jobs (`POST /api/jobs {"mode": "replay"}`) need neither.
+
 ## Working on a feature
 
 ```bash
