@@ -21,5 +21,6 @@ def client(monkeypatch):
     monkeypatch.setattr(settings, "replay_speed", 0)
     # Never reach a real CAD worker on the dev machine; tests that need one install fake_cad.
     monkeypatch.setattr(settings, "cad_worker_url", "http://cad.invalid")
+    monkeypatch.setattr(settings, "tiger_enabled", False)  # the live Tiger tests opt in
     with TestClient(app) as c:
         yield c

@@ -7,11 +7,13 @@ import httpx
 
 from app.cad_client import CadClient
 from app.config import Settings
-from app.orchestrator.board import MemoryBoard
+from app.db.tiger import TigerDB
+from app.orchestrator.board import Board, MemoryBoard, TigerBoard
 from app.orchestrator.context import JobContext
 from app.orchestrator.events import EventLog
 from app.orchestrator.fleet import Fleet, JobBudget
 from app.orchestrator.job import Job, run_job
+from app.orchestrator.run_log import record_runs
 from app.orchestrator.workers import SwapWorker, Worker
 from app.schemas import JobMode, Project, Robot
 from app.tfclient.client import TFClient
@@ -20,7 +22,9 @@ from app.tfclient.recorder import Recorder
 
 
 class Runtime:
-    def __init__(self, settings: Settings, http: httpx.AsyncClient) -> None:
+    def __init__(
+        self, settings: Settings, http: httpx.AsyncClient, db: TigerDB | None = None
+    ) -> None:
         self.settings = settings
         self.http = http
         self.fleet = Fleet(
@@ -32,7 +36,9 @@ class Runtime:
                 "gemini": settings.gemini_slots,
             }
         )
-        self.board = MemoryBoard()
+        self.db = db
+        self.board: Board = TigerBoard(db) if db else MemoryBoard()
+        self._recorders: set[asyncio.Task[int]] = set()
         self.cad = CadClient(http, settings.cad_worker_url)
         self.jobs: dict[str, Job] = {}
 
@@ -66,5 +72,9 @@ class Runtime:
         )
         job = Job(ctx=ctx)
         job.task = asyncio.create_task(run_job(ctx, self.workers(mode)))
+        if self.db is not None:
+            recorder_task = asyncio.create_task(record_runs(ctx.log, self.db))
+            self._recorders.add(recorder_task)
+            recorder_task.add_done_callback(self._recorders.discard)
         self.jobs[job_id] = job
         return job

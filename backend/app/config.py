@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     require_live_token: bool = False
     live_jobs_token: str = ""
 
+    tiger_enabled: bool = False  # board + agent_runs on Tiger Data at DATABASE_URL
     database_url: str = "postgresql://postgres:postgres@localhost:5432/redesign"
 
     s3_endpoint: str = ""

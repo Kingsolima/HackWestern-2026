@@ -25,17 +25,17 @@ from app.orchestrator.discovery import discover, plan_queries, triage
 from app.orchestrator.events import (
     CheckResultPayload,
     ClaimRejected,
-    ClaimVerified,
     CompliancePayload,
     DesignReady,
     ErrorPayload,
     Stage,
     StagePayload,
 )
+from app.orchestrator.facts import promote
 from app.orchestrator.intake_stages import criteria, intake
 from app.orchestrator.risk_stages import alternatives, recommend_lines, risk_baseline
 from app.orchestrator.workers import Worker
-from app.schemas import BoardEntry, Claim
+from app.schemas import Claim
 
 PIPELINE: tuple[Stage, ...] = (
     "INTAKE",
@@ -157,22 +157,6 @@ async def verify_on_agent_snapshot(ctx: JobContext, url: str, claims: list[Claim
                     pending.remove(claim)
             break
     return pending
-
-
-async def promote(ctx: JobContext, fact: Claim) -> None:
-    ctx.facts.append(fact)
-    await ctx.board.post(
-        BoardEntry(
-            job_id=ctx.job_id,
-            author=BoardEntry.VERIFIER,
-            kind="fact",
-            subject=fact.candidate_id,
-            payload=fact.model_dump(mode="json"),
-            claim_id=fact.id,
-            verified=True,
-        )
-    )
-    await ctx.log.emit(ClaimVerified(claim=fact))
 
 
 def design_id(job_id: str, candidate_id: str) -> str:

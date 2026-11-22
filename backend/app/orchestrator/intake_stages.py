@@ -12,13 +12,13 @@ from app.orchestrator.context import JobContext
 from app.orchestrator.discovery import TRIAGE_CHARS
 from app.orchestrator.events import (
     ClaimRejected,
-    ClaimVerified,
     ProjectPayload,
     ProjectView,
     RunFinished,
     RunProgress,
     RunStarted,
 )
+from app.orchestrator.facts import promote
 from app.tfclient.recorder import ReplayMiss
 
 
@@ -64,7 +64,7 @@ async def intake(ctx: JobContext, workers: Sequence[object]) -> None:
         facts, claims = page_facts(raw, project.id, url, text[:TRIAGE_CHARS], f"{run_id}:{n}")
         for claim in claims:
             if claim.verified:
-                await ctx.log.emit(ClaimVerified(claim=claim))
+                await promote(ctx, claim)
             else:
                 await ctx.log.emit(ClaimRejected(claim=claim, reason="quote not on the page"))
         ctx.verified_facts.extend(facts)

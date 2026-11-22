@@ -12,6 +12,13 @@ CREATE TABLE IF NOT EXISTS agent_runs (
   steps       INTEGER
 );
 SELECT create_hypertable('agent_runs', by_range('time'), if_not_exists => TRUE);
+-- v3/v4 columns (backend/app/db/tiger.py writes one row per run_finished event; status holds
+-- the run's outcome). Added, not redefined, so an existing database upgrades in place.
+ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS job_id TEXT;
+ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS worker TEXT;
+ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS reason TEXT;
+ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS live BOOLEAN;
+CREATE INDEX IF NOT EXISTS agent_runs_site_time ON agent_runs (site, time DESC);
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS site_success_hourly
 WITH (timescaledb.continuous) AS
@@ -26,6 +33,26 @@ WITH NO DATA;
 SELECT add_continuous_aggregate_policy('site_success_hourly',
   start_offset => INTERVAL '1 day', end_offset => NULL,
   schedule_interval => INTERVAL '5 minutes', if_not_exists => TRUE);
+-- Real-time aggregation is off by default since TimescaleDB 2.13: turn it on so the panel sees
+-- runs newer than the last refresh (docs/design/07 section 3).
+ALTER MATERIALIZED VIEW site_success_hourly SET (timescaledb.materialized_only = false);
+
+-- Shared board (docs/design/07 section 3). Facts only from the verifier, enforced here as well
+-- as in BoardEntry, so no other writer can slip one in.
+CREATE TABLE IF NOT EXISTS board (
+  time      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  job_id    TEXT        NOT NULL,
+  author    TEXT        NOT NULL,
+  bom_line  TEXT,
+  kind      TEXT        NOT NULL CHECK (kind IN ('fact', 'hint', 'supplier', 'gap_request')),
+  subject   TEXT        NOT NULL,
+  payload   JSONB       NOT NULL,
+  claim_id  TEXT,
+  verified  BOOLEAN     NOT NULL DEFAULT false,
+  CONSTRAINT facts_only_from_verifier CHECK (kind <> 'fact' OR (verified AND author = 'verifier'))
+);
+SELECT create_hypertable('board', by_range('time'), if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS board_job_kind_subject ON board (job_id, kind, subject, time DESC);
 
 -- Price/lead-time history from repeated runs and TinyMonitor events.
 CREATE TABLE IF NOT EXISTS price_observations (
