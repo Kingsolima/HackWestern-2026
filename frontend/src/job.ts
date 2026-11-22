@@ -176,18 +176,12 @@ export function useJob() {
   useEffect(() => stop, [stop]) // close on unmount
 
   const start = useCallback(
-    async (mode: JobMode = 'replay') => {
+    async (mode: JobMode = 'replay', liveToken?: string) => {
       stop()
       dispatch({ kind: 'reset' })
       let status: JobStatus
       try {
-        const res = await fetch(`${BASE}/api/jobs`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode }),
-        })
-        if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0, 200)}`)
-        status = (await res.json()) as JobStatus
+        status = await createJob(mode, liveToken)
       } catch (e) {
         dispatch({ kind: 'failed', message: `could not start job: ${String(e)}` })
         return
@@ -205,6 +199,26 @@ export function useJob() {
   )
 
   return { state, start, stop }
+}
+
+/**
+ * POST /api/jobs. On the public deploy, live/mixed jobs need the X-Live-Token header (they spend
+ * TinyFish credit); replay jobs never send it. `fetchImpl` is injectable for tests.
+ */
+export async function createJob(
+  mode: JobMode,
+  liveToken?: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<JobStatus> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (mode !== 'replay' && liveToken) headers['X-Live-Token'] = liveToken
+  const res = await fetchImpl(`${BASE}/api/jobs`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ mode }),
+  })
+  if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0, 200)}`)
+  return (await res.json()) as JobStatus
 }
 
 type EventSourceLike = Pick<EventSource, 'onmessage' | 'onerror' | 'readyState' | 'close'>

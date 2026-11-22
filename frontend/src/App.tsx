@@ -11,6 +11,27 @@ import { ModelViewer } from './components/ModelViewer'
 import { useJob } from './job'
 import type { CheckResult, ComplianceCard as Card, DesignVariant } from './types'
 
+// ?live=1 shows a "Run live" button. The token is asked once per tab and kept in sessionStorage.
+const LIVE_ENABLED = new URLSearchParams(window.location.search).get('live') === '1'
+const TOKEN_KEY = 'live-jobs-token'
+
+function startLive(start: (mode: 'live', token?: string) => void) {
+  let token: string | null = null
+  try {
+    token = sessionStorage.getItem(TOKEN_KEY)
+  } catch {
+    // storage blocked: just ask every time
+  }
+  token ??= window.prompt('Live jobs spend TinyFish credit. Enter the live token:')
+  if (!token) return
+  try {
+    sessionStorage.setItem(TOKEN_KEY, token)
+  } catch {
+    // ignore
+  }
+  start('live', token)
+}
+
 export default function App() {
   const [health, setHealth] = useState<string>('checking…')
   const [baselineCard, setBaselineCard] = useState<Card | null>(null)
@@ -37,7 +58,11 @@ export default function App() {
         <h1>AI Robot Redesign Engine</h1>
         <span className="muted">API: {health}</span>
       </header>
-      <JobBar state={job} onStart={() => start('replay')} />
+      <JobBar
+        state={job}
+        onStart={() => start('replay')}
+        onStartLive={LIVE_ENABLED ? () => startLive(start) : undefined}
+      />
       {job.baseline && job.candidates[0] ? (
         <BeforeAfterViewer before={job.baseline} after={job.candidates[0]} />
       ) : (

@@ -243,3 +243,12 @@ q {
 tr.changed td:not(:first-child) {
   font-weight: 600;
 }
+button.secondary {
+  background: transparent;
+  color: inherit;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-weight: 600;
+  cursor: pointer;
+}

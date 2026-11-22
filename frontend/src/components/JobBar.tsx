@@ -4,9 +4,11 @@ import type { JobState } from '../job'
 interface Props {
   state: JobState
   onStart: () => void
+  /** Shown only with ?live=1 in the URL: starts a real (credit-spending) TinyFish job. */
+  onStartLive?: () => void
 }
 
-export function JobBar({ state, onStart }: Props) {
+export function JobBar({ state, onStart, onStartLive }: Props) {
   const running = state.connection === 'starting' || state.connection === 'streaming'
   const current = state.stage ? STAGE_ORDER.indexOf(state.stage) : -1
   const failed = state.stage === 'FAILED' || state.stage === 'DEGRADED'
@@ -17,6 +19,11 @@ export function JobBar({ state, onStart }: Props) {
         <button className="primary" onClick={onStart} disabled={running}>
           {running ? 'Running…' : state.jobId ? 'Run again' : 'Find and Redesign'}
         </button>
+        {onStartLive && (
+          <button className="secondary" onClick={onStartLive} disabled={running}>
+            Run live
+          </button>
+        )}
         {state.mode && (
           <span className={`badge ${state.mode === 'live' ? 'badge-live' : 'badge-replay'}`}>
             {state.mode === 'live' ? 'LIVE' : 'REPLAY'}
