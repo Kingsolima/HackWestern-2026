@@ -60,3 +60,118 @@ td {
   padding: 6px 8px;
   border-bottom: 1px solid var(--border);
 }
+
+/* --- job view --- */
+:root {
+  --accent: #2563eb;
+  --live: #16a34a;
+  --replay: #7c3aed;
+  --bad: #dc2626;
+}
+button.primary {
+  background: var(--accent);
+  color: #fff;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+button.primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.jobbar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: #fff;
+}
+.badge-live {
+  background: var(--live);
+}
+.badge-replay {
+  background: var(--replay);
+}
+.badge-bad {
+  background: var(--bad);
+}
+.stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+}
+.stepper li {
+  font-size: 0.8rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.stepper li.done {
+  color: inherit;
+  border-color: var(--live);
+}
+.stepper li.current {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.error {
+  color: var(--bad);
+  margin: 4px 0 0;
+}
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+.tile {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.tile-head,
+.tile-foot {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.tile-stream {
+  width: 100%;
+  height: 180px;
+  border: 0;
+  border-radius: 6px;
+  background: #000;
+}
+.tile-steps {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.85rem;
+  max-height: 180px;
+  overflow-y: auto;
+}
+tr.rejected td {
+  color: var(--muted);
+}
+q {
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+}
