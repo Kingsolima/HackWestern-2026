@@ -230,10 +230,31 @@ export interface RiskFactor {
   source_urls: string[]
 }
 
+/** One 0-3 dimension of a part's risk priority. value null = unknown (evidence missing): it
+ * asks for investigation and is never counted as 0. */
+export interface Score {
+  value: number | null
+  basis: 'stated' | 'inferred' | 'rule' | 'unknown'
+  reasons: string[]
+  missing: string[]
+}
+
+/** supply + customer + impact, 0-9. An unknown score adds 0 to lo and 3 to hi; level reads lo
+ * (high >= 6, medium 3-5, low <= 2). backend/app/engineering/priority.py */
+export interface Priority {
+  supply: Score
+  customer: Score
+  impact: Score
+  lo: number
+  hi: number
+  level: Level
+}
+
 export interface LineRisk {
   line_id: string
   factors: RiskFactor[]
   overall: Level
+  priority?: Priority | null
 }
 
 export interface Alternative {
@@ -255,18 +276,25 @@ export interface Alternative {
 
 export interface Recommendation {
   line_id: string
-  action: 'keep' | 'dual_source' | 're_source'
+  action: 'keep' | 'dual_source' | 're_source' | 'investigate'
   alternative_id: string | null
   cost_delta_usd: number | null
   risk_before: Level
   risk_after: Level
+  priority_lo?: number | null
+  priority_hi?: number | null
+  /** The backend's rank (1 = act on this first), from the event. */
+  rank?: number
   reason: string
 }
 
 export type ProjectEvent = Envelope<'project', { project: Project; criteria: Criteria }>
 export type RiskLineEvent = Envelope<'risk_line', { risk: LineRisk; line: BomLine }>
 export type AlternativeEvent = Envelope<'alternative', { alternative: Alternative }>
-export type RecommendationEvent = Envelope<'recommendation', { recommendation: Recommendation }>
+export type RecommendationEvent = Envelope<
+  'recommendation',
+  { rank?: number; recommendation: Recommendation }
+>
 
 /** One engineering check on one candidate (backend/app/engineering/spec_checks.py SpecCheck). */
 export interface SpecCheck {

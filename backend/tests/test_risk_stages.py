@@ -102,7 +102,9 @@ def test_club_job_ends_with_ranked_recommendations(client):
     recs = [e["data"] for e in events if e["type"] == "recommendation"]
     assert [r["rank"] for r in recs] == [1, 2, 3]
     j2 = next(r["recommendation"] for r in recs if r["recommendation"]["line_id"] == "j2_motor")
-    assert j2["action"] == "keep" and j2["reason"] == "No eligible alternative lowers the risk."
+    # no stated conflict, but zero eligible alternatives is real supply exposure on the joint
+    assert j2["action"] == "dual_source" and "Find a second source" in j2["reason"]
+    assert (j2["priority_lo"], j2["risk_before"]) == (5, "medium")
     assert {r["recommendation"]["line_id"] for r in recs} == {
         "j2_motor",
         "motor_package_rest",

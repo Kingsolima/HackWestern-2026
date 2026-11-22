@@ -6,13 +6,17 @@ const ACTION: Record<Recommendation['action'], string> = {
   keep: 'Keep',
   dual_source: 'Dual-source',
   re_source: 'Re-source',
+  investigate: 'Investigate',
 }
+
+const range = (lo?: number | null, hi?: number | null) =>
+  lo == null ? '' : hi != null && hi > lo ? `${lo}–${hi}` : `${lo}`
 
 const delta = (v: number | null) =>
   v === null ? '–' : `${v > 0 ? '+' : v < 0 ? '−' : ''}$${Math.abs(v).toLocaleString()}`
 
-/** The team's decision per part, already ranked by the backend's rule (most risk removed first,
- * then cheapest). */
+/** The team's decision per part, ranked by the backend: parts that need action first, highest
+ * risk priority first. Priority is 0-9; a range means some evidence is missing. */
 export function Recommendations({
   recommendations,
   rows,
@@ -37,7 +41,7 @@ export function Recommendations({
             <th>Action</th>
             <th>With</th>
             <th>Cost Δ</th>
-            <th>Risk</th>
+            <th>Priority</th>
             <th>Why</th>
           </tr>
         </thead>
@@ -54,7 +58,15 @@ export function Recommendations({
                 <td>{a ? `${a.manufacturer} ${a.part_number}` : (r.alternative_id ?? '–')}</td>
                 <td>{delta(r.cost_delta_usd)}</td>
                 <td className="chips">
-                  <LevelChip level={r.risk_before} /> → <LevelChip level={r.risk_after} />
+                  <LevelChip level={r.risk_before}>
+                    {`${r.risk_before} ${range(r.priority_lo, r.priority_hi)}`.trim()}
+                  </LevelChip>
+                  {r.risk_after !== r.risk_before && (
+                    <>
+                      {' → '}
+                      <LevelChip level={r.risk_after} />
+                    </>
+                  )}
                 </td>
                 <td>{r.reason}</td>
               </tr>

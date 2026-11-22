@@ -3,15 +3,20 @@ v3 jobs that have no project."""
 
 from collections.abc import Sequence
 
-from app.engineering.risk import (
-    line_risk,
-    rank_recommendations,
-    recommend,
-)
+from app.engineering.priority import decide, priority, rank
+from app.engineering.risk import line_risk
 from app.engineering.risk_data import inputs_for
 from app.orchestrator.context import JobContext
 from app.orchestrator.events import AlternativePayload, RecommendationPayload, RiskLinePayload
-from app.schemas import Alternative, BomLine, Recommendation
+from app.schemas import Alternative, BomLine, LineRisk
+
+
+def _scored(ctx: JobContext, line: BomLine, risk: LineRisk, deps_of: str) -> LineRisk:
+    """Add the risk priority. An alternative is scored with its own origin and maker, and with
+    the inferred dependencies of the line it would replace (same class of part)."""
+    assert ctx.criteria is not None
+    deps = [d for d in ctx.dependencies if d.line_id == deps_of]
+    return risk.model_copy(update={"priority": priority(line, risk, ctx.criteria, deps)})
 
 
 def _deep(ctx: JobContext) -> BomLine:
@@ -30,6 +35,7 @@ async def risk_baseline(ctx: JobContext, workers: Sequence[object]) -> None:
             ctx.criteria,
             inputs_for(line, ctx.criteria),
         )
+        risk = _scored(ctx, line, risk, line.id)
         ctx.line_risks[line.id] = risk
         await ctx.log.emit(RiskLinePayload(line=line, risk=risk))
 
@@ -53,8 +59,10 @@ async def alternatives(ctx: JobContext, workers: Sequence[object]) -> None:
                 "availability": "unknown",
                 "lead_time_days": None,
                 "illustrative": False,
+                "stated_risk": None,
             }
         )
+        alt_risk = line_risk(c.id, "unknown", None, ctx.criteria, inputs_for(as_line, ctx.criteria))
         alt = Alternative(
             id=c.id,
             line_id=deep.id,
@@ -65,7 +73,7 @@ async def alternatives(ctx: JobContext, workers: Sequence[object]) -> None:
             origin_tier=c.origin.tier,
             unit_price_usd=d.price_usd,
             verdict=d.verdict,
-            risk=line_risk(c.id, "unknown", None, ctx.criteria, inputs_for(as_line, ctx.criteria)),
+            risk=_scored(ctx, as_line, alt_risk, deep.id),
             live=any(claim.source.via != "replay" for claim in c.claims),
         )
         ctx.alternatives.append(alt)
@@ -78,28 +86,23 @@ async def alternatives(ctx: JobContext, workers: Sequence[object]) -> None:
         ctx.criteria,
         inputs_for(deep, ctx.criteria, eligible_alternatives=eligible),
     )
+    risk = _scored(ctx, deep, risk, deep.id)
     ctx.line_risks[deep.id] = risk
     await ctx.log.emit(RiskLinePayload(line=deep, risk=risk))
 
 
 async def recommend_lines(ctx: JobContext, workers: Sequence[object]) -> None:
+    """One action per part from engineering/priority.py. Only the deep line has alternatives;
+    the other lines are decided on their own evidence."""
     if ctx.project is None or not ctx.line_risks:
         return
-    recs: list[Recommendation] = []
-    for line in ctx.project.bom:
-        current = ctx.line_risks[line.id]
-        if line.id == ctx.project.deep_line:
-            recs.append(recommend(line, current, ctx.alternatives))
-        else:
-            recs.append(
-                Recommendation(
-                    line_id=line.id,
-                    action="keep",
-                    risk_before=current.overall,
-                    risk_after=current.overall,
-                    blocked=current.blocked,
-                    reason="Alternatives were not searched for this line in this run.",
-                )
-            )
-    for n, rec in enumerate(rank_recommendations(recs), start=1):
+    recs = [
+        decide(
+            line,
+            ctx.line_risks[line.id],
+            ctx.alternatives if line.id == ctx.project.deep_line else [],
+        )
+        for line in ctx.project.bom
+    ]
+    for n, rec in enumerate(rank(recs), start=1):
         await ctx.log.emit(RecommendationPayload(rank=n, recommendation=rec))

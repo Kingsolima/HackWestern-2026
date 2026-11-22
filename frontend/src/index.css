@@ -352,6 +352,9 @@ table.nested {
 .action-keep {
   color: var(--low);
 }
+.action-investigate {
+  color: var(--unknown);
+}
 .badge-mixed {
   background: var(--medium);
 }

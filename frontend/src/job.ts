@@ -212,9 +212,13 @@ export function applyEvent(prev: JobState, ev: JobEvent): JobState {
       return { ...state, alternatives: { ...state.alternatives, [alt.line_id]: [...list, alt] } }
     }
     case 'recommendation': {
-      const rec = ev.data.recommendation
-      const others = state.recommendations.filter((r) => r.line_id !== rec.line_id)
-      return { ...state, recommendations: rankRecommendations([...others, rec]) }
+      const rec = { ...ev.data.recommendation, rank: ev.data.rank }
+      const all = [...state.recommendations.filter((r) => r.line_id !== rec.line_id), rec]
+      // The backend ranks (priority first); the old client-side rule is only a fallback.
+      const ranked = all.every((r) => r.rank !== undefined)
+        ? all.sort((a, b) => (a.rank as number) - (b.rank as number))
+        : rankRecommendations(all)
+      return { ...state, recommendations: ranked }
     }
     case 'check_result': {
       const c = ev.data.check

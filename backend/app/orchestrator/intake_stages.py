@@ -7,6 +7,7 @@ from collections.abc import Sequence
 import httpx
 
 from app.agents.intake import INTAKE_PROMPT, INTAKE_SCHEMA, merge_facts, page_facts
+from app.engineering.concerns import CONCERNS_SCHEMA, concerns_prompt, confirm_concerns
 from app.engineering.criteria import derive_criteria
 from app.orchestrator.context import JobContext
 from app.orchestrator.discovery import TRIAGE_CHARS
@@ -19,6 +20,7 @@ from app.orchestrator.events import (
     RunStarted,
 )
 from app.orchestrator.facts import promote
+from app.schemas import CriterionReason
 from app.tfclient.recorder import ReplayMiss
 
 
@@ -85,6 +87,8 @@ async def criteria(ctx: JobContext, workers: Sequence[object]) -> None:
         return
     facts, used = merge_facts(project.stated, ctx.verified_facts)
     ctx.criteria = derive_criteria(facts)
+    if project.avoid:
+        await read_concerns(ctx, project.avoid)
     await ctx.log.emit(
         ProjectPayload(
             project=ProjectView(
@@ -103,5 +107,68 @@ async def criteria(ctx: JobContext, workers: Sequence[object]) -> None:
                 fact_basis=used,
             ),
             criteria=ctx.criteria,
+        )
+    )
+
+
+async def read_concerns(ctx: JobContext, avoid: str) -> None:
+    """One Flash call: split the customer's "avoid" answer into concerns, and say which parts
+    may depend on a material they named. Code confirms each concern against their words. When
+    the call fails the concerns are marked unread, which asks for investigation; it never
+    lowers or raises a score."""
+    assert ctx.project is not None and ctx.criteria is not None
+    run_id = f"{ctx.job_id}:concerns"
+    start = time.monotonic()
+    await ctx.log.emit(
+        RunStarted(
+            run_id=run_id,
+            worker="criteria",
+            product="gemini",
+            site="your answers",
+            url=None,
+            goal="Read what you want to avoid and which parts may depend on it",
+            live=ctx.mode != "replay",
+        )
+    )
+    live = False
+    try:
+        async with ctx.fleet.slot("gemini", ctx.budget):
+            raw, live = await ctx.gemini.extract_json_live(
+                concerns_prompt(avoid, ctx.project.bom), CONCERNS_SCHEMA
+            )
+        concerns, deps = confirm_concerns(raw, avoid, ctx.project.bom)
+    except (httpx.HTTPError, ReplayMiss, ValueError, KeyError, IndexError, TypeError) as exc:
+        ctx.criteria = ctx.criteria.model_copy(update={"concerns_unread": True})
+        reason = f"concerns not read: {type(exc).__name__}"
+        await ctx.log.emit(
+            RunFinished(run_id=run_id, outcome="error", reason=reason, duration_s=0, live=False)
+        )
+        return
+    ctx.dependencies = deps
+    likely = sum(1 for d in deps if d.depends == "likely")
+    reasons = [
+        *ctx.criteria.reasons,
+        *(
+            CriterionReason(
+                rule_id="C7",
+                fact_field=None,
+                text=f"you want to avoid {c.label}"
+                + (f" ({c.country})" if c.country else "")
+                + f': "{c.quote}"',
+            )
+            for c in concerns
+        ),
+    ]
+    ctx.criteria = ctx.criteria.model_copy(
+        update={"concerns": concerns, "concerns_unread": not concerns, "reasons": reasons}
+    )
+    await ctx.log.emit(
+        RunFinished(
+            run_id=run_id,
+            outcome="success" if concerns else "incomplete",
+            reason=f"{len(concerns)} concerns read; {likely} parts may depend on a named "
+            "material (inferred, not verified)",
+            duration_s=round(time.monotonic() - start, 3),
+            live=live,
         )
     )
