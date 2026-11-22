@@ -1,0 +1,953 @@
+switching work now. We need to finish tygo's work on the UI revamp, here is the trace from the session that was working on it before it died, we want chunk B and C done, chunk A is done. This is on branch ui/agents. 
+
+<pasted_content id="ff14">
+get rid of the numbered step indicators at the top in favor of a tab switcher - the first
+ tab is what is shown first - the 3D model and questions for user. This remains the 3D mo
+del tab with better on hover detail and interactivity with the 3D model, it also retains 
+the before after comparisons (once the flow is done). The second tab is the agent viewer 
+- shows the agents running in sync as a nice graph or web like connections between the if
+rames showing live runs. The third panel is the report viewer - the current one is really
+ close to what we want, it's just a little hard to read. Our gripes with the report come 
+down to digestability, we want lots of detail, but the right high level view. It feels li
+ke the current one is trying to skip out on technical details or supply chain details, we
+ can go deeper and show insights from our agents better in the report.
+────────────────────────────────────────
+
+────────────────────────────────────────
+I need to pin down which AR4 fix they mean, since the one I just made (1b87658) is a
+ viewer fix that isn't pushed yet. They may be asking me to make sure that change
+ lands, or they may have a separate AR4 arm problem in mind.
+
+Next I'm checking git status to see whether the AR4 viewer fix got pushed, since that
+ tells me whether this is already handled. After that the plan is a hands-on revamp of
+ each skill: playback, a design checkpoint for decisions, then the core piece, without
+ subagents. I'll gather the current report content and the agent data first, reading the 
+events file
+ and the report components so I understand what's shown.
+
+∴ Thought for 3s
+────────────────────────────────────────
+
+💻 $ git fetch -q origin + 5 commands  1.0s
+
+────────────────────────────────────────
+The fix is already in PR #24 (1b87658), so I'll point them to it, unless they're seeing a
+ different problem. I'll ask them to clarify. I'm also leaving the untracked docs/DE
+VPOST.md alone since it's theirs. Next I'm gathering context for the revamp design by rea
+ding the JobCon
+sole tabs.
+
+Next I'm checking the report screenshots to judge how readable they are, and I'm listing 
+the data types
+ I have in events.ts, including RiskFactor, Alternative, Recommendation, Claim, Sp
+ecCheck, and Design. Then I'll read those sections of events.ts along with JobConsole.
+
+
+∴ Thought for 1s
+────────────────────────────────────────
+
+────────────────────────────────────────
+☤ Hermes
+PR #24 (open) already contains the AR4 fix (1b87658). Before designing the revamp I'm rea
+ding what the report and agent data actually contain:
+────────────────────────────────────────
+
+💻 $ sed -n 100,214p components/JobConsole.tsx + 1 command
+
+────────────────────────────────────────
+I'm looking at the full set of data available: risk factors with their sources, prioritie
+s and
+ what's missing, alternatives, quoted claims, spec checks, the agent runs, and the design
+ f
+it. I'm thinking the report should open with an executive summary covering the top recomm
+endation,
+ risk before and after, cost change, and compliance, then drill down per line with eviden
+ce chains from
+ claim quote to source URL to the agent run that found it.
+
+I'm checking how the pieces connect: runs carry a worker name like "swap:drive_mot
+or" or "discover", claims trace back to runs and candidates, and checks point at claims. 
+That
+ makes the job a chain from discovery through extraction to design, so I want to conf
+irm the worker naming and whether runs have a parent link by looking at the earlier event
+ file.
+
+∴ Thought for 3s
+────────────────────────────────────────
+
+💻 $ python3 - <<'EOF' import json evs=[json.loads(l[5:]) for l in open('/home/pn/ev.txt'
+) if l.startswith('data:')] for e in evs: if e['type']=='run_started': d=e['data'] + 2 co
+mmands  1.1s
+
+────────────────────────────────────────
+I've mapped out the pipeline: the criteria come first, then discovery runs three searches
+, and
+ triage fetches the pages. From there, per-site extraction and agent runs feed into
+ claims, which become candidates that get checked before reaching a verdict. That
+ makes it a flow graph, so I'm thinking about the edges between these stages, where each 
+one dep
+ends on the previous.
+
+I'm sketching the layout now: live agent runs become iframe nodes inside the graph, while
+ the search,
+ fetch and Gemini steps stay as small chips. For the report, I want to look at the curren
+t screenshots
+ to see what's hard to read. The fix seems to be a full-width tab with a clear summary an
+d
+ a ranked action plan, leaving out the technical supply-chain detail.
+
+I'm moving on to the report's later sections: a supply map with each BOM line's factor ch
+ips, a
+ evidence ledger grouped by source site, and a left-side table of contents. I'm also we
+ighing where job progress should sit, since the tab switcher could carry a live st
+age indicator while the report tab stays available during the run.
+
+I'm sketching the 3D tab's hover and click behavior: a richer tooltip, a pinned detail ca
+rd per
+ part with risk factors and an "open in report" link, and an optional risk-color he
+atmap. Scope is large for the hackathon with the freeze at 4:00, so I'm weighing what
+ fits. For Tygo, I'd propose `agentGraph(job)` as the core pure function that derives the
+ graph from the fol
+ded event state, since it carries the real logic behind the agents tab, and I'd want
+ to check with him first because he previously skipped core work under time pressure.
+
+
+I'm splitting the work into three chunks, each one PR: the tab shell with the report firs
+t since
+ it needs the full width and is the main complaint, then the agent graph, then the 3D int
+er
+activity. I also want to check whether anyone else has open frontend branches, and the on
+ly
+ open PR is #24, so that looks clear. Before settling the design, I'll pull up the curren
+t ris
+k and actions screenshots to confirm what makes the report hard to read.
+
+∴ Thought for 14s
+────────────────────────────────────────
+
+👁️ Vision Critique the readability of this risk report panel: density, font sizes, what i
+nformation is shown per row, what is hidden or truncated, how much screen area the report
+ gets.  0.1s
+👁️ Vision Critique readability of this actions/recommendations panel: what each row says,
+ whether the reasoning is understandable at a glance, what's missing.  0.1s
+
+────────────────────────────────────────
+I'm noticing that the J2 gear head motor is marked "Investigate" with no alternative sear
+ched, even though
+ the agents turned up the Teknic CPM-SDSK-2331S-RLN and the report lists it as the "
+After" part. So the deep-line agent findings aren't feeding into the recommendation for t
+he on
+boarded AR4 company, which looks like a backend issue with how recommendations get
+ generated.
+
+I'm checking whether the deep-line alternatives just aren't linked into the recommendatio
+n for the on
+boarded arm, since the risk table shows three alternatives under J2 while the action
+ still says none were searched. That matches the earlier concern about the agents'
+ insights being skipped, so it looks worth flagging as a backend issue in recommend.py.
+ Before I call it, I want to confirm it, and the saved events only reach extraction, so I
+'m
+ looking at how the demo company test replays the job offline.
+
+The Actions tab recommends investigating the J2 motor with "no alternative searched,"
+ yet the 3D view shows a Teknic replacement, so I'm checking whether that holds on the cu
+rrent code.
+
+
+∴ Thought for 4s
+────────────────────────────────────────
+
+💻 $ sed -n 205,240p tests/test_to_project.py
+✍️ Write /home/pn/deep.py  0.2s
+💻 $ TIGER_ENABLED=false REPLAY_SPEED=0 timeout 300 .venv/bin/python /home/pn/deep.py  0.
+9s
+
+────────────────────────────────────────
+The deep recommendation says the best candidate so far is Teknic, with specs still
+ to verify before switching, so the earlier "no alternative searched" line was st
+ale data and not a bug. The empty designs are expected since no CAD worker runs in
+-process. Still, the report doesn't tie the agents' evidence to its recommendations, whic
+h rem
+ains a real gap.
+
+Now I'm working out how the report should tie each agent's evidence to its recommendation
+, showing which specs are verified and which aren't, with quotes. Then I'll lay out the p
+layback and design
+ checkpoint: data shapes, interfaces, one diagram, numbered decisions, and the core piece
+,
+ keeping it compact.
+
+Now I'm deciding whether the app should switch tabs on its own, and I'm leaning toward au
+to-swit
+ching to Agents at launch and to Report when the job finishes, with manual switching all
+owed at any point. Under the tabs I'll show a thin progress bar and put the current stage
+ name in the
+ Agents label.
+
+Now I'm sketching the Agents tab as a full-screen graph, with columns for each pipeline p
+hase from
+ the criteria through to design checks. The edges would come straight from the data,
+ linking queries to triage, sites to their candidates, and candidates to their verdicts.
+
+
+Now I'm sketching the graph view: the agents laid out in fixed columns by pipeline phase,
+ with curved ed
+ges that animate while their source is running and settle into outcome colors when
+ it finishes. Clicking a node zooms into it, as the bay view already does. Before buildin
+g
+ it I still need to confirm that the frontend's claim type carries the source run ID, sin
+ce that
+'s what links candidates back to their site runs.
+
+Now I'm sketching the report as a full-width, scrollable page with a table of contents on
+ the left, op
+ening with a short verdict and a KPI strip covering mapped parts, high-priority par
+ts, recommended actions by type, and the deep-line decision.
+
+Now I'm laying out the report's comparison section: a side-by-side table of the baseline 
+part
+ against each candidate, with each spec check's value, threshold, margin and verdict, and
+ each value clickable to its quote, source and the agent that found it.
+
+Now I'm laying out the rest of the report: a supply chain map grouped by domain, with eac
+h line showing origin,
+ tier, supplier, price and availability, plus a compact row of factor levels that
+ expands into reasons and sources. Then the requirements section, which lists what I
+ read about the user and the robot numbers, and finally an evidence ledger of claims by
+ site alongside each agent run's outcome. I still need to check whether the data includ
+es the cost delta and run durations.
+
+Now I'm settling the order of the work into three chunks: the tab shell with the report
+ rewrite first, since that's the biggest complaint and shows the most value, then the age
+nts graph,
+ then the 3D interactions. I'm also weighing whether the core piece should be the
+ pure agent-graph function or a report brief that gives the headline numbers and verdict 
+sentence.
+
+
+Next I'm weighing whether to propose a core function for the report chunk, something
+ like a `deepLineComparison(job)` that lays out baseline against each candidate with thei
+r evid
+ence. Then I'll check the AR4 fix, which is already in #24 (1b87658) and just needs mergi
+ng,
+ and ask whether they meant something else. Given the earlier preference to skip the core
+ under
+ time pressure, I'm going to ask about that too. I'm also setting up the questions for th
+e user: whether the
+ design is approved, what order the chunks should go in, and whether to skip the core.
+
+
+Now I'm going to write the playback and design plan in plain text, since this runs in the
+ C
+LI, and then ask the user about the core piece and the pending AR4 fix. I'm also no
+ting that #24 is still open, so the new work should branch from ui/bombot and that
+ it's fine if #24 merges first.
+
+∴ Thought for 35s
+────────────────────────────────────────
+
+────────────────────────────────────────
+☤ Hermes
+Recon is done. The data already supports a much richer report. Each risk factor carries a
+ value, a reason and its sources. Each priority score carries its reasons and what eviden
+ce is missing. Every spec check has a value, a threshold, a margin and the claim IDs behi
+nd it. Each claim has its quote and source URL. Each run has its worker, site, outcome an
+d reason. The current report shows little of this.
+
+The deep-line recommendation I flagged is fine on current code. It now reads "Best candid
+ate so far: Teknic CPM-SDSK-2331S-RLN. Before switching: its specs are not all verified."
+ It still doesn't say which specs, which is exactly your digestibility gripe.
+
+On the AR4 arm fix: it's already in open PR #24 (1b87658). Main gets it once #24 merges.
+
+PLAYBACK
+
+Replace the numbered stage strip with three top-level tabs:
+1. 3D model: today's onboarding view, with richer hover detail, part interaction, and Bef
+ore/After after the job.
+2. Agents: the runs as one connected graph, with their live or recorded browsers inside t
+he nodes, so you can see how discovery fans out into site runs, findings and checks.
+3. Report: full page, structured top-down from the decision to the evidence, surfacing th
+e supply-chain and technical detail the agents actually collected.
+
+DESIGN
+
+Shell
+
+    BOMbot   [ 3D model ]  [ Agents · EXTRACT ● ]  [ Report ]       API · replay · 11:52 
+· Restart
+    ─────────────── thin job progress bar (replaces the 01..11 strip) ───────────────
+
+- Agents unlocks at launch and Report at DONE.
+- The Agents tab label shows the current stage.
+- Onboarding keeps "Question N of M" in its console.
+
+Tab 1, 3D model
+- The hover card shows the BOM line: qty, price, origin, supplier, availability and lead 
+time. After a job it also shows the risk level, the worst factor and the recommended acti
+on.
+- Click a part to pin a side card with its factor reasons and sources, its priority break
+down, its alternatives, and a "See in report" link that jumps to that line.
+- A "Risk heat" toggle colours each part by risk level (green, yellow, red, grey for unkn
+own).
+- Before/After stays as it is.
+
+Tab 2, Agents: pipeline columns with curved connections
+
+    answers ─► queries ─► triage ─► site runs (agent iframes, text reads) ─► findings ─► 
+checks/build
+     criteria   search x3   fetch 8pg   teknic ▣  ati ▣  scribd ▣ (blocked)    CPM-…  ISV
+-…  V0300   design ▣
+
+- Agent nodes show the live stream, or the recorded page on replay. Other run types are s
+mall chips.
+- An edge animates while its source runs, then settles to its outcome colour.
+- Clicking a node opens it large, like today's bay zoom.
+- The layout is fixed columns, not a physics simulation: stable, readable, and safe to pu
+t iframes in.
+
+Tab 3, Report: one scrolling page, about 1100 px wide, with a sticky contents list on the
+ left
+1. Summary: a two-sentence verdict, then key numbers: parts mapped, high-priority parts, 
+actions by type, the deep-line decision and its cost delta, agents run (verified, blocked
+), claims verified and rejected, and domestic share when a rule needs it.
+2. Deep line: the original part next to each candidate. Rows cover maker, origin and tier
+, price, availability, and each spec check with value, threshold, margin and verdict. Eac
+h value expands to its quote, its source URL and the run that read it. Then a "still unve
+rified" list and the fit/CAD changes.
+3. Action plan: recommendations ranked and grouped (Re-source, Dual-source, Investigate, 
+Keep). Each gives its supply, customer and impact reasons as sentences, the missing evide
+nce, the alternative and the cost delta.
+4. Supply map: the BOM by domain. Each line shows origin, tier, supplier, price and avail
+ability, plus a 5-factor heat row; expanding it shows each factor's value, reason, source
+s and the alternatives.
+5. Your requirements: the facts we read about you (stated or verified, with quotes), the 
+rules they triggered, and the robot or joint numbers.
+6. Evidence: claims by source site with verified or rejected status and reason, plus ever
+y agent run with outcome, reason and duration.
+
+Typography: 14 px body, short plain sentences before each table, sticky table headers, de
+tail folded behind clicks.
+
+Data: all frontend. Two additions to the contract, both optional fields: Claim.source.run
+_id, which the backend already sends but the frontend type lacks, and Run.duration_s from
+ run_finished. No backend changes.
+
+New pure functions, each with tests:
+
+    agentGraph(job: JobState): { nodes: GraphNode[]; edges: GraphEdge[] }
+      GraphNode { id; column: 0..5; kind: 'answers'|'query'|'triage'|'site'|'finding'|'de
+    agentGraph(job: JobState): { nodes: GraphNode[]; edges: GraphEdge[] }
+      GraphNode { id; column: 0..5; kind: 'answers'|'query'|'triage'|'site'|'finding'|'de
+sign'; label; runId?; status: 'idle'|'running'|'hi'|'mid'|'lo' }
+      GraphEdge { from; to; state: 'flowing'|'done'|'failed' }
+    deepLineComparison(job): { columns: Option[]; rows: { label; cells: { text; verdict?;
+ evidence: Claim[] }[] }[]; unverified: string[] }
+    reportSummary(job): { verdict: string; figures: { label; value; tone }[] }
+    partDetail(node, job): { line; risk; recommendation; alternatives }   (hover and pin)
+
+Suggested chunks, one PR each, all branched from ui/bombot (which already holds #24):
+- A: tab shell plus the Report page, the biggest gripe
+- B: the Agents graph
+- C: 3D hover, pin, risk heat and the link to the report
+
+Core piece for you: deepLineComparison. It decides what "verified" means for each spec ce
+ll and which claim backs it, which is the report's core insight. An alternative core is a
+gentGraph.
+────────────────────────────────────────
+
+(clarify timed out after 90s — locked answers returned)
+
+❓ Clarify Design above: approve?  90.1s
+
+────────────────────────────────────────
+I'm waiting on the design checkpoint, since the skill says it needs approval before an
+ything moves forward. The timeout means nothing has been approved yet, so I'll end
+ the turn with a brief status and leave the code alone.
+
+∴ Thought for 1s
+────────────────────────────────────────
+⚡ Interrupted during API call.
+gentGraph.
+────────────────────────────────────────
+
+(clarify timed out after 90s — locked answers returned)
+
+❓ Clarify Design above: approve?  90.1s
+
+────────────────────────────────────────
+I'm waiting on the design checkpoint, since the skill says it needs approval before an
+ything moves forward. The timeout means nothing has been approved yet, so I'll end
+ the turn with a brief status and leave the code alone.
+
+∴ Thought for 1s
+────────────────────────────────────────
+⚡ Interrupted during API call.
+
+────────────────────────────────────────
+☤ Hermes
+Operation interrupted: waiting for model response (3.3s elapsed).
+────────────────────────────────────────
+
+─ 3m22s · edited 1 file · ran 5 commands · called 3 tools · 7:26 AM
+
+
+────────────────────────────────────────
+❯ ask again ill answer
+────────────────────────────────────────
+
+? Clarify: Design above: approve? → Go with your assumptions (Recommended)
+
+? Clarify: Chunk order? → A shell+Report, then B Agents, then C 3D (Recommended)
+
+❓ Clarify Design above: approve?  31.3s
+─ 36.8s · called 1 tool · 7:27 AM
+
+
+────────────────────────────────────────
+❯ ask again ill answer
+────────────────────────────────────────
+
+────────────────────────────────────────
+I need to re-ask the three questions that didn't get answered.
+
+∴ Thought for 0s
+────────────────────────────────────────
+
+? Clarify: Core piece: who writes it? → Skip core, you write everything (time pressure) (
+Recommended)
+
+? Clarify: Switch tabs automatically for the demo flow? → Yes: to Agents at launch, to Re
+port at DONE, manual after that (Recommended)
+
+? Clarify: The AR4 fix is in open PR #24 (1b87658). Was that what you meant? → Yes, I'll 
+merge #24 (Recommended)
+
+❓ Clarify Core piece: who writes it?  21.6s
+
+────────────────────────────────────────
+I'm splitting this into two chunks, with the tab shell and Report page first and the core
+ skipped since I'll write it all myself. I'll make a new branch off ui/bombot, which alre
+ady contains
+ #24, after checking the git state and whether #24 has merged. Next I'm pulling in the fu
+ll context of the
+ files I'll touch, starting with App.tsx and JobConsole.tsx.
+
+Next I'm reading through the rest of the files I'll be touching: RiskTable, Recommendatio
+ns, Ch
+ecksTable, ClaimsList, CompanyCard, ComplianceCard, the checks, candidates, and claims in
+ job.ts state, and the Claim and Design fields in events.
+
+∴ Thought for 1s
+────────────────────────────────────────
+
+────────────────────────────────────────
+☤ Hermes
+Approved: chunk A (tab shell and Report page) first, I write everything, and tabs switch 
+automatically at launch and at DONE. Creating the branch and reading what I'll replace:
+────────────────────────────────────────
+
+💻 $ git fetch -q origin + 5 commands  0.8s
+📖 Read App.tsx
+📖 Read job.ts L130
+
+────────────────────────────────────────
+I'm reading through the remaining components I still need to understand: ProjectCard
+, the rest of RiskTable, Recommendations, ChecksTable, ClaimsList, CompanyCard, and Compl
+ianceCard
+, plus the Claim and Design events. The backend recommendation has a "blocked" field that
+ the frontend type doesn't include. I also need to make sure the report works for
+ the wheeled demo job, which has no project and no risk lines.
+
+I still need the report sections to degrade gracefully when there's no project or ris
+k data, since the wheeled demo job only has compliance, claims, checks, and designs.
+
+
+∴ Thought for 0s
+────────────────────────────────────────
+
+💻 $ cat components/ProjectCard.tsx components/Recommendations.tsx components/ChecksTable
+.tsx components/CompanyCard.tsx components/ComplianceCard.tsx | grep -v "^\s*$" + 1 comma
+nd
+
+────────────────────────────────────────
+I need to check whether the alternatives are keyed by candidate_id, since the deep-line c
+omparison depends
+ on matching each alternative to its candidate. The alternative id looks like 'CPM-SDS
+K-2331S-RLN', so I'll look at the actual AR4 job data to see how the checks and claims li
+nk
+ to candidate_id.
+
+I'm going to save the AR4 company job and the wheeled demo job events as frontend test
+ fixtures, since a real recording makes a better test than synthetic data. First I'll che
+ck
+ how large those event streams are.
+
+∴ Thought for 2s
+────────────────────────────────────────
+
+────────────────────────────────────────
+☤ Hermes
+Building the report's pure functions on recorded data. Dumping two real replayed job even
+t logs as test fixtures, the AR4 demo company and the wheeled demo, and checking their si
+ze and shape:
+────────────────────────────────────────
+
+✍️ Write /home/pn/dump_jobs.py  0.2s
+💻 $ grep -n "def sse_events" -A12 tests/test_jobs_api.py + 1 command
+
+────────────────────────────────────────
+The test client is using the real recorded workers by default, so I need to check why
+ the earlier run came back with `designs: []`. The CAD worker on port 8001 wasn't running
+, so
+ no design_ready events were produced. I'll start it in the background for the dump, keep
+ing track
+ of its PID.
+
+∴ Thought for 0s
+────────────────────────────────────────
+
+────────────────────────────────────────
+☤ Hermes
+The BUILD stage needs the CAD worker, so I'm starting it first. My earlier run had no des
+ign_ready events because it wasn't running:
+────────────────────────────────────────
+
+💻 $ CAD_OUT_DIR=/home/pn/cadout2 exec /home/pn/cadenv/bin/uvicorn cad_worker.server:app 
+--port 8001  2.3s
+💻 $ for i in $(seq 1 60) + 8 commands  4.3s
+
+────────────────────────────────────────
+I'm checking the fixture sizes, which are fine at about 213, 62, and 78 KB. I considered 
+st
+ripping the run_progress events to shrink them, but the agent graph may need that progres
+s data, so I'
+ll keep everything since 350 KB total is acceptable for test data. Next I'm comparing the
+ candidate_id
+ fields across the checks, alternatives, and design sections, plus the claims.
+
+I'm comparing the candidate_id fields across the checks, alternatives, design, and cla
+ims, along with the claim fields, check names, and source.run_id.
+
+∴ Thought for 1s
+────────────────────────────────────────
+
+💻 $ python3 - <<'EOF' import json for name in ['ar4-company','wheeled-demo']: ev=json.lo
+ad(open(f'{name}.json')) print('=====',name) ds=[e['data'] for e in ev if e['type']=='des
+ign_ready'] for d in ds: print('design', d['role'], d.get('candidate_id'), d.get('part_nu
+mber'), d.get('manufacturer'), d.get('verdict'), d.get('fit_badge'), d['label'][:50], lis
+t(d['fit'].keys())[:8]) checks=[e['data']['check'] for e in ev if e['type']=='check_resul
+t'] from collections import defaultdict bc=defaultdict(list) for c in checks: bc[c['candi
+date_id']].append((c['check'],c['verdict'],c['value'],c['threshold'],c['unit'],c['margin'
+],len(c['claim_ids']))) for k,v in bc.items(): print('checks',k,v) print('check note exam
+ple:', checks[0]['note'][:200]) cl=[(e['type'],e['data']['claim']) for e in ev if e['type
+'].startswith('claim_')] for t,c in cl[:30]: print(t[6:9], c['candidate_id'], c['field'],
+ c['raw_value'], c['raw_unit'], c['source']['url'][:50], c['source'].get('run_id'), c['ex
+tracted_by'], c['verify_method']) rej=[e['data']['reason'] for e in ev if e['type']=='cla
+im_rejected'] print('reject reasons:', set(r[:80] for r in rej)) alts=[e['data']['alterna
+tive'] for e in ev if e['type']=='alternative'] for a in alts: print('alt', a['id'], a['l
+ine_id'], a['origin_country'], a['origin_tier'], a['unit_price_usd'], a['availability'], 
+a['lead_time_days'], a['verdict'], a['risk']['overall']) EOF  1.0s
+
+────────────────────────────────────────
+I'm noticing some contradictions to flag: the designs mark the candidate verdicts as r
+ejected because the shaft is 9.525 mm against a 6.35 mm bore, yet the recommendation stil
+l calls Tekn
+ic the best candidate so far. The alternatives are also marked rejected. That sha
+ft-too-large mismatch for the J2 gearbox bore is worth showing in the report. I also
+ want to check whether there are two fit_cad entries with the same name.
+
+The reducer looks like it deduplicates checks by name, so the second fit_cad row may be
+ overwriting the first in state. I want to confirm that in the backend, since the note fi
+eld
+ is empty and there's no other way to tell the two rows apart.
+
+Every AR4 candidate is rejected by its CAD fit check (9.525 mm shaft against a 6.35 mm b
+ore), yet the report calls one the best so far, and each candidate's second fit_cad check
+ overw
+rites the first because the reducer keys checks by name. I'm checking the backend next.
+
+
+∴ Thought for 5s
+────────────────────────────────────────
+
+💻 $ sed -n 225,275p app/engineering/spec_checks.py + 2 commands
+
+────────────────────────────────────────
+I'm checking the fit_cad note in the fixture, since the note column there looks empty.
+
+
+∴ Thought for 0s
+────────────────────────────────────────
+
+💻 $ python3 -c " import json ev=json.load(open('ar4-company.json')) for e in ev: if e['t
+ype']=='check_result' and e['data']['check']['check']=='fit_cad': print(e['data']['check'
+]) d=[e['data'] for e in ev if e['type']=='design_ready'][1]; print(json.dumps(d['fit'])[
+:900]) " + 1 command  1.1s
+
+────────────────────────────────────────
+I'm working out the reducer bug: the `fit_cad` result carries a generic row name,
+ so checks need a key that differs per note. I think the key should be the note for `fit_
+cad
+` and the check name otherwise, since a re-emitted check can come with a new note and
+ should replace the old one. I'll add a `checkKey` helper in `job.ts` and test it against
+ the fix
+ture.
+
+Now I'm planning the report: I'll add an optional `blocked` flag to the recommendation
+ type, since the backend sends it but the frontend doesn't model it yet. The deep-
+line recommendation calls Teknic the best candidate while its CAD fit check was rejected,
+ which loo
+ks like a backend inconsistency, so I'll flag that to Tygo rather than fix it here. The r
+eport will
+ show the CAD fit failure alongside it, and the components and pure helper functions are
+ laid out in a separate file.
+
+I'm sorting out the app shell now: three tabs, Model, Agents, and Report. The agent
+ bays move off the model view onto the Agents tab, which keeps the 3D view and questions 
+clear
+. I'm also adding a progress bar under the topbar, and the view will switch to Agents on 
+launch and to
+ Report when the job finishes, with manual switching after that.
+
+I'm settling on how the report should get its content: the job's project line, baseline, 
+and candid
+ates will feed a deep-line comparison built from the checks, claims, and alternatives. I'
+m also
+ working out the console's role after the job finishes. A short summary with an "Open
+ report" button will replace the tabbed report there, while Run again and Run live stay p
+ut
+ and the Before/After toggle remains in the HUD. The design-changes table moves into the 
+de
+ep-line section of the report.
+
+Next I'm laying out the comparison table: the original design as one column, follow
+ed by each candidate ordered by verdict and how many checks pass. Each column header will
+ carry the manufacturer and part number, the verdict, the fit badge, origin, price with
+ unverified prices marked as such, and availability. The rows will be the individ
+ual checks, such as continuous torque, peak torque, speed, supply voltage, and fit
+.
+
+I'm mapping each check to the claim fields that could have supplied its value, so a
+ review verdict can show which rejected reading caused it. The torque checks map to conti
+nuous or
+ holding torque and peak torque, speed maps to max or rated speed, and voltage maps to su
+pply vo
+ltage.
+
+I'm working out how to lay out the comparison: the required thresholds go in a "Required"
+ column,
+ with each candidate alongside it, and the original part's facts and risks sit above the 
+table.
+ Since the thresholds are shared across candidates, each row reads as the requirement.
+ Voltage is the awkward one, because it passes with no threshold, so I need to find a way
+ to show that
+ the 24 V bus falls within the supply range.
+
+I'm going to write the report summary next: a verdict sentence built from the deep-
+line recommendation and the candidates, so that if every candidate failed a check,
+ the summary says so and names the failures. I'll also add the figures for parts mapped
+, high-priority parts, and actions.
+
+I'm sketching out the report's summary figures: parts mapped, high-priority parts, action
+s by
+ type, candidates found and passed, claims verified and rejected, and agent runs. For the
+ whe
+eled demo with no project, I'll use the compliance card's domestic share instead. The act
+ion plan will
+ group recommendations by action, with each card showing the part, rank, priority range, 
+sc
+ores, reasons, alternative, cost delta, and blocked status. The supply map will group ris
+k lines by domain, with expandable factor details.
+
+I'm going through the remaining components to decide what to keep: RiskTable may already 
+hand
+le the expandable rows, so I'll check whether to reuse it, and I'll rewrite the old
+ pieces the new layout doesn't need. Project facts and criteria reasons get restyled, a
+ company card covers the wheeled onboarding case with no project, and a compliance card c
+overs the w
+heeled demo. I'm also planning an evidence section that groups claims by source host with
+ verified and rejected counts, and a runs table for workers, products, sites, and
+ outcomes.
+
+I'm going to read through RiskTable and the report styles in index.css before writing the
+ code
+, so I can tell which pieces to reuse and which to replace.
+
+∴ Thought for 26s
+────────────────────────────────────────
+
+────────────────────────────────────────
+☤ Hermes
+Both are real. A generic CAD fit check carries its name in note (j2_envelope, shaft_to_ge
+arbox_bore), so I'll key checks by that. Reading the rest of what the report replaces:
+────────────────────────────────────────
+
+💻 $ sed -n 45,185p components/RiskTable.tsx + 2 commands
+
+────────────────────────────────────────
+Now I'm setting up the data layer first: adding `checkKey`, `Run.durationS`, `Recommendat
+ion.
+blocked`, and `Source.run_id` in job.ts. After that, report.ts gets pure functions,
+ and I'm starting it with the imports and a header comment.
+
+Still writing the label map for the check names...
+
+∴ Thought for 2s
+────────────────────────────────────────
+
+💻 $ grep -n '"name": "' cad/cad_worker/*.py + 2 commands  0.9s
+
+────────────────────────────────────────
+I'm noting that the notes field varies per row, so for fit_cad I'll key the lookup by not
+e alone,
+ not by voltage and the other fields. BomLine is missing several fields the frontend lack
+s
+ (part_number, hts_code, component_class, stated_risk, notes), so I'll add them as option
+al
+ to that type, which keeps the change additive. LineRisk and the recommendation both carr
+y a
+ `blocked` flag. Next I'm turning to the job.ts changes.
+
+∴ Thought for 0s
+────────────────────────────────────────
+
+────────────────────────────────────────
+☤ Hermes
+Starting the data layer: contract fields the backend already sends (all optional), the du
+plicate-check fix, and the run duration:
+────────────────────────────────────────
+
+🐍 Exec def edit(p, reps):  1.8s
+
+────────────────────────────────────────
+Checking whether tsc really passed, given that Run now requires `durationS` and job
+.test.ts builds Runs without it. Apparently it didn't catch that, so I'll move on. Next I
+'m
+ copying the fixtures into frontend/src/fixtures/ as test-only files, and I'm considering
+ a helper in report
+.test.ts that folds events with `events.reduce(applyEvent, initialJobState)`. Then I'll s
+tart
+ writing report.ts.
+
+∴ Thought for 0s
+────────────────────────────────────────
+
+────────────────────────────────────────
+☤ Hermes
+Now the core, report.ts. These are pure functions from the folded job state to what each 
+report section shows:
+────────────────────────────────────────
+
+✍️ Write /workspace/frontend/src/report.ts  0.6s
+
+────────────────────────────────────────
+I'm checking the `required` text heuristic against each envelope row: values at or below 
+the limit p
+ass for "at most" checks, and the ground clearance check needs the value at or above its 
+limit. The sh
+aft-to-bore check passes when the shaft equals the bore. Now I'm working out which direct
+ion the w
+heeled fit_shaft comparison should go, since that row's value of 9.525 sits above
+ its 6.35 threshold.
+
+Now I'm settling on a direction table for the `required` check: the "at most" group
+ covers the envelope rows and the shaft-to-bore fit, the "at least" group covers tor
+que, speed, ground fit and ground clearance, and the wheeled shaft row gets just its
+ threshold and unit since its direction is ambiguous. The speed value of 1690 clears its 
+159 threshold
+, so that one is "at least." Next I'll write tests against the fixtures, copying them int
+o the
+ frontend source folder.
+
+∴ Thought for 3s
+────────────────────────────────────────
+
+────────────────────────────────────────
+☤ Hermes
+Fixing the "required" wording. Deciding "at least" or "at most" from a name suffix was a 
+guess, so each check now gets an explicit direction, and checks without one just state th
+e number:
+────────────────────────────────────────
+
+🐍 Exec R=F+'report.ts'  1.6s
+
+────────────────────────────────────────
+☤ Hermes
+Exploring what the functions produce on the real logs before pinning anything in tests:
+────────────────────────────────────────
+
+✍️ Write /workspace/frontend/src/report.explore.test.ts  0.6s
+💻 $ npx vitest run src/report.explore.test.ts | grep -v "^\s*$" | grep -v "stdout |"  0.
+8s
+💻 $ npx vitest run src/report.explore.test.ts --silent=false --reporter=verbose | grep -
+v "^\s*$"  0.8s
+
+────────────────────────────────────────
+I'm checking the mapped parts against the risk lines, and one of them was swapped out, wh
+ich
+ seems fine. The domestic content figure for AR4 sits at 0% against a 65% requirement
+, so the low tone there is right. The ranking question is whether my "top" pick matches t
+he
+ backend's rank 1, which is the battery investigation, rather than the first non-keep
+ item in the grouped plan order.
+
+I'm settling on how the top recommendation gets picked: rather than the first non-keep
+ item in the grouped plan order, I'll take the first non-keep entry from the backend's ra
+nk-sor
+ted list, which for the AR4 is the J5 linear drive motor investigation that's blocked. I
+ also want shorter part labels by splitting off the parenthetical and anything after the 
+comma, and to
+ format the raw Teknic price as currency instead of "336.0".
+
+I'm settling on a fix for the open-checks wording: "confirmed" is wrong for a fit review
+, since that check really means a hub adapter is needed. I'll label each open check
+ by whether it lacks a value ("not verified") or just needs review, so the closest option
+ reads accurately.
+
+I'm deciding how the "Actions" figure should read for AR4: it's 0 actions but 42 still
+ under investigation, so showing a high tone would mislead. I'll show the re-source plus 
+dual-source count
+ as the value, list the rest in the detail, and mark the tone as mid whenever anything is
+ still under investigation.
+
+Next I'm going to finish the report.ts changes and then replace the exploratory test with
+ pro
+per ones.
+
+The three job functions surface useful findings, such as no match for the J2 gear head
+ motor and only 1 of 10 readings verified for one vendor. I'm next fixing the output
+ wording: lead actions following backend rank, shorter part names, formatted prices, and 
+cl
+earer open-check labels.
+
+∴ Thought for 13s
+────────────────────────────────────────
+
+🐍 Exec edit(R,[  2.1s
+
+────────────────────────────────────────
+I'm swapping the exploratory reads for real tests now. One test checks that folding the A
+R4 f
+ixture keeps both fit_cad rows per candidate, which should give six checks per candidate
+ where the old reducer gave five. The other covers the deepLineComparison output for AR4:
+ the status text
+, the options order, Teknic failing on the shaft-versus-gearbox-bore row, and that
+ row's tones and evidence.
+
+I'm now outlining the remaining tests for the deepLineComparison output: the AR4 status t
+ext
+, options order, and Teknic failing on the shaft-versus-gearbox-bore row with its t
+ones and evidence. I'm also covering the wheeled no-project case, the report summary's to
+p action following
+ backend rank, the action plan and supply map ordering, and the evidence counts.
+
+∴ Thought for 2s
+────────────────────────────────────────
+
+────────────────────────────────────────
+☤ Hermes
+Pinning that behaviour in real tests against the recorded jobs, and replacing the explora
+tion file:
+────────────────────────────────────────
+
+✍️ Write /workspace/frontend/src/report.test.ts  0.6s
+💻 $ rm src/report.explore.test.ts + 2 commands  1.4s
+
+────────────────────────────────────────
+The test results all came back green on the first run, but I want to check they aren't pa
+ss
+ing trivially. The bore test using expect.any might be too loose, which I can tigh
+ten later. I'll also verify that the checkKey test actually fails against the old reduc
+er, and I'll do that during the mutation pass.
+
+Next up is the UI, starting with a Report.tsx component: a full-page report with a s
+ticky table of contents and sections for the summary, deep line, action plan, supply map,
+ requ
+irements, and evidence. I'm still deciding whether the Run again buttons belong in it too
+.
+
+Next I'm wiring up the app shell: tabs in the topbar to replace the timeline, a progress 
+bar, a
+ `view` state, and auto-switching between views. The Agents tab will be a full-page grid 
+of the
+ existing bays for now, and the console will collapse into a compact summary with
+ an "Open the report" button once the job is done.
+
+Now I'm working out the deep line section of the report: a header with the part's
+ BOM facts and risk chips, then a comparison table where each cell can expand to show its
+ supporting quotes.
+
+Still writing the action plan markup, with each card showing the part's rank, pri
+ority, reason, and supply, customer, impact, and evidence details.
+
+I'm now planning the action plan's item layout: every item becomes a collapsible row show
+ing rank, part, priority, and a short reason, with scores, missing evidence, and the
+ alternative tucked inside. The re-source and dual-source groups start open, since
+ those are the ones that need attention first.
+
+Now I'm laying out the supply map: each domain gets a heading with its part count and pri
+ority split, and every part is a collapsible row showing origin, price, availability, and
+ five
+ factor markers. Opening a row will reveal the factor details, notes, alternatives, and
+ HTS code.
+
+Next I'm checking how the evidence section should be laid out, grouped by source host wit
+h
+ verified and rejected counts, followed by a table of claims and a table of agent runs.
+ Then I'll add a table of contents linking to each section with its count, and have it
+ scroll smoothly within the page container. I also need to check the existing chip and ba
+dge class
+es, since the risk table's chip components will need a new home before I delete it
+.
+
+I'm going to split the existing chip and risk components into a shared Chips file
+ and drop the old risk table, and I need to grep for where they're used before de
+leting anything. Then I'll write Report.tsx with readable CSS.
+
+∴ Thought for 20s
+────────────────────────────────────────
+
+────────────────────────────────────────
+☤ Hermes
+9 of 9 pass. Now the UI. I'm moving the chips out of RiskTable into their own module, sin
+ce the old tables get replaced:
+────────────────────────────────────────
+
+💻 $ sed -n 1,44p components/RiskTable.tsx + 2 commands
+
+────────────────────────────────────────
+The `Tone` type in report.ts duplicates `Accuracy` from accuracy.ts, so I'll swit
+ch to `Accuracy` and `levelAccuracy` in place of my `LEVEL_TONE` and remove `Tone` and `
+levelTone`.
+
+∴ Thought for 0s
+────────────────────────────────────────
+
+────────────────────────────────────────
+☤ Hermes
+report.ts duplicates the existing Accuracy scale in accuracy.ts. Switching it to the shar
+ed one:
+────────────────────────────────────────
+
+🐍 Exec s=open(R).read()  2.2s
+
+────────────────────────────────────────
+☤ Hermes
+Now the chips module and the Report component:
+────────────────────────────────────────
+
+✍️ Write /workspace/frontend/src/components/Chips.tsx  0.2s
+
+────────────────────────────────────────
+I'm moving DesignChanges out of JobConsole into its own DesignChanges.tsx file, so I'll
+ read JobConsole lines 1 through 99 to find where DesignChanges and its related code s
+it.
+
+∴ Thought for 0s
+─────────────────────────────────────... (40 KB left)
+</pasted_content id="ff14">
+
+---
+
+yes commit both and push ui/agents, merge and deploy
