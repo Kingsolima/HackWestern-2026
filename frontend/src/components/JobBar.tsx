@@ -1,14 +1,18 @@
 import { STAGE_ORDER } from '../events'
 import type { JobState } from '../job'
+import type { ProjectId } from '../projects'
+import { ProjectSwitcher } from './ProjectSwitcher'
 
 interface Props {
   state: JobState
   onStart: () => void
   /** Shown only with ?live=1 in the URL: starts a real (credit-spending) TinyFish job. */
   onStartLive?: () => void
+  project: ProjectId
+  onProjectChange: (id: ProjectId) => void
 }
 
-export function JobBar({ state, onStart, onStartLive }: Props) {
+export function JobBar({ state, onStart, onStartLive, project, onProjectChange }: Props) {
   const running = state.connection === 'starting' || state.connection === 'streaming'
   const current = state.stage ? STAGE_ORDER.indexOf(state.stage) : -1
   const failed = state.stage === 'FAILED' || state.stage === 'DEGRADED'
@@ -16,6 +20,7 @@ export function JobBar({ state, onStart, onStartLive }: Props) {
   return (
     <section className="panel jobbar">
       <div className="jobbar-row">
+        <ProjectSwitcher value={project} onChange={onProjectChange} disabled={running} />
         <button className="primary" onClick={onStart} disabled={running}>
           {running ? 'Running…' : state.jobId ? 'Run again' : 'Find and Redesign'}
         </button>

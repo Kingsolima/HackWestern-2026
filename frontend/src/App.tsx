@@ -8,14 +8,18 @@ import { ComplianceCard } from './components/ComplianceCard'
 import { DesignTabs } from './components/DesignTabs'
 import { JobBar } from './components/JobBar'
 import { ModelViewer } from './components/ModelViewer'
-import { useJob } from './job'
+import { ProjectCard } from './components/ProjectCard'
+import type { ProjectId } from './projects'
+import { Recommendations } from './components/Recommendations'
+import { RiskTable } from './components/RiskTable'
+import { useJob, type CreateJobOptions } from './job'
 import type { CheckResult, ComplianceCard as Card, DesignVariant } from './types'
 
 // ?live=1 shows a "Run live" button. The token is asked once per tab and kept in sessionStorage.
 const LIVE_ENABLED = new URLSearchParams(window.location.search).get('live') === '1'
 const TOKEN_KEY = 'live-jobs-token'
 
-function startLive(start: (mode: 'live', token?: string) => void) {
+function startLive(start: (mode: 'live', opts: CreateJobOptions) => void, projectId?: string) {
   let token: string | null = null
   try {
     token = sessionStorage.getItem(TOKEN_KEY)
@@ -29,7 +33,7 @@ function startLive(start: (mode: 'live', token?: string) => void) {
   } catch {
     // ignore
   }
-  start('live', token)
+  start('live', { liveToken: token, projectId })
 }
 
 export default function App() {
@@ -39,6 +43,8 @@ export default function App() {
   const [results, setResults] = useState<CheckResult[]>([])
   const [designs, setDesigns] = useState<DesignVariant[]>([])
   const { state: job, start } = useJob()
+  const [project, setProject] = useState<ProjectId>('')
+  const projectId = project || undefined
 
   useEffect(() => {
     api.health().then((h) => setHealth(h.status), () => setHealth('backend unreachable'))
@@ -60,9 +66,20 @@ export default function App() {
       </header>
       <JobBar
         state={job}
-        onStart={() => start('replay')}
-        onStartLive={LIVE_ENABLED ? () => startLive(start) : undefined}
+        onStart={() => start('replay', { projectId })}
+        onStartLive={LIVE_ENABLED ? () => startLive(start, projectId) : undefined}
+        project={project}
+        onProjectChange={setProject}
       />
+      {job.project && <ProjectCard project={job.project} criteria={job.criteria} claims={job.claims} />}
+      {job.riskLines.length > 0 && <RiskTable rows={job.riskLines} alternatives={job.alternatives} />}
+      {job.recommendations.length > 0 && (
+        <Recommendations
+          recommendations={job.recommendations}
+          rows={job.riskLines}
+          alternatives={job.alternatives}
+        />
+      )}
       {job.baseline && job.candidates[0] ? (
         <BeforeAfterViewer before={job.baseline} after={job.candidates[0]} />
       ) : (
