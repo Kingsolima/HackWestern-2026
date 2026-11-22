@@ -49,6 +49,7 @@ def test_any_torque_unit_with_a_number_counts(text):
         "Torque curves for every model are shown below.",
         "Torque (oz-in)",
         "Rotor inertia 0.4 oz-in² is low",
+        "Laser wavelength 905 nm",
     ],
 )
 def test_readable_label_without_torque_values_needs_the_agent(text):
