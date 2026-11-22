@@ -1,0 +1,43 @@
+# Canadian import duty for the AR4 club's lines (importing into Ontario).
+# Duty = Customs Tariff MFN rate + any surtax order for the origin. HST is NOT duty: Ontario's
+# 13% HST is collected by CBSA at import but is charged at the same rate on goods bought in
+# Ontario, so it does not depend on where a part was made and is left out of the trade factor.
+checked: 2026-11-22
+tariff_schedule:
+  edition: "Customs Tariff T2026, chapter 85 (effective 2026-01-01)"
+  source_url: https://www.cbsa-asfc.gc.ca/trade-commerce/tariff-tarif/2026/01-99/ch85-2026-eng.pdf
+hst:
+  rate_pct: 13
+  counts_as_duty: false
+  source_url: https://canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-place-supply.html
+  quote: "13% HST rate if the supply is made in the participating province of Ontario"
+  import_source_url: https://cbsa.gc.ca/publications/dm-md/d2/d2-3-6-eng.pdf
+  import_quote: "The Goods and Services Tax (GST) and HST on imported goods is collected by the Canada Border Services Agency (CBSA)"
+hs6:
+  "8501.31":
+    description: "Other DC motors, of an output not exceeding 750 W"
+    mfn_pct: 0
+    quote: "8501.31.00 - -Of an output not exceeding 750 W CCCT, LDCT, GPT, UST,Free"
+    note: "PDF text layer; the first 'Free' is the MFN column. Stepper motors: classification by a broker (8501.10 / 8501.31 are both Free MFN)."
+  "8501.10":
+    description: "Motors of an output not exceeding 37.5 W"
+    mfn_pct: 0
+    quote: "8501.10.00 -Motors of an output not exceeding 37.5 W CCCT, LDCT, GPT, UST,Free"
+  "8504.40":
+    description: "Static converters: speed drive controllers for electric motors (8504.40.40)"
+    mfn_pct: 0
+    quote: "8504.40.40 00 - - -Speed drive controllers for electric motors"
+    note: "Rate shown as Free in the same row group of the PDF text layer."
+surtaxes:
+  CN:
+    chapters: ["72", "73", "76"]
+    rate_pct: 25
+    scope: "Steel and aluminum goods; the EV surtax has ended. No order found covering chapter 85."
+    source_url: https://hscode.ca/en/topics/china-surtax
+    source_note: "Secondary summary; the orders are SOR/2024-202 and amendments (gazette.gc.ca)."
+  US:
+    chapters: []
+    rate_pct: 0
+    scope: "Counter tariffs list effective September 8, 2026: no 8501 or 8504.40 code found on it."
+    source_url: https://www.canada.ca/en/department-finance/programs/international-trade-finance-policy/canadas-response-us-tariffs/complete-list-us-products-subject-to-counter-tariffs.html
+    quote: "Updated list of U.S. products subject to counter tariffs effective September 8, 2026"

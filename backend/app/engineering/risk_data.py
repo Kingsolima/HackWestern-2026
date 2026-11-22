@@ -1,6 +1,6 @@
 """Sourced evidence for the risk factors, read from data files written by research (every value
-there carries a URL and a quote): the article's bottleneck levels, US duty stacks, and the
-restricted-entity lists. Canadian duty has not been researched: it reads as unknown."""
+there carries a URL and a quote): the article's bottleneck levels, US and Canadian duty, and
+the restricted-entity lists. Anything not in the files reads as unknown, never as zero."""
 
 import re
 from functools import cache
@@ -50,9 +50,12 @@ def duty_pct(hts: str | None, origin: str | None, criteria: Criteria) -> tuple[f
         if origin == market:
             notes.append(f"made in {market}: no import duty")
             continue
-        if market != "US":
+        if market == "US":
+            pct, note = _us_duty(hts, origin)
+        elif market == "CA":
+            pct, note = _ca_duty(hts, origin)
+        else:
             return None, f"{market} duty not researched"
-        pct, note = _us_duty(hts, origin)
         if pct is None:
             return None, note
         worst = max(worst, pct)
@@ -73,6 +76,27 @@ def _us_duty(hts: str | None, origin: str) -> tuple[float | None, str]:
             return None, f"US duty layer '{layer}' has no plain rate"
         total += float(m.group(1))
     return total, f"US: {', '.join(layers)} (HTS {hts})"
+
+
+def _ca_duty(hts: str | None, origin: str) -> tuple[float | None, str]:
+    """Customs Tariff MFN rate by the 6-digit HS heading (the first 6 digits are shared by the
+    US and Canadian codes) plus any surtax order on that origin's chapter. HST is not duty."""
+    data = _yaml("research/canada_duty.yaml")
+    entry = data["hs6"].get((hts or "")[:7])
+    if entry is None:
+        return None, f"CA duty for HS {hts} not researched"
+    pct = float(entry["mfn_pct"])
+    surtax = data["surtaxes"].get(origin)
+    if surtax and (hts or "")[:2] in surtax["chapters"]:
+        pct += float(surtax["rate_pct"])
+        return (
+            pct,
+            f"CA: MFN {entry['mfn_pct']}% + {origin} surtax {surtax['rate_pct']}% (HS {hts[:7]})",
+        )
+    return (
+        pct,
+        f"CA: MFN {'Free' if pct == 0 else f'{pct:g}%'}, no surtax on HS {hts[:7]} from {origin}",
+    )
 
 
 @cache
