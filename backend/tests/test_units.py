@@ -18,6 +18,12 @@ from app.engineering.units import canonical_unit, to_si
         ("RPM", 4000, (4000.0, "rpm")),
         ("in", 3.34, (84.836, "mm")),
         ("VDC", 24, (24.0, "V")),
+        # spellings makers use (McLennan: "5.0 in-lb", "150 volts", "2.8 A rms")
+        ("in-lb", 5, (0.564924145, "N·m")),
+        ("in-oz", 100, (0.70615518, "N·m")),
+        ("volts", 150, (150.0, "V")),
+        ("A rms", 2.8, (2.8, "A")),
+        ("rev/min", 3000, (3000.0, "rpm")),
         ("$", 265, (265.0, "USD")),
     ],
 )

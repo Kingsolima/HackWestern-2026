@@ -72,9 +72,10 @@ def verify_claim(claim: Claim, text: str, method: VerifyMethod) -> Claim:
 
     Returns a copy; never mutates `claim`. Verified only if:
     - the claim was not read from an image (`extracted_by` gemini_vision is never verified),
-    - the normalized quote occurs in the normalized text, and
+    - the normalized quote occurs in the normalized text,
     - the normalized `raw_value` equals a number inside the normalized quote, compared as
-      decimals ("0.5" == "0.50"; a decimal comma "0,50" reads as 0.50).
+      decimals ("0.5" == "0.50"; a decimal comma "0,50" reads as 0.50), and
+    - the quote has a word or a currency sign besides its numbers ("20" alone proves nothing).
     Normalization: html tags and colons become spaces, unescape entities (incl. &nbsp;), remove
     thousands separators ("1,200" -> "1200"), collapse whitespace, casefold.
     A non-numeric `raw_value` (e.g. country_of_origin "US") needs only the quote match; the
@@ -87,6 +88,7 @@ def verify_claim(claim: Claim, text: str, method: VerifyMethod) -> Claim:
         and quote != ""
         and quote in _normalize(text)
         and _value_in_quote(_normalize(claim.raw_value), quote)
+        and _has_label(quote)
     )
     return claim.model_copy(
         update={"verified": verified, "verify_method": method if verified else "none"}
@@ -110,6 +112,15 @@ def _value_in_quote(value: str, quote: str) -> bool:
     if not _NUMBER.fullmatch(value):
         return True
     return any(_decimal(n) == _decimal(value) for n in _NUMBER.findall(quote))
+
+
+_LABEL = re.compile(r"[^\W\d_]|[$€£¥]")
+
+
+def _has_label(quote: str) -> bool:
+    """A quote needs a word or a currency sign besides its numbers: a bare "20" occurs on almost
+    any page, so finding it proves nothing about the claim."""
+    return bool(_LABEL.search(quote))
 
 
 def _decimal(number: str) -> Decimal:
