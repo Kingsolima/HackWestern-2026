@@ -223,8 +223,8 @@ export function Onboarding({ demo, example, initial, onDone, onSkip }: Props) {
           <>
             <h1 className="ob-prompt">Upload your bill of materials.</h1>
             <p className="ob-help muted">
-              A CSV with one part per line: part, category, qty, unit_cost_usd, origin. We read what we can from
-              it before asking anything else.
+              A CSV with one part per line: part, category, qty, unit_cost_usd, origin. Write "unknown" for a
+              price or origin you do not have. We read what we can from it before asking anything else.
             </p>
             <BomUpload
               rows={bom}

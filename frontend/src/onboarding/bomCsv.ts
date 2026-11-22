@@ -5,6 +5,8 @@ import type { BomRow } from '../types'
 
 export const BOM_COLUMNS = ['part', 'category', 'qty', 'unit_cost_usd', 'origin'] as const
 const OPTIONAL_COLUMN = 'supply_risk'
+// Copied through as text when the file has them.
+const EXTRA_COLUMNS = ['part_number', 'supplier', 'source_page', 'notes'] as const
 
 /** Split CSV text into lines of cells. Handles quoted cells, "" escapes, CRLF and a leading BOM. */
 export function splitCsv(text: string): string[][] {
@@ -46,9 +48,11 @@ export interface BomParse {
 }
 
 /**
- * Header row required: part, category, qty, unit_cost_usd, origin (supply_risk optional, any
- * order, extra columns ignored). A blank origin becomes "unknown", which the backend counts as
- * foreign. Any error means the file is not usable: the caller should not keep `rows`.
+ * Header row required: part, category, qty, unit_cost_usd, origin (supply_risk, part_number,
+ * supplier, source_page and notes optional, any order, other columns ignored). A blank origin
+ * becomes "unknown", which the backend counts as foreign. A blank or "unknown" unit_cost_usd
+ * becomes null: no price, never 0. Any error means the file is not usable: the caller should
+ * not keep `rows`.
  */
 export function parseBomCsv(text: string): BomParse {
   const lines = splitCsv(text)
@@ -76,8 +80,11 @@ export function parseBomCsv(text: string): BomParse {
     const qty = get('qty')
     if (!/^[1-9]\d*$/.test(qty)) errors.push(`line ${n}: qty is not a whole number above 0`)
 
-    const cost = get('unit_cost_usd').replace(/^\$/, '').replaceAll(',', '')
-    if (!/^\d+(\.\d+)?$/.test(cost)) errors.push(`line ${n}: unit_cost_usd is not a number`)
+    const rawCost = get('unit_cost_usd').replace(/^\$/, '').replaceAll(',', '')
+    const cost = rawCost === '' || rawCost.toLowerCase() === 'unknown' ? null : rawCost
+    if (cost !== null && !/^\d+(\.\d+)?$/.test(cost)) {
+      errors.push(`line ${n}: unit_cost_usd is not a number or "unknown"`)
+    }
 
     const rawOrigin = get('origin')
     let origin = 'unknown'
@@ -87,6 +94,10 @@ export function parseBomCsv(text: string): BomParse {
     }
 
     const risk = col(OPTIONAL_COLUMN) >= 0 ? get(OPTIONAL_COLUMN) : ''
+    const extras: Partial<Record<(typeof EXTRA_COLUMNS)[number], string>> = {}
+    for (const name of EXTRA_COLUMNS) {
+      if (col(name) >= 0 && get(name)) extras[name] = get(name)
+    }
     rows.push({
       part,
       category,
@@ -94,6 +105,7 @@ export function parseBomCsv(text: string): BomParse {
       unit_cost_usd: cost,
       origin,
       ...(risk ? { supply_risk: risk } : {}),
+      ...extras,
     })
   })
   if (rows.length === 0 && errors.length === 0) errors.push('The file has a header but no parts.')
@@ -106,7 +118,9 @@ export function bomToCsv(rows: BomRow[]): string {
   const out = [[...BOM_COLUMNS, OPTIONAL_COLUMN].join(',')]
   for (const r of rows) {
     out.push(
-      [r.part, r.category, String(r.qty), r.unit_cost_usd, r.origin, r.supply_risk ?? ''].map(quote).join(','),
+      [r.part, r.category, String(r.qty), r.unit_cost_usd ?? 'unknown', r.origin, r.supply_risk ?? '']
+        .map(quote)
+        .join(','),
     )
   }
   return out.join('\n') + '\n'

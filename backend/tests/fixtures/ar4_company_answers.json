@@ -1,0 +1,6 @@
+{
+  "who": "We are Northfield Robotics, a 12-person startup in Waterloo, Ontario. We build the AR4 Cell: an Annin Robotics AR4 six-axis robotic arm that we assemble and sell ready to run for robotics education, research and light automation.",
+  "market": "We sell to universities and research labs in Canada and the US, including US federal research labs. Final assembly is in Canada. The arms run in the US and Canada. Downtime is costly: a lab course or an experiment stops when the arm does.",
+  "limits": "We have about $2,500 of parts per arm and need parts within 30 days. We want to avoid motors that depend on Chinese rare-earth magnets, and any supplier on a US restricted list.",
+  "drivetrain": ""
+}
