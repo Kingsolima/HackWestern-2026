@@ -69,6 +69,13 @@ def test_server_build_and_design_routes(tmp_path, monkeypatch):
     assert c.post("/build", json={"design_id": "../x"}).status_code == 422
 
 
+def test_starter_robot_is_built_at_startup(tmp_path, monkeypatch):
+    monkeypatch.setattr(server, "OUT_DIR", tmp_path)
+    with TestClient(server.app) as c:  # entering runs the startup build
+        assert c.get("/designs/starter/glb").content[:4] == b"glTF"
+        assert c.get("/designs/starter/fit").json()["params"]["frame"] == "17"
+
+
 def test_fit_exposes_bracket_thickness_and_clearance_for_the_checks():
     m = measure(RobotParams(frame="23", clearance=7.0))
     assert m["bracket"]["thickness_mm"] == 5.0

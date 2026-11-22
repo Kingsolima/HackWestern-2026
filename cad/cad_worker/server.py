@@ -5,6 +5,9 @@
     GET  /designs/{id}/step    engineering export
     GET  /designs/{id}/fit     geometry numbers for the checks (05-checks-spec §4)
 
+The "starter" design (the NEMA 17 stepper baseline) is built at startup, so the page has a
+robot to show before any job has run.
+
 Part names in the GLB (bracket_left, motor_right, hub_adapter_left, ...) let the viewer
 highlight what changed. TODO(owner 1): upload outputs to Vultr Object Storage.
 """
@@ -12,6 +15,7 @@ highlight what changed. TODO(owner 1): upload outputs to Vultr Object Storage.
 import json
 import os
 import re
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
 
@@ -27,7 +31,27 @@ OUT_DIR = Path(os.environ.get("CAD_OUT_DIR", "out"))
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 DESIGN_ID = r"^[A-Za-z0-9_-]{1,64}$"
 
-app = FastAPI(title="CAD worker")
+STARTER_ID = "starter"
+# Same robot as the orchestrator's BUILD baseline (backend/app/orchestrator/job.py).
+STARTER = RobotParams(frame="17", body_len=48.0, shaft_d=5.0, wheel_bore=5.0)
+
+
+def build_design(design_id: str, params: RobotParams) -> dict:
+    fit = measure(params)
+    export(robot(params), OUT_DIR, design_id)
+    (OUT_DIR / f"{design_id}.fit.json").write_text(json.dumps(fit, indent=2))
+    base = f"/designs/{design_id}"
+    return {"design_id": design_id, "glb_url": f"{base}/glb", "step_url": f"{base}/step", "fit": fit}
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Rebuilt every start so it always matches the current robot code.
+    build_design(STARTER_ID, STARTER)
+    yield
+
+
+app = FastAPI(title="CAD worker", lifespan=lifespan)
 app.mount("/files", StaticFiles(directory=OUT_DIR), name="files")
 
 
@@ -49,17 +73,7 @@ def health() -> dict[str, str]:
 
 @app.post("/build")
 def build(req: BuildRequest) -> dict:
-    params = RobotParams(**req.model_dump(exclude={"design_id"}))
-    fit = measure(params)
-    export(robot(params), OUT_DIR, req.design_id)
-    (OUT_DIR / f"{req.design_id}.fit.json").write_text(json.dumps(fit, indent=2))
-    base = f"/designs/{req.design_id}"
-    return {
-        "design_id": req.design_id,
-        "glb_url": f"{base}/glb",
-        "step_url": f"{base}/step",
-        "fit": fit,
-    }
+    return build_design(req.design_id, RobotParams(**req.model_dump(exclude={"design_id"})))
 
 
 def _design_file(design_id: str, suffix: str) -> Path:
