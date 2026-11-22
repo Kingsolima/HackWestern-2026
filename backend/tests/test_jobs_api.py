@@ -51,6 +51,27 @@ def test_job_streams_every_stage_and_ends_done(client):
     assert "domestic_pct" in compliance["data"]["card"]
 
 
+def test_job_runs_on_the_robot_in_the_request(client):
+    """The onboarding page posts its own robot: same drivetrain, its own name, country and BOM."""
+    robot = json.loads((settings.data_dir / "demo_robot.json").read_text())
+    robot |= {
+        "name": "Tote bot",
+        "final_assembly_country": "US",
+        "bom": [
+            {"part": "Motor", "category": "motor", "qty": 2, "unit_cost_usd": "5", "origin": "CN"},
+            {"part": "Frame", "category": "frame", "qty": 1, "unit_cost_usd": "30", "origin": "US"},
+        ],
+    }
+    client.app.state.runtime.workers = lambda mode: [NoClaimWorker()]
+    r = client.post("/api/jobs", json={"mode": "replay", "robot": robot})
+    assert r.status_code == 201
+    events = sse_events(client, r.json()["job_id"])
+    card = next(e for e in events if e["type"] == "compliance")["data"]["card"]
+    assert card["domestic_pct"] == 75.0
+    assert card["us_final_assembly"] is True
+    assert [e["data"]["stage"] for e in events if e["type"] == "stage"][-1] == "DONE"
+
+
 def test_last_event_id_resumes_after_that_event(client):
     job_id = start(client, NoClaimWorker())
     everything = sse_events(client, job_id)

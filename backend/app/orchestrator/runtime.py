@@ -39,6 +39,13 @@ class Runtime:
     def workers(self, mode: JobMode) -> list[Worker]:
         return [SwapWorker()]
 
+    def gemini(self, mode: JobMode) -> GeminiClient:
+        """A Gemini client outside a job (the intake API)."""
+        recorder = Recorder(self.settings.recordings_dir, mode, self.settings.replay_speed)
+        return GeminiClient(
+            recorder, self.http, self.settings.gemini_api_key, self.settings.gemini_flash_model
+        )
+
     def start_job(self, robot: Robot, mode: JobMode) -> Job:
         job_id = uuid.uuid4().hex[:12]
         recorder = Recorder(self.settings.recordings_dir, mode, self.settings.replay_speed)

@@ -7,6 +7,7 @@ from typing import Any
 import httpx
 from pydantic import BaseModel
 
+from app.intake.schema import CadMeasure
 from app.schemas import NemaFrameName
 
 BUILDABLE_FRAMES: frozenset[str] = frozenset({"17", "23", "34"})
@@ -79,6 +80,23 @@ class CadClient:
             gaps = sorted(missing) or ["params.min_ground_clearance"]
             raise CadError(f"CAD build {design_id} returned no {', '.join(gaps)}")
         return built
+
+    async def measure(self, step: bytes) -> CadMeasure:
+        """Parts, bounding boxes and volumes of an uploaded STEP file (worker POST /measure).
+        ValueError when the worker cannot read the file; CadError when the worker is down."""
+        if not self.base_url:
+            raise CadError("no CAD worker configured (CAD_WORKER_URL)")
+        try:
+            r = await self._http.post(f"{self.base_url}/measure", content=step, timeout=120.0)
+        except httpx.HTTPError as exc:
+            raise CadError(f"CAD worker unreachable at {self.base_url}: {exc}") from exc
+        if 400 <= r.status_code < 500:
+            # The worker read the upload and refused it: the file's fault, not an outage.
+            detail = r.json().get("detail") if "json" in r.headers.get("content-type", "") else None
+            raise ValueError(str(detail or r.text[:200]))
+        if r.status_code != 200:
+            raise CadError(f"CAD worker failed to measure the file: HTTP {r.status_code}")
+        return CadMeasure.model_validate(r.json())
 
     async def file(self, design_id: str, kind: str) -> httpx.Response:
         return await self._http.get(f"{self.base_url}/designs/{design_id}/{kind}", timeout=60.0)

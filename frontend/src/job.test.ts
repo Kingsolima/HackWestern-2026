@@ -10,6 +10,7 @@ import {
   rankRecommendations,
   type JobState,
 } from './job'
+import type { Robot } from './types'
 
 let nextId = 1
 function ev<T extends JobEvent['type']>(type: T, data: Extract<JobEvent, { type: T }>['data']): JobEvent {
@@ -212,6 +213,14 @@ describe('createJob', () => {
     await createJob('replay', { projectId: 'ar4_club' }, fetchImpl)
     expect(JSON.parse(calls[0].body as string)).toEqual({ mode: 'replay' })
     expect(JSON.parse(calls[1].body as string)).toEqual({ mode: 'replay', project_id: 'ar4_club' })
+  })
+
+  it('sends the onboarding robot when there is one', async () => {
+    const { calls, fetchImpl } = capture()
+    const robot = { name: 'Tote bot', final_assembly_country: 'US', requirements: { mass_kg: 5 }, bom: [] } as unknown as Robot
+    await createJob('mixed', { liveToken: 'tok', robot }, fetchImpl)
+    expect(JSON.parse(calls[0].body as string)).toEqual({ mode: 'mixed', robot })
+    expect(header(calls[0])).toBe('tok')
   })
 })
 

@@ -352,3 +352,278 @@ table.nested {
 .action-keep {
   color: var(--low);
 }
+.badge-mixed {
+  background: var(--medium);
+}
+
+/* --- onboarding: one question at a time --- */
+.ob-page {
+  max-width: 720px;
+  min-height: 100vh;
+  box-sizing: border-box;
+  justify-content: center;
+}
+.ob-progress {
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: var(--border);
+}
+.ob-progress div {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+.ob-step {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 32px 0;
+  animation: ob-in 0.3s ease both;
+}
+.ob-step.back {
+  animation-name: ob-in-back;
+}
+@keyframes ob-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+@keyframes ob-in-back {
+  from {
+    opacity: 0;
+    transform: translateY(-24px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ob-step {
+    animation: none;
+  }
+  .ob-progress div {
+    transition: none;
+  }
+}
+.ob-count,
+.ob-help {
+  margin: 0;
+}
+.ob-prompt {
+  margin: 0;
+  font-size: clamp(1.5rem, 4vw, 2.1rem);
+  line-height: 1.25;
+  text-wrap: balance;
+}
+.ob-input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 1.4rem;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid var(--border);
+  padding: 8px 0;
+  outline: none;
+}
+.ob-input:focus {
+  border-bottom-color: var(--accent);
+}
+.ob-input[aria-invalid='true'] {
+  border-bottom-color: var(--bad);
+}
+.ob kbd {
+  font: inherit;
+  font-size: 0.8em;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-right: 6px;
+}
+.ob-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+.ob-nav .primary {
+  font-size: 1rem;
+  padding: 10px 20px;
+}
+@media (hover: none) {
+  .ob-hint {
+    display: none;
+  }
+}
+button.ob-link {
+  font: inherit;
+  color: var(--accent);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.ob .error {
+  margin: 0;
+}
+.ob .error ul {
+  margin: 4px 0 0;
+  padding-left: 20px;
+}
+.ob-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 28px 16px;
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.ob-drop.over,
+.ob-drop:hover,
+.ob-drop:focus-within {
+  border-color: var(--accent);
+}
+.ob-drop input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.ob-bom {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ob-bom-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+.ob-bom-preview {
+  max-height: 240px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: var(--panel);
+}
+.ob-advanced summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.ob-live {
+  margin: 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--medium);
+  background: var(--panel);
+}
+
+/* --- onboarding v2: open answers, files, specs review --- */
+.ob-text {
+  font-size: 1.2rem;
+  line-height: 1.4;
+  resize: vertical;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+}
+.ob-text:focus {
+  border-color: var(--accent);
+}
+.ob-drop-small {
+  padding: 14px 16px;
+}
+.ob-cad {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ob-cad p {
+  margin: 0;
+}
+.ob-specs {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-x: auto;
+}
+.ob-specs caption {
+  text-align: left;
+  font-weight: 600;
+  padding-bottom: 4px;
+}
+.ob-specs th {
+  font-weight: 400;
+  width: 50%;
+}
+.ob-evidence {
+  display: block;
+  font-size: 0.85rem;
+}
+.ob-spec-value {
+  white-space: nowrap;
+}
+.ob-specs .ob-input {
+  font-size: 1rem;
+  width: 7em;
+  padding: 2px 0;
+  margin-right: 6px;
+}
+.ob-specs .ob-input.wide {
+  width: min(18em, 40vw);
+}
+.ob-specs td:last-child {
+  text-align: right;
+  white-space: nowrap;
+}
+.source-answer {
+  background: var(--accent);
+}
+.source-bom,
+.source-cad {
+  background: var(--live);
+}
+.source-default {
+  background: var(--unknown);
+}
+.source-edited {
+  background: var(--medium);
+}
+.ob-advanced ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+button.primary:disabled,
+button.secondary:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+@media (max-width: 520px) {
+  .ob-specs th,
+  .ob-specs td {
+    padding: 6px 4px;
+  }
+  .ob-specs th {
+    width: auto;
+  }
+  .ob-specs .ob-input {
+    width: 3.5em;
+    margin-right: 2px;
+  }
+  .ob-specs .ob-input.wide {
+    width: 7.5em;
+  }
+  .ob-specs td:last-child {
+    white-space: normal;
+  }
+  .ob-specs .badge {
+    display: inline-block;
+    font-size: 0.65rem;
+    text-align: center;
+  }
+}
