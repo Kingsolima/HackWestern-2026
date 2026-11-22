@@ -11,8 +11,10 @@ FEDERAL_DOMESTIC_THRESHOLD = 0.65
 def derive_criteria(facts: ProjectFacts) -> Criteria:
     objectives = [Objective.performance, Objective.cost]
     reasons = [
-        CriterionReason(rule="always", fact=None, text="spec checks are a hard gate"),
-        CriterionReason(rule="always", fact=None, text="cost delta is part of every trade-off"),
+        CriterionReason(rule_id="always", fact_field=None, text="spec checks are a hard gate"),
+        CriterionReason(
+            rule_id="always", fact_field=None, text="cost delta is part of every trade-off"
+        ),
     ]
     blocking: list = []
     duty: list[str] = []
@@ -23,8 +25,8 @@ def derive_criteria(facts: ProjectFacts) -> Criteria:
         blocking += ["dod_1260h", "fcc_covered"]
         reasons.append(
             CriterionReason(
-                rule="C1",
-                fact="sells_to_us_federal",
+                rule_id="C1",
+                fact_field="sells_to_us_federal",
                 text="sells to US federal buyers: domestic content above 65%, no DoD 1260H "
                 "or FCC Covered List suppliers",
             )
@@ -34,8 +36,8 @@ def derive_criteria(facts: ProjectFacts) -> Criteria:
         blocking.append("uflpa")
         reasons.append(
             CriterionReason(
-                rule="C2",
-                fact="deploy_countries",
+                rule_id="C2",
+                fact_field="deploy_countries",
                 text="deploys in the US: US import duty counts, no UFLPA Entity List suppliers",
             )
         )
@@ -43,15 +45,17 @@ def derive_criteria(facts: ProjectFacts) -> Criteria:
         duty.append("CA")
         reasons.append(
             CriterionReason(
-                rule="C3", fact="deploy_countries", text="deploys in Canada: Canadian duty counts"
+                rule_id="C3",
+                fact_field="deploy_countries",
+                text="deploys in Canada: Canadian duty counts",
             )
         )
     if facts.uptime_critical:
         objectives.append(Objective.supply_risk)
         reasons.append(
             CriterionReason(
-                rule="C4",
-                fact="uptime_critical",
+                rule_id="C4",
+                fact_field="uptime_critical",
                 text="downtime is costly: lowest supply risk is an objective",
             )
         )
@@ -59,16 +63,16 @@ def derive_criteria(facts: ProjectFacts) -> Criteria:
         objectives.append(Objective.lead_time)
         reasons.append(
             CriterionReason(
-                rule="C5",
-                fact="need_by_days",
+                rule_id="C5",
+                fact_field="need_by_days",
                 text=f"parts needed within {facts.need_by_days} days: longer lead times block",
             )
         )
     if facts.budget_usd is not None:
         reasons.append(
             CriterionReason(
-                rule="C6",
-                fact="budget_usd",
+                rule_id="C6",
+                fact_field="budget_usd",
                 text=f"budget ${facts.budget_usd:,.0f}: a BOM over budget is a finding",
             )
         )

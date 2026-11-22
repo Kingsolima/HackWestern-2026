@@ -317,6 +317,7 @@ class Fact(BaseModel):
     basis: FactBasis
     quote: str | None = None
     source_url: str | None = None
+    claim_id: str | None = Field(default=None, description="The verified claim, for the quote")
 
 
 class IntakeSource(BaseModel):
@@ -381,14 +382,17 @@ class Project(BaseModel):
     wheeled: RobotRequirements | None = None
     deep_line: str = Field(description="BomLine id the agents work on")
     deep_frame: NemaFrameName = Field(default="23", description="NEMA frame the agents search")
+    cad_robot: Literal["wheeled", "ar4", "stretch"] = Field(
+        default="wheeled", description="Robot model the CAD worker builds for this project"
+    )
     bom: list[BomLine]
     intake_sources: list[IntakeSource] = Field(default_factory=list)
     stated: ProjectFacts = Field(default_factory=ProjectFacts, description="Team-stated facts")
 
 
 class CriterionReason(BaseModel):
-    rule: str
-    fact: FactField | None
+    rule_id: str
+    fact_field: FactField | None
     text: str
 
 

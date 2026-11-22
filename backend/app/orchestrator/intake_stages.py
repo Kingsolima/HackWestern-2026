@@ -14,6 +14,7 @@ from app.orchestrator.events import (
     ClaimRejected,
     ClaimVerified,
     ProjectPayload,
+    ProjectView,
     RunFinished,
     RunProgress,
     RunStarted,
@@ -86,12 +87,21 @@ async def criteria(ctx: JobContext, workers: Sequence[object]) -> None:
     ctx.criteria = derive_criteria(facts)
     await ctx.log.emit(
         ProjectPayload(
-            project_id=project.id,
-            kind=project.kind,
-            name=project.name,
-            robot=project.robot,
-            use_case=project.use_case,
-            facts=used,
+            project=ProjectView(
+                id=project.id,
+                kind=project.kind,
+                name=project.name,
+                robot=project.robot,
+                use_case=project.use_case,
+                robot_kind=project.robot_kind,
+                robot_params=(project.arm or project.wheeled).model_dump()
+                if (project.arm or project.wheeled)
+                else {},
+                deep_line=project.deep_line,
+                bom=project.bom,
+                facts=facts,
+                fact_basis=used,
+            ),
             criteria=ctx.criteria,
         )
     )

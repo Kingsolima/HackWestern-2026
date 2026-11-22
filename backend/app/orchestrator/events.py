@@ -24,6 +24,7 @@ from app.schemas import (
     OriginEvidence,
     Outcome,
     Product,
+    ProjectFacts,
     Recommendation,
 )
 
@@ -123,17 +124,29 @@ class ClaimRejected(Payload):
     reason: str
 
 
+class ProjectView(BaseModel):
+    """The project as the UI shows it: the file's fields plus the facts the rules read (merged
+    stated + verified) and where each came from."""
+
+    id: str
+    kind: Literal["company", "club"]
+    name: str
+    robot: str
+    use_case: str
+    robot_kind: Literal["wheeled", "arm"]
+    robot_params: dict[str, Any]
+    deep_line: str
+    bom: list[BomLine]
+    facts: ProjectFacts
+    fact_basis: list[Fact]
+
+
 class ProjectPayload(Payload):
     """After CRITERIA: who the team is, the facts the rules read (each verified by quote or stated
     by the team) and the criteria code derived from them, with the rule behind each."""
 
     type: ClassVar[EventType] = "project"
-    project_id: str
-    kind: Literal["company", "club"]
-    name: str
-    robot: str
-    use_case: str
-    facts: list[Fact]
+    project: ProjectView
     criteria: Criteria
 
 

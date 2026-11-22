@@ -100,7 +100,14 @@ def page_facts(
         claims.append(claim)
         if claim.verified:
             facts.append(
-                Fact(field=p.field, value=value, basis="verified", quote=p.quote, source_url=url)
+                Fact(
+                    field=p.field,
+                    value=value,
+                    basis="verified",
+                    quote=p.quote,
+                    source_url=url,
+                    claim_id=claim.id,
+                )
             )
     return facts, claims
 

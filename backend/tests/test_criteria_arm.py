@@ -11,7 +11,7 @@ def test_unknown_facts_fire_no_rule():
     c = derive_criteria(ProjectFacts())
     assert c.objectives == [Objective.performance, Objective.cost]
     assert c.domestic_threshold is None and c.blocking_lists == [] and c.duty_countries == []
-    assert {r.rule for r in c.reasons} == {"always"}
+    assert {r.rule_id for r in c.reasons} == {"always"}
 
 
 def test_federal_seller_gets_domestic_threshold_and_defence_lists():
@@ -30,14 +30,14 @@ def test_stretch_like_facts():
     c = derive_criteria(ProjectFacts(deploy_countries=["US", "CA"], uptime_critical=True))
     assert c.objectives == [Objective.performance, Objective.cost, Objective.supply_risk]
     assert c.duty_countries == ["US", "CA"] and c.blocking_lists == ["uflpa"]
-    assert [r.rule for r in c.reasons][2:] == ["C2", "C3", "C4"]
+    assert [r.rule_id for r in c.reasons][2:] == ["C2", "C3", "C4"]
 
 
 def test_club_like_facts():
     c = derive_criteria(ProjectFacts(deploy_countries=["CA"], budget_usd=2500, need_by_days=21))
     assert Objective.lead_time in c.objectives and c.max_lead_time_days == 21
     assert c.budget_usd == 2500 and c.duty_countries == ["CA"] and c.blocking_lists == []
-    assert any(r.rule == "C6" and "$2,500" in r.text for r in c.reasons)
+    assert any(r.rule_id == "C6" and "$2,500" in r.text for r in c.reasons)
 
 
 def test_need_by_zero_days_still_counts():

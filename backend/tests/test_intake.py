@@ -166,7 +166,8 @@ def test_unknown_project_is_404(client, projects, bad):
 def test_club_job_uses_stated_facts_and_skips_intake_and_v3_card(client, projects):
     events = run_project_job(client, "club")
     [project] = [e["data"] for e in events if e["type"] == "project"]
-    assert {f["basis"] for f in project["facts"]} == {"stated"}
+    assert {f["basis"] for f in project["project"]["fact_basis"]} == {"stated"}
+    assert project["project"]["facts"]["need_by_days"] == 21
     assert project["criteria"]["max_lead_time_days"] == 21
     assert project["criteria"]["duty_countries"] == ["CA"]
     assert not [e for e in events if e["type"] in ("compliance", "run_started")]
@@ -201,7 +202,9 @@ def test_company_job_verifies_facts_from_its_own_pages(client, projects, monkeyp
     criteria = project["criteria"]
     assert "supply_risk" in criteria["objectives"] and "us_first" not in criteria["objectives"]
     assert criteria["blocking_lists"] == ["uflpa"]
-    assert {(f["field"], f["basis"]) for f in project["facts"]} == {
+    claim_ids = {e["data"]["claim"]["id"] for e in events if e["type"] == "claim_verified"}
+    assert {f["claim_id"] for f in project["project"]["fact_basis"]} == claim_ids
+    assert {(f["field"], f["basis"]) for f in project["project"]["fact_basis"]} == {
         ("deploy_countries", "verified"),
         ("uptime_critical", "verified"),
     }

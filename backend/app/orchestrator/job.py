@@ -242,8 +242,8 @@ BASELINE_MOTOR = "NEMA 23 stepper (baseline)"
 
 
 def cad_robot(ctx: JobContext) -> str:
-    """The CAD worker's robot model: the project id for v4 arm projects, else the v3 wheeled one."""
-    return ctx.project.id if ctx.project and ctx.project.robot_kind == "arm" else "wheeled"
+    """The CAD worker's robot model (cad/cad_worker/server.py BuildRequest.robot)."""
+    return ctx.project.cad_robot if ctx.project else "wheeled"
 
 
 def baseline_frame(ctx: JobContext) -> str:

@@ -9,7 +9,13 @@
     "joint": "arm shoulder (ILLUSTRATIVE)",
     "payload_kg": 22.68,
     "reach_m": 1.0,
-    "links": [{"name": "arm beyond the shoulder (ILLUSTRATIVE)", "mass_kg": 15.0, "com_m": 0.5}],
+    "links": [
+      {
+        "name": "arm beyond the shoulder (ILLUSTRATIVE)",
+        "mass_kg": 15.0,
+        "com_m": 0.5
+      }
+    ],
     "gear_ratio": 160,
     "efficiency": 0.8,
     "omega_max_dps": 60,
@@ -87,13 +93,26 @@
       "hts_code": "8507.60.00",
       "component_class": "battery_cells",
       "illustrative": true,
-      "sources": ["https://www.bioennopower.com/collections/24v-lifepo4-batteries"],
+      "sources": [
+        "https://www.bioennopower.com/collections/24v-lifepo4-batteries"
+      ],
       "notes": "From research pass 1: 'From $189.99 | Sold out'. Origin not stated."
     }
   ],
   "intake_sources": [
-    {"url": "https://bostondynamics.com/products/stretch", "reason": "product page: use case and payload"},
-    {"url": "https://bostondynamics.com/news/boston-dynamics-launches-next-generation-stretch-robot", "reason": "Stretch Gen 2 launch: uptime statements"},
-    {"url": "https://bostondynamics.com/news/dhl-signs-mou-for-additional-1000-robot-deployment", "reason": "DHL deployments: where Stretch works"}
-  ]
+    {
+      "url": "https://bostondynamics.com/products/stretch",
+      "reason": "product page: use case and payload"
+    },
+    {
+      "url": "https://bostondynamics.com/news/boston-dynamics-launches-next-generation-stretch-robot",
+      "reason": "Stretch Gen 2 launch: uptime statements"
+    },
+    {
+      "url": "https://bostondynamics.com/news/dhl-signs-mou-for-additional-1000-robot-deployment",
+      "reason": "DHL deployments: where Stretch works"
+    }
+  ],
+  "deep_frame": "34",
+  "cad_robot": "stretch"
 }
