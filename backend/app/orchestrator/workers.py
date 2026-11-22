@@ -130,6 +130,17 @@ Page text:
 """
 
 
+def pin_to_page(raw: object, url: str) -> object:
+    """Flash read only this page, so every spec comes from it; fill what the model left null
+    before validation. Anything else malformed still fails validation."""
+    if not isinstance(raw, dict):
+        return raw
+    specs = raw.get("specs")
+    if isinstance(specs, list):
+        specs = [{**sp, "source_url": url} if isinstance(sp, dict) else sp for sp in specs]
+    return {**raw, "reason": raw.get("reason") or "", "specs": specs if specs is not None else []}
+
+
 class SwapWorker:
     """Hunts US-made replacements for the drive motor. Seed targets and discovered pages that
     need clicking get one TinyAgent run each (one stealth + US-proxy retry when blocked, docs/
@@ -175,8 +186,8 @@ class SwapWorker:
         output = None
         try:
             async with ctx.fleet.slot("gemini", ctx.budget):
-                raw = await ctx.gemini.extract_json(prompt, MOTOR_SCHEMA)
-            output = AgentMotorCandidate.model_validate(raw)
+                raw = await ctx.gemini.extract_json(prompt, MOTOR_SCHEMA, enforce_schema=False)
+            output = AgentMotorCandidate.model_validate(pin_to_page(raw, lead.url))
             reason = output.reason
             if output.status != "success":
                 outcome = output.status

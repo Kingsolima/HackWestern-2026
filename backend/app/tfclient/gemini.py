@@ -52,17 +52,27 @@ class GeminiClient:
         return Choice.model_validate(body["answers"]["q"])
 
     async def extract_json(
-        self, prompt: str, schema: dict[str, Any], temperature: float = 0.0
+        self,
+        prompt: str,
+        schema: dict[str, Any],
+        temperature: float = 0.0,
+        enforce_schema: bool = True,
     ) -> dict[str, Any]:
-        """Flash with a response schema; returns the parsed JSON object."""
+        """Flash in JSON mode; returns the parsed JSON object. enforce_schema=False puts the schema
+        in the prompt instead of responseSchema: Gemini refuses large schemas (the TinyAgent motor
+        schema) with HTTP 400 "too many states", and callers validate the output anyway."""
+        config: dict[str, Any] = {
+            "temperature": temperature,
+            "responseMimeType": "application/json",
+        }
+        if enforce_schema:
+            config["responseSchema"] = schema
+        else:
+            prompt += f"\n\nReturn one JSON object matching this JSON Schema:\n{json.dumps(schema)}"
         request = {
             "model": self.flash_model,
             "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": temperature,
-                "responseMimeType": "application/json",
-                "responseSchema": schema,
-            },
+            "generationConfig": config,
         }
 
         async def live() -> dict[str, Any]:
