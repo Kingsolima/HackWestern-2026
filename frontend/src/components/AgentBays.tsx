@@ -12,7 +12,6 @@ const OUTCOME: Record<Outcome, string> = {
   not_found: 'Not found',
   error: 'Error',
 }
-const MIN_BAYS = 4
 /** The desktop viewport a captured page is laid out in before it is scaled into a bay. */
 const PAGE_W = 1280
 const pad2 = (n: number) => String(n).padStart(2, '0')
@@ -70,21 +69,8 @@ function PageView({ src, title }: { src: string; title: string }) {
   )
 }
 
-function Bay({ n, run, zoomed, onZoom }: { n: number; run: Run | undefined; zoomed?: boolean; onZoom?: () => void }) {
-  const page = useRecordedPage(run && mayHavePage(run) ? run.runId : undefined)
-  if (!run) {
-    return (
-      <article className="bay frame">
-        <div className="bay-head">
-          <span className="dot" />
-          Bay {pad2(n)}
-        </div>
-        <div className="bay-url">about:blank</div>
-        <div className="bay-body" />
-        <div className="bay-foot">Standby</div>
-      </article>
-    )
-  }
+export function Bay({ n, run, zoomed, onZoom }: { n: number; run: Run; zoomed?: boolean; onZoom?: () => void }) {
+  const page = useRecordedPage(mayHavePage(run) ? run.runId : undefined)
   const acc = outcomeAccuracy(run.outcome)
   const end = acc === 'none' ? '' : acc
   // A replayed run's streaming URL points at a browser that no longer exists, so only a running
@@ -98,7 +84,8 @@ function Bay({ n, run, zoomed, onZoom }: { n: number; run: Run | undefined; zoom
     <article className={`bay frame ${end}${zoomed ? ' zoomed' : ''}`}>
       <button type="button" className="bay-head" onClick={onZoom} title={zoomed ? 'Close' : 'Expand'}>
         <span className={`dot ${end || 'acc blink'}`} />
-        Bay {pad2(n)} <span className="site">{run.site}</span>
+        {n > 0 && `Bay ${pad2(n)} `}
+        <span className="site">{run.site}</span>
         <span className="mode">
           {view ?? (run.live ? 'Live' : 'Replay')} / {run.worker}
         </span>
@@ -135,37 +122,16 @@ function Bay({ n, run, zoomed, onZoom }: { n: number; run: Run | undefined; zoom
   )
 }
 
-/** The TinyFish agents, one bay each. Empty bays stand by until the job sends agents out; click
- * a bay to see its browser large. */
-export function AgentBays({ runs }: { runs: Run[] }) {
-  const [zoom, setZoom] = useState<string | null>(null)
-  const count = Math.max(MIN_BAYS, runs.length)
-  const zoomed = runs.findIndex((r) => r.runId === zoom)
-
+/** A run large, over the page; Escape or a click outside closes it. */
+export function BayZoom({ n, run, onClose }: { n: number; run: Run; onClose: () => void }) {
   useEffect(() => {
-    if (zoom === null) return
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setZoom(null)
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [zoom])
-
+  }, [onClose])
   return (
-    <>
-      <section className="bays" aria-label="Agent bays">
-        {Array.from({ length: count }, (_, i) => (
-          <Bay
-            key={runs[i]?.runId ?? `standby-${i}`}
-            n={i + 1}
-            run={runs[i]}
-            onZoom={runs[i] ? () => setZoom(runs[i].runId) : undefined}
-          />
-        ))}
-      </section>
-      {zoomed >= 0 && (
-        <div className="bay-zoom" onClick={(e) => e.target === e.currentTarget && setZoom(null)}>
-          <Bay n={zoomed + 1} run={runs[zoomed]} zoomed onZoom={() => setZoom(null)} />
-        </div>
-      )}
-    </>
+    <div className="bay-zoom" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <Bay n={n} run={run} zoomed onZoom={onClose} />
+    </div>
   )
 }

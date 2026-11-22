@@ -6,9 +6,13 @@
 
 import type { ComplianceCard } from './types'
 
+// Mirrors Stage in backend/app/orchestrator/events.py.
 export type Stage =
   | 'CREATED'
+  | 'INTAKE'
+  | 'CRITERIA'
   | 'COMPLIANCE_BASELINE'
+  | 'RISK_BASELINE'
   | 'PLAN'
   | 'DISCOVER'
   | 'TRIAGE'
@@ -16,6 +20,8 @@ export type Stage =
   | 'VERIFY'
   | 'CHECK'
   | 'RANK'
+  | 'ALTERNATIVES'
+  | 'RECOMMEND'
   | 'BUILD'
   | 'REPORT'
   | 'DONE'
@@ -26,7 +32,10 @@ export const TERMINAL_STAGES: ReadonlySet<Stage> = new Set(['DONE', 'DEGRADED', 
 
 /** The happy-path order, for the stage stepper. */
 export const STAGE_ORDER: readonly Stage[] = [
+  'INTAKE',
+  'CRITERIA',
   'COMPLIANCE_BASELINE',
+  'RISK_BASELINE',
   'PLAN',
   'DISCOVER',
   'TRIAGE',
@@ -34,13 +43,16 @@ export const STAGE_ORDER: readonly Stage[] = [
   'VERIFY',
   'CHECK',
   'RANK',
+  'ALTERNATIVES',
+  'RECOMMEND',
   'BUILD',
   'REPORT',
   'DONE',
 ]
 
 /** Short name for the stage timeline. */
-export const stageLabel = (s: Stage) => (s === 'COMPLIANCE_BASELINE' ? 'Baseline' : s)
+const STAGE_LABEL: Partial<Record<Stage, string>> = { COMPLIANCE_BASELINE: 'Compliance', RISK_BASELINE: 'Risk map' }
+export const stageLabel = (s: Stage) => STAGE_LABEL[s] ?? s
 
 export type JobMode = 'live' | 'replay' | 'mixed'
 export type CadRobot = 'wheeled' | 'ar4' | 'stretch'

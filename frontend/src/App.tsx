@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { api } from './api'
-import { AgentBays } from './components/AgentBays'
+import { AgentGraph } from './components/AgentGraph'
 import { Brief } from './components/Brief'
 import { JobConsole } from './components/JobConsole'
 import { Onboarding, type Progress } from './components/Onboarding'
@@ -99,7 +99,6 @@ export default function App() {
 
   const launched = mode === 'job'
   const done = isTerminal(job)
-  const runs = job.runOrder.map((id) => job.runs[id])
   const candidate = job.candidates[0]
   const designs = job.baseline && candidate ? { before: job.baseline, after: candidate } : null
   const shown = designs ? (showAfter ? designs.after : designs.before) : null
@@ -312,7 +311,7 @@ export default function App() {
 
         {view === 'agents' && (
           <div className="page agents-page">
-            <AgentBays runs={runs} />
+            <AgentGraph job={job} />
           </div>
         )}
         {view === 'report' && done && (

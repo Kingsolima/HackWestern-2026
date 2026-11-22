@@ -31,6 +31,8 @@ export interface Run {
   worker: string
   site: string
   url: string | null
+  /** What the run was sent to do: a search query, "Read 8 pages", the site to work. */
+  goal: string | null
   /** Only an agent run has a browser, so only it can have a recorded page. */
   product: Product
   /** False for a replayed run: its streaming URL points at a browser that no longer exists. */
@@ -171,6 +173,7 @@ export function applyEvent(prev: JobState, ev: JobEvent): JobState {
         worker: d.worker,
         site: d.site,
         url: d.url,
+        goal: d.goal,
         product: d.product,
         live: d.live,
         streamingUrl: null,
