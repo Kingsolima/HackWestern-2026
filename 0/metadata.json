@@ -29,12 +29,12 @@
     "api_call_count": 89
   },
   "redaction": {
-    "replacements": 20,
+    "replacements": 22,
     "layers": {
       "betterleaks": 18,
       "connection_string": 0,
       "credential_key": 0,
-      "credential_value": 2,
+      "credential_value": 4,
       "credentialed_uri": 4,
       "entropy": 0,
       "key_context": 8,
@@ -42,6 +42,40 @@
       "shell_stdin": 0
     }
   },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01DJ7wiWVMdXDVkcLdpR4Sgr",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "mattpocock-skills:pr"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "4fc1fe348854",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 822,
+        "end": 823,
+        "entry_ids": [
+          "a3c93d41-2320-4bad-a953-d4731e9af527"
+        ],
+        "tool_use_id": "toolu_01DJ7wiWVMdXDVkcLdpR4Sgr"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01DJ7wiWVMdXDVkcLdpR4Sgr"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: mattpocock-skills:pr",
+        "default_collapsed": true
+      }
+    }
+  ],
   "session_metrics": {
     "turn_count": 6
   }
