@@ -1,0 +1,44 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M814HYV2ZSCVQQVD65FYKTVX",
+  "strategy": "manual-commit",
+  "branch": "e2e-onboarding",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "data/recordings/agent/00a415c9b7ef370dd5152d1a451dd967de230a8dee7dd77c1c16c4eee0abef7b.json.gz",
+    "data/recordings/gemini/8eba0565aa6c8266f6a72cb9f3e5c1975cf342aa59536551dd32f94288030b55.json.gz",
+    "data/recordings/gemini/a4b85fe81ebd612efb1ba4f7a2f46b4e224e682d92b1f3fd3989b5d0eb61753a.json.gz",
+    "data/recordings/gemini/a8de891d0262983b84e0887f003d7453e98e9e8bc74055f46a2aa032560ed276.json.gz",
+    "data/recordings/gemini/ed6e461337403e53a54344e5e7cab12ad2d43a8ecbc76d23430c83852ada0e13.json.gz"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 3682,
+    "cache_read_tokens": 1343173,
+    "output_tokens": 1370,
+    "api_call_count": 6
+  },
+  "redaction": {
+    "replacements": 44,
+    "layers": {
+      "betterleaks": 51,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 20,
+      "credentialed_uri": 15,
+      "entropy": 0,
+      "key_context": 3,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
