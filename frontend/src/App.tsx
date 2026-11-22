@@ -16,7 +16,10 @@ import { useJob, type CreateJobOptions } from './job'
 import type { CheckResult, ComplianceCard as Card, DesignVariant } from './types'
 
 // ?live=1 shows a "Run live" button. The token is asked once per tab and kept in sessionStorage.
-const LIVE_ENABLED = new URLSearchParams(window.location.search).get('live') === '1'
+const params = new URLSearchParams(window.location.search)
+const LIVE_ENABLED = params.get('live') === '1'
+// ?v4=1 shows the project switcher. Hidden until the backend handles project_id.
+const V4_ENABLED = params.get('v4') === '1'
 const TOKEN_KEY = 'live-jobs-token'
 
 function startLive(start: (mode: 'live', opts: CreateJobOptions) => void, projectId?: string) {
@@ -76,7 +79,7 @@ export default function App() {
         onStart={() => start('replay', { projectId })}
         onStartLive={LIVE_ENABLED ? () => startLive(start, projectId) : undefined}
         project={project}
-        onProjectChange={setProject}
+        onProjectChange={V4_ENABLED ? setProject : undefined}
       />
       {job.project && <ProjectCard project={job.project} criteria={job.criteria} claims={job.claims} />}
       {job.riskLines.length > 0 && <RiskTable rows={job.riskLines} alternatives={job.alternatives} />}

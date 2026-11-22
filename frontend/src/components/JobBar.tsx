@@ -9,7 +9,8 @@ interface Props {
   /** Shown only with ?live=1 in the URL: starts a real (credit-spending) TinyFish job. */
   onStartLive?: () => void
   project: ProjectId
-  onProjectChange: (id: ProjectId) => void
+  /** Omit to hide the project switcher (v4, behind ?v4=1 until the backend sends projects). */
+  onProjectChange?: (id: ProjectId) => void
 }
 
 export function JobBar({ state, onStart, onStartLive, project, onProjectChange }: Props) {
@@ -20,7 +21,9 @@ export function JobBar({ state, onStart, onStartLive, project, onProjectChange }
   return (
     <section className="panel jobbar">
       <div className="jobbar-row">
-        <ProjectSwitcher value={project} onChange={onProjectChange} disabled={running} />
+        {onProjectChange && (
+          <ProjectSwitcher value={project} onChange={onProjectChange} disabled={running} />
+        )}
         <button className="primary" onClick={onStart} disabled={running}>
           {running ? 'Running…' : state.jobId ? 'Run again' : 'Find and Redesign'}
         </button>
