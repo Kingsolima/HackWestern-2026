@@ -1,0 +1,55 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M81CY3XRXF4KWKYFZ1TYWHV2",
+  "strategy": "manual-commit",
+  "branch": "risk-priority-engine",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "backend/app/api/jobs.py",
+    "backend/app/engineering/compliance.py",
+    "backend/app/intake/to_project.py",
+    "backend/app/schemas.py",
+    "backend/tests/fixtures/ar4_company_answers.json",
+    "backend/tests/test_to_project.py",
+    "data/recordings/gemini/5a48cab27807c9f9725904015c05f3ab3d5a55fe8a9a98614cf6541127f6621c.json.gz",
+    "data/recordings/gemini/bbae657849fac71da4bcdcd410e4d2acd7917f55ecb687ae1f830fb2e6a97764.json.gz",
+    "docs/DEMO-COMPANY.md",
+    "docs/demo-company-bom.csv",
+    "frontend/src/App.tsx",
+    "frontend/src/components/BomUpload.tsx",
+    "frontend/src/components/Onboarding.tsx",
+    "frontend/src/onboarding/bomCsv.test.ts",
+    "frontend/src/onboarding/bomCsv.ts",
+    "frontend/src/types.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 96,
+    "cache_creation_tokens": 459164,
+    "cache_read_tokens": 9814145,
+    "output_tokens": 61372,
+    "api_call_count": 47
+  },
+  "redaction": {
+    "replacements": 7,
+    "layers": {
+      "betterleaks": 6,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 2,
+      "credentialed_uri": 2,
+      "entropy": 0,
+      "key_context": 3,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
