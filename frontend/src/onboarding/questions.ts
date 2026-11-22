@@ -37,6 +37,16 @@ export const QUESTIONS: Question[] = [
 
 export const EMPTY_ANSWERS: OpenAnswers = { who: '', market: '', limits: '', drivetrain: '' }
 
+/** The console's steps: the four questions, then the review screen. */
+export const STEPS = ['who', 'market', 'limits', 'drivetrain', 'review'] as const
+export const STEP_LABEL: Record<(typeof STEPS)[number], string> = {
+  who: 'Team',
+  market: 'Market',
+  limits: 'Limits',
+  drivetrain: 'Drivetrain',
+  review: 'Confirm',
+}
+
 /** "a", "a and b", "a, b and c". */
 export function listOf(items: string[]): string {
   if (items.length <= 1) return items.join('')

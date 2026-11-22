@@ -30,31 +30,35 @@ export function CadUpload({ cad, onChange }: Props) {
   const named = cad ? cad.parts.filter((p) => p.name).length : 0
 
   return (
-    <div className="ob-cad">
-      <label className="ob-drop ob-drop-small">
-        <input
-          type="file"
-          accept=".step,.stp"
-          onChange={(e) => {
-            void read(e.target.files?.[0])
-            e.target.value = ''
-          }}
-        />
-        <strong>Add a CAD file (STEP), optional</strong>
-        <span className="muted">We read wheel size, motor count and an estimated mass from it.</span>
-      </label>
-      {busy && <p className="muted">Measuring {name}…</p>}
-      {error && (
-        <p className="error" role="alert">
-          {name} was not read: {error}
-        </p>
-      )}
-      {cad && !busy && (
-        <p className="muted">
-          {name ?? 'CAD file'}: {cad.parts.length} parts{named === 0 ? ', none of them named' : ''}.{' '}
-          <button type="button" className="ob-link" onClick={() => onChange(null)}>
+    <div className="cad-add">
+      {busy ? (
+        <span className="busy">Measuring {name}</span>
+      ) : cad ? (
+        <span>
+          <span className="dot hi" />
+          {name ?? 'CAD file'}: {cad.parts.length} parts{named === 0 ? ', none of them named' : ''}{' '}
+          <button type="button" className="link" onClick={() => onChange(null)}>
             Remove
           </button>
+        </span>
+      ) : (
+        <label className="link">
+          <input
+            type="file"
+            accept=".step,.stp"
+            hidden
+            onChange={(e) => {
+              void read(e.target.files?.[0])
+              e.target.value = ''
+            }}
+          />
+          Add a CAD file (STEP), optional
+        </label>
+      )}
+      {!cad && !busy && !error && <span className="hint">We read wheel size, motor count and an estimated mass from it.</span>}
+      {error && (
+        <p className="err" role="alert">
+          {name} was not read: {error}
         </p>
       )}
     </div>

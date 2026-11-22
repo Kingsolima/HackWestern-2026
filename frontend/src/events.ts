@@ -39,6 +39,9 @@ export const STAGE_ORDER: readonly Stage[] = [
   'DONE',
 ]
 
+/** Short name for the stage timeline. */
+export const stageLabel = (s: Stage) => (s === 'COMPLIANCE_BASELINE' ? 'Baseline' : s)
+
 export type JobMode = 'live' | 'replay' | 'mixed'
 export type Product = 'search' | 'fetch' | 'agent' | 'browser' | 'monitor' | 'gemini'
 export type Outcome =

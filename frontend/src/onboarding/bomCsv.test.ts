@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bomToCsv, parseBomCsv } from './bomCsv'
+import { bomCriteria, bomToCsv, parseBomCsv } from './bomCsv'
 
 const HEADER = 'part,category,qty,unit_cost_usd,origin'
 
@@ -17,6 +17,8 @@ describe('parseBomCsv', () => {
     const text = '﻿Origin,Qty,Part,unit_cost_usd,Category,supply_risk\r\nUS,1,"Plate, 6 mm ""A""","1,200.50",frame,\r\n\r\nCN,2,Motor,45,motor,ndfeb_magnets\r\n'
     expect(parseBomCsv(text)).toEqual({
       errors: [],
+      failed: [],
+      hasMotor: true,
       rows: [
         { part: 'Plate, 6 mm "A"', category: 'frame', qty: 1, unit_cost_usd: '1200.50', origin: 'US' },
         { part: 'Motor', category: 'motor', qty: 2, unit_cost_usd: '45', origin: 'CN', supply_risk: 'ndfeb_magnets' },
@@ -33,6 +35,8 @@ describe('parseBomCsv', () => {
     expect(parseBomCsv('part,qty\nMotor,2\n')).toEqual({
       rows: [],
       errors: ['line 1: missing columns category, unit_cost_usd, origin'],
+      failed: ['columns'],
+      hasMotor: false,
     })
   })
 
@@ -59,6 +63,32 @@ describe('bomToCsv', () => {
       { part: 'Plate, 6 mm "A"', category: 'frame', qty: 1, unit_cost_usd: '120.00', origin: 'US' },
       { part: 'Motor', category: 'motor', qty: 2, unit_cost_usd: '45.00', origin: 'CN', supply_risk: 'ndfeb_magnets' },
     ]
-    expect(parseBomCsv(bomToCsv(rows))).toEqual({ rows, errors: [] })
+    expect(parseBomCsv(bomToCsv(rows))).toEqual({ rows, errors: [], failed: [], hasMotor: true })
+  })
+})
+describe('bomCriteria', () => {
+  const statuses = (name: string | null, text: string | null) => bomCriteria(name, text === null ? null : parseBomCsv(text))
+
+  it('leaves everything pending before a file is chosen', () => {
+    expect(Object.values(statuses(null, null))).toEqual(Array(6).fill('pending'))
+  })
+
+  it('passes every rule for a good file with a motor line', () => {
+    expect(statuses('bom.CSV', `${HEADER}\nDrive motor,Motor,2,45,CN\n`)).toEqual({
+      csv: 'pass', columns: 'pass', lines: 'pass', cost: 'pass', origin: 'pass', motor: 'pass',
+    })
+  })
+
+  it('fails only the rules the lines broke, and still checks for a motor', () => {
+    expect(statuses('bom.csv', `${HEADER}\nPlate,frame,0,abc,US\n`)).toEqual({
+      csv: 'pass', columns: 'pass', lines: 'fail', cost: 'fail', origin: 'pass', motor: 'fail',
+    })
+    expect(statuses('bom.csv', `${HEADER}\nMotor,motor,2,45,China\n`).origin).toBe('fail')
+  })
+
+  it('does not check lines it never read: missing columns, an empty file, a non-csv name', () => {
+    expect(statuses('bom.csv', 'part,qty\nMotor,2\n')).toMatchObject({ csv: 'pass', columns: 'fail', lines: 'pending', motor: 'pending' })
+    expect(statuses('bom.csv', '')).toMatchObject({ csv: 'fail', columns: 'pending' })
+    expect(statuses('bom.xlsx', `${HEADER}\nMotor,motor,2,45,CN\n`).csv).toBe('fail')
   })
 })

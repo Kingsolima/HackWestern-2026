@@ -22,7 +22,7 @@ export function ClaimsList({ claims }: { claims: ClaimRow[] }) {
             {claims.map(({ claim, verified, reason }) => (
               <tr key={claim.id} className={verified ? '' : 'rejected'}>
                 <td title={verified ? `verified (${claim.verify_method})` : (reason ?? 'rejected')}>
-                  {verified ? '✅' : '❌'}
+                  <span className={`dot ${verified ? 'hi' : 'lo'}`} />
                 </td>
                 <td>{claim.field.replaceAll('_', ' ')}</td>
                 <td>

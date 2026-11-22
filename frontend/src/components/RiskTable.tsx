@@ -1,5 +1,6 @@
 import { Fragment } from 'react'
-import { RISK_FACTORS, type Alternative, type Level, type Priority, type Score } from '../events'
+import { levelAccuracy } from '../accuracy'
+import { RISK_FACTORS, type Alternative, type Level } from '../events'
 import type { RiskRow } from '../job'
 
 const money = (v: number | null) => (v === null ? '–' : `$${v.toLocaleString()}`)
@@ -7,6 +8,7 @@ const money = (v: number | null) => (v === null ? '–' : `$${v.toLocaleString()
 export function LevelChip({ level, title, children }: { level: Level; title?: string; children?: string }) {
   return (
     <span className={`chip level-${level}`} title={title}>
+      <span className={`dot ${levelAccuracy(level)}`} />
       {children ?? level}
     </span>
   )
