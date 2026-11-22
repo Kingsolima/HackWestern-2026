@@ -3,7 +3,7 @@
   "checkpoint_id": "01M814HYV2ZSCVQQVD65FYKTVX",
   "strategy": "manual-commit",
   "branch": "e2e-onboarding",
-  "checkpoints_count": 7,
+  "checkpoints_count": 8,
   "files_touched": [
     "data/recordings/agent/00a415c9b7ef370dd5152d1a451dd967de230a8dee7dd77c1c16c4eee0abef7b.json.gz",
     "data/recordings/fetch/d7e729bbb0abd0c6f4b772f417608b16ab1fc37387d07057012388ac270b763e.json.gz",
@@ -47,6 +47,13 @@
       "compact_transcript": "/4/transcript.jsonl",
       "content_hash": "/4/content_hash.txt",
       "prompt": "/4/prompt.txt"
+    },
+    {
+      "metadata": "/5/metadata.json",
+      "transcript": "/5/full.jsonl",
+      "compact_transcript": "/5/transcript.jsonl",
+      "content_hash": "/5/content_hash.txt",
+      "prompt": "/5/prompt.txt"
     }
   ],
   "token_usage": {
@@ -57,7 +64,7 @@
     "api_call_count": 29
   },
   "redaction": {
-    "replacements": 72,
+    "replacements": 77,
     "layers": {
       "betterleaks": 69,
       "connection_string": 0,
@@ -65,7 +72,7 @@
       "credential_value": 24,
       "credentialed_uri": 19,
       "entropy": 0,
-      "key_context": 17,
+      "key_context": 22,
       "provider_token": 0,
       "shell_stdin": 0
     }
