@@ -70,6 +70,8 @@ class BomRow(BaseModel):
     supplier: str | None = None
     source_page: str | None = Field(default=None, description="Page of the source document")
     notes: str | None = None
+    availability: Literal["in_stock", "lead_time", "out_of_stock", "unknown"] = "unknown"
+    lead_time_days: int | None = None
 
 
 class Robot(BaseModel):

@@ -127,7 +127,9 @@ def test_actions_follow_the_rules_in_order():
     # 2. same conflict, but the alternative's specs are not verified yet
     rec = decide(china, current, [alt(cr, verdict="review")])
     assert rec.action == "investigate" and "specs are not all verified" in rec.reason
-    assert decide(china, current, [alt(cr, verdict="rejected")]).action == "investigate"
+    rec = decide(china, current, [alt(cr, verdict="rejected")])
+    assert rec.action == "investigate" and "The 1 alternative found was rejected" in rec.reason
+    assert "No alternative was searched" in decide(china, current, []).reason
     # 2. an inferred conflict never re-sources, even with a clean passing alternative
     mc = criteria(MAGNETS)
     inferred = scored(china, risk(restricted="low", bottleneck="low"), mc, [likely()])

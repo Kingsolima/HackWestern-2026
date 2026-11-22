@@ -7,7 +7,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from cad_worker import server
-from cad_worker.arm import GEARBOX_LEN, PLATE_T, ArmParams, arm, measure_arm
+from cad_worker.ar4_meshes import TURRET_FACE_Y, link_transforms, posed_links
+from cad_worker.arm import GEARBOX_LEN, J2_X, J2_Z, PLATE_T, ArmParams, arm, arm_meshes, measure_arm
 from cad_worker.export import export
 from cad_worker.robot import HIGHLIGHT_COLOR, RobotParams, measure
 
@@ -49,15 +50,42 @@ def test_pilot_and_bolt_spacing_override_the_nema_table():
     assert bracket["pilot_hole_mm"] == 41.0 and bracket["bolt_spacing_mm"] == 50.0
 
 
+def glb_doc(path) -> dict:
+    glb = path.read_bytes()
+    return json.loads(glb[20 : 20 + struct.unpack_from("<I", glb, 12)[0]])
+
+
 def test_arm_glb_has_named_parts_and_highlighted_mount(tmp_path):
     p = ArmParams(frame="17", shaft_d=5.0, highlight=True)
-    paths = export(arm(p), tmp_path, "a")
+    paths = export(arm(p), tmp_path, "a", extra_meshes=arm_meshes())
     nodes = glb_nodes(paths["glb"])
-    assert {"mount_plate", "j2_motor", "j2_gearbox", "upper_arm", "bore_sleeve"} <= nodes.keys()
-    assy = arm(p)
-    assert assy.children[[c.name for c in assy.children].index("mount_plate")].color.toTuple()[
-        :3
-    ] == pytest.approx(HIGHLIGHT_COLOR.toTuple()[:3])
+    assert {"mount_plate", "j2_motor", "j2_gearbox", "bore_sleeve"} <= nodes.keys()
+    assert {"base", "turret", "upper_arm", "forearm", "wrist"} <= nodes.keys()
+    doc = glb_doc(paths["glb"])
+    plate_mesh = doc["meshes"][nodes["mount_plate"]["mesh"]]
+    material = doc["materials"][plate_mesh["primitives"][0]["material"]]
+    rgb = material["pbrMetallicRoughness"]["baseColorFactor"][:3]
+    assert rgb == pytest.approx(HIGHLIGHT_COLOR.toTuple()[:3], abs=0.01)
+    # the STEP is the generated drive only
+    assert b"upper_arm" not in paths["step"].read_bytes()
+
+
+def test_ar4_joint_chain_matches_the_urdf_layout():
+    poses = link_transforms()
+    assert poses["link_2"][:3, 3] == pytest.approx((J2_X, 0.0, J2_Z), abs=0.1)
+    j3 = poses["link_3"][:3, 3]
+    assert j3[2] - J2_Z == pytest.approx(305.0, abs=0.1)  # upper arm straight up
+    assert poses["link_5"][0, 3] - j3[0] == pytest.approx(222.63, abs=0.1)  # forearm forward
+
+
+def test_gearbox_sits_on_the_turret_and_annin_motor_is_gone():
+    turret = {n: m for n, m, _ in posed_links()}["turret"]
+    assert turret.bounds[0][1] >= TURRET_FACE_Y - 0.5  # nothing left past the side plate
+    assert turret.bounds[0][1] <= TURRET_FACE_Y + 0.5  # but the plate itself is still there
+    gearbox = arm(ArmParams()).children[0]
+    assert gearbox.name == "j2_gearbox"
+    bb = gearbox.obj.val().BoundingBox()
+    assert bb.ymax == pytest.approx(TURRET_FACE_Y, abs=0.01)
 
 
 def test_wheeled_fit_has_generic_rows_too():

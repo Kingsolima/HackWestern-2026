@@ -1,12 +1,17 @@
-"""AR4-style robot arm with the J2 (shoulder) drive in context. Owner 1. BUILD-PLAN-v4 §7.
+"""AR4 robot arm with the J2 (shoulder) drive in context. Owner 1. BUILD-PLAN-v4 §7.
 
-The arm is our own simplified model, not Annin's meshes (those are licensed non-commercial).
-Only the joint layout comes from the AR4 URDF in ycheng517/ar4_ros_driver (MIT): J2 sits
-64.2 mm in front of the J1 axis and 169.8 mm up, the upper arm is 305 mm (J2 to J3) and the
-forearm about 223 mm (J3 to the wrist).
+Two layers:
+- The arm itself is Annin's real AR4 (MK3) link meshes from ycheng517/ar4_ros_driver (MIT),
+  posed by ar4_meshes.py. They are display only (GLB, not STEP) and never change.
+- The J2 drive is generated here with CadQuery and changes with the motor: gearbox, mount
+  plate, motor, shaft and, when needed, a bore sleeve. Annin's own J2 motor is cut out of the
+  link_1 mesh so this drive replaces it.
+
+Joint layout from the AR4 URDF: J2 sits 64.2 mm in front of the J1 axis and 169.8 mm up, the
+upper arm is 305 mm (J2 to J3) and the forearm about 223 mm (J3 to the wrist).
 
 World frame: Z up, J1 axis is the Z axis, the arm reaches towards +X. The J2 axis runs along Y.
-The J2 drive hangs off the turret's -Y side, outward along -Y:
+The J2 drive hangs off the turret's -Y side plate (y = -57.1 on the real mesh), outward along -Y:
 
     turret face | gearbox (output into the turret) | mount plate | motor body ->  -Y
 
@@ -19,17 +24,15 @@ from dataclasses import asdict, dataclass
 
 import cadquery as cq
 
+from cad_worker.ar4_meshes import TURRET_FACE_Y, posed_links
+from cad_worker.export import Mesh
 from cad_worker.nema import BOLT_HOLE_MM, NEMA, SHAFT_MM
 from cad_worker.robot import BRACKET_COLOR, HIGHLIGHT_COLOR, _box, _cylinder, motor
 
-# Joint layout from the AR4 URDF (mm).
+# J2 axis position from the AR4 URDF (mm).
 J2_X = 64.2
 J2_Z = 169.8
-UPPER_ARM = 305.0
-FOREARM = 222.6
 
-BASE_R, BASE_H = 80.0, 40.0
-TURRET_HALF_W = 50.0  # turret side faces at y = ±50
 
 # Baseline gearbox: 50:1 planetary with a NEMA 23 input (its input side stays fixed).
 GEARBOX_FLANGE = 60.0
@@ -41,9 +44,8 @@ PLATE_T = 8.0
 PLATE_MARGIN = 5.0
 SLEEVE_LEN = 15.0
 
-ARM_COLOR = cq.Color(0.85, 0.85, 0.88)
-TURRET_COLOR = cq.Color(0.25, 0.25, 0.28)
 GEARBOX_COLOR = cq.Color(0.35, 0.35, 0.35)
+MOTOR_COLOR = cq.Color(0.12, 0.12, 0.13)  # black stepper can, like the real AR4's
 
 
 @dataclass
@@ -134,20 +136,16 @@ def mount_plate(p: ArmParams) -> cq.Workplane:
 
 
 def arm(p: ArmParams) -> cq.Assembly:
+    """The generated J2 drive, in world coordinates. The arm around it is `arm_meshes()`."""
     m = measure_arm(p)
     shaft_d = m["shaft_diameter_mm"]
     _, pilot, _, _ = _dims(p)
 
-    gb_out = -TURRET_HALF_W  # gearbox output face on the turret
+    gb_out = TURRET_FACE_Y  # gearbox output face on the turret's side plate
     gb_in = gb_out - GEARBOX_LEN  # gearbox input face
     plate_out = gb_in - PLATE_T  # motor face
 
     assy = cq.Assembly(name="ar4")
-    assy.add(_cylinder(BASE_R, BASE_H, (0, 0, 0), (0, 0, 1)), name="base", color=TURRET_COLOR)
-    turret = _box(150, 2 * TURRET_HALF_W, J2_Z + 30 - BASE_H, (25, 0, (BASE_H + J2_Z + 30) / 2))
-    assy.add(turret, name="turret", color=TURRET_COLOR)
-
-    # J2 drive
     gearbox = _box(GEARBOX_FLANGE, GEARBOX_FLANGE_T, GEARBOX_FLANGE, (J2_X, gb_out - 5, J2_Z))
     gearbox = gearbox.union(_along_y(GEARBOX_FLANGE / 2 - 2, gb_out - GEARBOX_FLANGE_T, gb_in))
     assy.add(gearbox, name="j2_gearbox", color=GEARBOX_COLOR)
@@ -159,7 +157,7 @@ def arm(p: ArmParams) -> cq.Assembly:
     assy.add(
         motor(p.frame, p.body_len, pilot).translate((J2_X, plate_out, J2_Z)),
         name="j2_motor",
-        color=cq.Color("blue"),
+        color=MOTOR_COLOR,
     )
     assy.add(
         _along_y(shaft_d / 2, plate_out, gb_in + SLEEVE_LEN),
@@ -172,24 +170,9 @@ def arm(p: ArmParams) -> cq.Assembly:
             name="bore_sleeve",
             color=cq.Color("red"),
         )
-    assy.add(_along_y(10, gb_out, TURRET_HALF_W + 35), name="j2_output_shaft", color=GEARBOX_COLOR)
-
-    # Arm in a reaching pose: upper arm straight up, forearm forward.
-    y_arm = TURRET_HALF_W + 20
-    j3_z = J2_Z + UPPER_ARM
-    assy.add(_along_y(40, TURRET_HALF_W + 5, TURRET_HALF_W + 35), name="j2_hub", color=ARM_COLOR)
-    assy.add(
-        _box(60, 30, UPPER_ARM, (J2_X, y_arm, J2_Z + UPPER_ARM / 2)),
-        name="upper_arm",
-        color=ARM_COLOR,
-    )
-    assy.add(
-        _along_y(32, TURRET_HALF_W + 5, TURRET_HALF_W + 35, z=j3_z), name="j3_hub", color=ARM_COLOR
-    )
-    assy.add(
-        _box(FOREARM, 45, 45, (J2_X + FOREARM / 2, y_arm, j3_z)), name="forearm", color=ARM_COLOR
-    )
-    wrist_x = J2_X + FOREARM
-    assy.add(_cylinder(20, 40, (wrist_x, y_arm, j3_z), (1, 0, 0)), name="wrist", color=TURRET_COLOR)
-    assy.add(_box(20, 40, 30, (wrist_x + 50, y_arm, j3_z)), name="gripper", color=TURRET_COLOR)
     return assy
+
+
+def arm_meshes() -> list[Mesh]:
+    """Annin's AR4 links around the drive, for the GLB only."""
+    return posed_links()

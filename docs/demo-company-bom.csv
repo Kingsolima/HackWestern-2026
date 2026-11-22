@@ -1,61 +1,61 @@
-part,category,qty,unit_cost_usd,origin,part_number,supplier,source_page,notes
-J1 gear head motor,actuation,1,unknown,unknown,17HS15-1684D-EG10-AR4,Stepperonline,33,
-J2 gear head motor,actuation,1,unknown,unknown,23HS22-2804D-YGS50-AR4,Stepperonline,33,Shoulder joint. The PDF says to check that the motor to gearbox coupler is tight.
-J3 gear head motor,actuation,1,unknown,unknown,17HS15-1684D-EG50-AR4,Stepperonline,34,
-J4 gear head motor,actuation,1,unknown,unknown,11HS20-0674D-EGS16-AR4,Stepperonline,34,
-J5 linear drive motor,actuation,1,unknown,unknown,17LS19-1684E-200G-AR4,Stepperonline,35,Lead screw comes with a POM nut that is removed before assembly.
-J6 gear head motor,actuation,1,unknown,unknown,14HS11-1004D-EGS20-AR4,Stepperonline,35,
-32009 taper roller bearing (45x75x20mm),transmission,2,unknown,unknown,32009,,8,
-30206 taper roller bearing (30x62x17.25mm),transmission,2,unknown,unknown,30206,,8,
-30204 taper roller bearing (20x47x15.25mm),transmission,1,unknown,unknown,30204,,8,
-AXK3552/AS3552 thrust bearing with washers (35x52x4mm),transmission,1,unknown,unknown,AXK3552/AS3552,,8,
-NTA1625 thrust bearing (1.00x1.5625x0.0781 inch),transmission,3,unknown,unknown,NTA1625,,8,
-TRA1625 thrust washers (1.000x1.5625x0.0312 inch),transmission,4,unknown,unknown,TRA1625,,8,
-TRD1625 thrust washers (1.000x1.5625x0.125 inch),transmission,2,unknown,unknown,TRD1625,,9,
-B1616 needle roller bearing (1x1-1/4x1 inch),transmission,2,unknown,unknown,B1616,,9,
-HK1612 needle roller bearing (16x22x12mm),transmission,1,unknown,unknown,HK1612,,9,
-688Z groove ball bearing (8x16x5mm),transmission,1,unknown,unknown,688Z,,9,
-30203 taper roller bearing (17x40x13.25mm),transmission,1,unknown,unknown,30203,,10,
-3mm x 85mm shaft,transmission,2,unknown,unknown,,,9,Typically sold in 100 mm lengths and cut down to 85 mm.
-3mm ID x 7mm OD x 20mm long brass bushing,transmission,2,unknown,unknown,,,9,
-60T XL pulley,transmission,1,unknown,unknown,,,10,"If self-sourced: Amazon or Servo City, black phenolic; a 3D print file also exists."
-HTD 550-5M belt,transmission,1,unknown,unknown,HTD 550-5M,,10,
-180XL037 belt,transmission,1,unknown,unknown,180XL037,,10,
-150XL037 belt,transmission,1,unknown,unknown,150XL037,,10,
-84XL037 belt,transmission,1,unknown,unknown,84XL037,,10,
-HTD-20 pulleys (long and short),transmission,2,unknown,unknown,,,11,
-XL 15 tooth 8mm bore pulley,transmission,2,unknown,unknown,,,11,One needs a 3 mm key broach; the Annin Robotics hardware kit includes a broached pulley.
-XL 10 tooth 6mm bore pulley,transmission,1,unknown,unknown,,,11,
-8mm keyed rotary shaft (50mm long) with 2mm x 2mm keystock (50mm long),transmission,1,unknown,unknown,,,11,One shaft and one length of keystock.
-"J1 machined aluminum parts (base plate, turret housing, spindle, platform)",structure,4,unknown,unknown,,,1,
-"J2 machined aluminum parts (turret housing, arm, drive spindle, tension ring, motor support)",structure,5,unknown,unknown,,,2-3,
-J1 & J3 motor mounts,structure,2,unknown,unknown,,,3,
-"J3 machined aluminum parts (bearing cup, spindle, spindle retainer)",structure,3,unknown,unknown,,,3-4,
-"J4 machined aluminum parts (turret housing, main shaft, motor mount)",structure,3,unknown,unknown,,,4-5,"For a 3D printed build the main shaft is cut from 1 inch OD, 0.035 inch wall aluminum tube, McMaster-Carr 1968T17 (page 12)."
-"J5 machined aluminum parts (motor mount, belt carrier, housing, belt carrier clamp, idler tension block, bearing post)",structure,6,unknown,unknown,,,4-6,
-"J6 machined aluminum parts (housing, main bearing arm, gripper mount, bearing cap)",structure,4,unknown,unknown,,,6-7,
-Nema 11 bracket for the J4 motor,structure,1,unknown,unknown,ST-M3,Stepperonline,37,
-"Machine screws and fasteners (39 sizes, #6 thread form and M1.6 to M8)",structure,311,unknown,unknown,,,13,Quantity is the sum of the 39 lines of the fastener table.
-"3D printed covers, spacers and mounts",structure,29,unknown,unknown,,,25-32,"Printed by the builder from Annin Robotics .stl files; PETG recommended. Quantity counts the named parts, not the printed cable stripper tool."
-"Braided sleeve, 1/4 inch (3 m) and 3/4 inch (1.65 m)",structure,2,unknown,unknown,,,16,
-PG-21 gland nut,structure,2,unknown,unknown,PG-21,,17,
-EMI shielding tape 2.5cm wide by 66cm long,structure,1,unknown,unknown,,,17,
-Teensy 4.1 microcontroller board (with pins),electronics,1,unknown,unknown,Teensy 4.1,,23,
-Terminal block breakout board module - Teensy 4.1,electronics,1,unknown,unknown,,,23,
-Continuous flex CAT5 or higher cable 26awg shielded (6.6 m),electronics,1,unknown,unknown,,,14,Has to be stranded flex wire.
-"20awg flexible silicone wire, black, red, blue and green (3.2 m each)",electronics,4,unknown,unknown,,,14,
-Standard CAT5 or higher cable (50 cm),electronics,1,unknown,unknown,,,15,Solid core is fine.
-Micro USB to USB-C cable 20cm long,electronics,1,unknown,unknown,,,18,
-USB-C 90 degree keystone jack,electronics,1,unknown,unknown,,,18,
-Dupont 2.54 mm female 3 pin connector lead,electronics,5,unknown,unknown,,,20,
-PBS-110 push button switch,electronics,1,unknown,unknown,PBS-110,,22,
-40mm 24vdc brushless cooling fan,electronics,1,unknown,unknown,,,22,
-DM332T digital stepper driver,power,3,unknown,unknown,DM332T,Stepperonline,36,For axes 1 to 3.
-DM320T digital stepper driver,power,3,unknown,unknown,DM320T,Stepperonline,36,For axes 4 to 6.
-5.5mm DC power jack socket,power,1,unknown,unknown,,,21,
-KCD1 SPST rocker switch,power,1,unknown,unknown,KCD1,,21,
-2x12 power distribution terminal block,power,1,unknown,unknown,,,24,The PDF gives no quantity; one is pictured.
-20awg 2 conductor black and red wire (37 cm),power,1,unknown,unknown,,,15,
-3144 Hall effect sensor 3.3v,sensors,3,unknown,unknown,3144,,19,
-10T85 limit switch,sensors,3,unknown,unknown,10T85,,19,
-4mm x 4mm round magnet,sensors,3,unknown,unknown,,,20,Used with the Hall effect sensors.
+part,category,qty,unit_cost_usd,origin,part_number,supplier,source_page,availability,lead_time_days,hts_code,supply_risk,notes
+J1 gear head motor,actuation,1,58.00,CN,17HS15-1684D-EG10-AR4,Stepperonline,33,in_stock,,8501.31.40,,Illustrative demo values except: supplier from the PDF.
+J2 gear head motor,actuation,1,152.52,CN,23HS22-2804D-YGS50-AR4,Stepperonline,33,in_stock,,8501.31.40,,"Shoulder joint. The PDF says to check that the motor to gearbox coupler is tight. Illustrative demo values except: unit cost, origin and stock from the research in data/projects/ar4_club.json; supplier from the PDF."
+J3 gear head motor,actuation,1,62.00,CN,17HS15-1684D-EG50-AR4,Stepperonline,34,in_stock,,8501.31.40,,Illustrative demo values except: supplier from the PDF.
+J4 gear head motor,actuation,1,71.00,CN,11HS20-0674D-EGS16-AR4,Stepperonline,34,lead_time,14,8501.31.40,,Illustrative demo values except: supplier from the PDF.
+J5 linear drive motor,actuation,1,49.00,CN,17LS19-1684E-200G-AR4,Stepperonline,35,lead_time,45,8501.31.40,,Lead screw comes with a POM nut that is removed before assembly. Illustrative demo values except: supplier from the PDF.
+J6 gear head motor,actuation,1,66.00,CN,14HS11-1004D-EGS20-AR4,Stepperonline,35,in_stock,,8501.31.40,,Illustrative demo values except: supplier from the PDF.
+32009 taper roller bearing (45x75x20mm),transmission,2,12.00,CN,32009,Annin Robotics,8,in_stock,,,,Illustrative demo values.
+30206 taper roller bearing (30x62x17.25mm),transmission,2,8.00,CN,30206,Annin Robotics,8,in_stock,,,,Illustrative demo values.
+30204 taper roller bearing (20x47x15.25mm),transmission,1,6.00,CN,30204,Annin Robotics,8,in_stock,,,,Illustrative demo values.
+AXK3552/AS3552 thrust bearing with washers (35x52x4mm),transmission,1,4.00,CN,AXK3552/AS3552,Annin Robotics,8,in_stock,,,,Illustrative demo values.
+NTA1625 thrust bearing (1.00x1.5625x0.0781 inch),transmission,3,5.00,US,NTA1625,Annin Robotics,8,in_stock,,,,Illustrative demo values.
+TRA1625 thrust washers (1.000x1.5625x0.0312 inch),transmission,4,2.00,US,TRA1625,Annin Robotics,8,in_stock,,,,Illustrative demo values.
+TRD1625 thrust washers (1.000x1.5625x0.125 inch),transmission,2,4.00,US,TRD1625,Annin Robotics,9,in_stock,,,,Illustrative demo values.
+B1616 needle roller bearing (1x1-1/4x1 inch),transmission,2,7.00,US,B1616,Annin Robotics,9,in_stock,,,,Illustrative demo values.
+HK1612 needle roller bearing (16x22x12mm),transmission,1,3.00,CN,HK1612,Annin Robotics,9,in_stock,,,,Illustrative demo values.
+688Z groove ball bearing (8x16x5mm),transmission,1,2.00,CN,688Z,Annin Robotics,9,in_stock,,,,Illustrative demo values.
+30203 taper roller bearing (17x40x13.25mm),transmission,1,5.00,CN,30203,Annin Robotics,10,in_stock,,,,Illustrative demo values.
+3mm x 85mm shaft,transmission,2,2.00,CN,,Annin Robotics,9,in_stock,,,,Typically sold in 100 mm lengths and cut down to 85 mm. Illustrative demo values.
+3mm ID x 7mm OD x 20mm long brass bushing,transmission,2,1.50,CN,,Annin Robotics,9,in_stock,,,,Illustrative demo values.
+60T XL pulley,transmission,1,14.00,CN,,Annin Robotics,10,lead_time,21,,,"If self-sourced: Amazon or Servo City, black phenolic; a 3D print file also exists. Illustrative demo values."
+HTD 550-5M belt,transmission,1,9.00,US,HTD 550-5M,Annin Robotics,10,in_stock,,,,Illustrative demo values.
+180XL037 belt,transmission,1,5.00,US,180XL037,Annin Robotics,10,in_stock,,,,Illustrative demo values.
+150XL037 belt,transmission,1,4.50,US,150XL037,Annin Robotics,10,in_stock,,,,Illustrative demo values.
+84XL037 belt,transmission,1,4.00,US,84XL037,Annin Robotics,10,in_stock,,,,Illustrative demo values.
+HTD-20 pulleys (long and short),transmission,2,9.00,CN,,Annin Robotics,11,in_stock,,,,Illustrative demo values.
+XL 15 tooth 8mm bore pulley,transmission,2,6.00,CN,,Annin Robotics,11,in_stock,,,,One needs a 3 mm key broach; the Annin Robotics hardware kit includes a broached pulley. Illustrative demo values.
+XL 10 tooth 6mm bore pulley,transmission,1,5.00,CN,,Annin Robotics,11,in_stock,,,,Illustrative demo values.
+8mm keyed rotary shaft (50mm long) with 2mm x 2mm keystock (50mm long),transmission,1,7.00,US,,Annin Robotics,11,in_stock,,,,One shaft and one length of keystock. Illustrative demo values.
+"J1 machined aluminum parts (base plate, turret housing, spindle, platform)",structure,4,24.00,US,,Annin Robotics,1,in_stock,,,,Illustrative demo values.
+"J2 machined aluminum parts (turret housing, arm, drive spindle, tension ring, motor support)",structure,5,26.00,US,,Annin Robotics,2-3,in_stock,,,,Illustrative demo values.
+J1 & J3 motor mounts,structure,2,9.00,US,,Annin Robotics,3,in_stock,,,,Illustrative demo values.
+"J3 machined aluminum parts (bearing cup, spindle, spindle retainer)",structure,3,15.00,US,,Annin Robotics,3-4,in_stock,,,,Illustrative demo values.
+"J4 machined aluminum parts (turret housing, main shaft, motor mount)",structure,3,18.00,US,,Annin Robotics,4-5,in_stock,,,,"For a 3D printed build the main shaft is cut from 1 inch OD, 0.035 inch wall aluminum tube, McMaster-Carr 1968T17 (page 12). Illustrative demo values."
+"J5 machined aluminum parts (motor mount, belt carrier, housing, belt carrier clamp, idler tension block, bearing post)",structure,6,14.00,US,,Annin Robotics,4-6,in_stock,,,,Illustrative demo values.
+"J6 machined aluminum parts (housing, main bearing arm, gripper mount, bearing cap)",structure,4,17.00,US,,Annin Robotics,6-7,in_stock,,,,Illustrative demo values.
+Nema 11 bracket for the J4 motor,structure,1,1.96,CN,ST-M3,Stepperonline,37,in_stock,,,,Illustrative demo values except: unit cost from the PDF; supplier from the PDF.
+"Machine screws and fasteners (39 sizes, #6 thread form and M1.6 to M8)",structure,311,0.06,TW,,Annin Robotics,13,in_stock,,,,Quantity is the sum of the 39 lines of the fastener table. Illustrative demo values.
+"3D printed covers, spacers and mounts",structure,29,1.20,CA,,Northfield Robotics,25-32,in_stock,,,,"Printed by the builder from Annin Robotics .stl files; PETG recommended. Quantity counts the named parts, not the printed cable stripper tool. Illustrative demo values."
+"Braided sleeve, 1/4 inch (3 m) and 3/4 inch (1.65 m)",structure,2,4.00,CN,,Annin Robotics,16,in_stock,,,,Illustrative demo values.
+PG-21 gland nut,structure,2,1.50,CN,PG-21,Annin Robotics,17,in_stock,,,,Illustrative demo values.
+EMI shielding tape 2.5cm wide by 66cm long,structure,1,6.00,US,,Annin Robotics,17,in_stock,,,,Illustrative demo values.
+Teensy 4.1 microcontroller board (with pins),electronics,1,36.00,US,Teensy 4.1,PJRC,23,in_stock,,,,Illustrative demo values.
+Terminal block breakout board module - Teensy 4.1,electronics,1,14.00,CN,,Annin Robotics,23,in_stock,,,,Illustrative demo values.
+Continuous flex CAT5 or higher cable 26awg shielded (6.6 m),electronics,1,22.00,DE,,Annin Robotics,14,lead_time,21,,,Has to be stranded flex wire. Illustrative demo values.
+"20awg flexible silicone wire, black, red, blue and green (3.2 m each)",electronics,4,3.00,CN,,Annin Robotics,14,in_stock,,,,Illustrative demo values.
+Standard CAT5 or higher cable (50 cm),electronics,1,2.00,CN,,Annin Robotics,15,in_stock,,,,Solid core is fine. Illustrative demo values.
+Micro USB to USB-C cable 20cm long,electronics,1,6.00,CN,,Annin Robotics,18,in_stock,,,,Illustrative demo values.
+USB-C 90 degree keystone jack,electronics,1,4.00,CN,,Annin Robotics,18,in_stock,,,,Illustrative demo values.
+Dupont 2.54 mm female 3 pin connector lead,electronics,5,0.50,CN,,Annin Robotics,20,in_stock,,,,Illustrative demo values.
+PBS-110 push button switch,electronics,1,1.50,CN,PBS-110,Annin Robotics,22,in_stock,,,,Illustrative demo values.
+40mm 24vdc brushless cooling fan,electronics,1,5.00,CN,,Annin Robotics,22,in_stock,,,,Illustrative demo values.
+DM332T digital stepper driver,power,3,21.00,CN,DM332T,Stepperonline,36,in_stock,,,,For axes 1 to 3. Illustrative demo values except: supplier from the PDF.
+DM320T digital stepper driver,power,3,19.00,CN,DM320T,Stepperonline,36,in_stock,,,,For axes 4 to 6. Illustrative demo values except: supplier from the PDF.
+5.5mm DC power jack socket,power,1,1.50,CN,,Annin Robotics,21,in_stock,,,,Illustrative demo values.
+KCD1 SPST rocker switch,power,1,1.00,CN,KCD1,Annin Robotics,21,in_stock,,,,Illustrative demo values.
+2x12 power distribution terminal block,power,1,8.00,CN,,Annin Robotics,24,in_stock,,,,The PDF gives no quantity; one is pictured. Illustrative demo values.
+20awg 2 conductor black and red wire (37 cm),power,1,2.00,CN,,Annin Robotics,15,in_stock,,,,Illustrative demo values.
+3144 Hall effect sensor 3.3v,sensors,3,1.20,CN,3144,Annin Robotics,19,in_stock,,,,Illustrative demo values.
+10T85 limit switch,sensors,3,0.80,CN,10T85,Annin Robotics,19,in_stock,,,,Illustrative demo values.
+4mm x 4mm round magnet,sensors,3,0.30,CN,,Annin Robotics,20,in_stock,,,ndfeb_magnets,Used with the Hall effect sensors. Illustrative demo values.
