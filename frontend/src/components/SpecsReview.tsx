@@ -1,12 +1,13 @@
+import { specAccuracy } from '../accuracy'
 import { parseSpec } from '../onboarding/answers'
 import type { Source, SpecRow } from '../onboarding/intake'
 
 const SOURCE_LABEL: Record<Source, string> = {
-  answer: 'from your answer',
-  bom: 'from BOM',
-  cad: 'from CAD',
-  default: 'default',
-  edited: 'edited',
+  answer: 'Your words',
+  bom: 'BOM',
+  cad: 'CAD',
+  default: 'Default',
+  edited: 'Edited',
 }
 
 interface Props {
@@ -16,14 +17,28 @@ interface Props {
   onDraft: (field: string, text: string) => void
 }
 
-/** Every number the job will use, grouped, with where it came from. Rendered from the rows the
- * backend sends, so a new robot kind needs no change here. */
+/** Every number the job will use, grouped, with where it came from on the green/yellow/red scale.
+ * Rendered from the rows the backend sends, so a new robot kind needs no change here. */
 export function SpecsReview({ rows, drafts, onDraft }: Props) {
   const groups = [...new Set(rows.map((r) => r.group))]
   return (
-    <div className="ob-specs">
+    <>
+      <div className="legend">
+        <span>
+          <span className="dot hi" />
+          Your words / files
+        </span>
+        <span>
+          <span className="dot mid" />
+          Estimate
+        </span>
+        <span>
+          <span className="dot lo" />
+          Default
+        </span>
+      </div>
       {groups.map((group) => (
-        <table key={group}>
+        <table key={group} className="specs">
           <caption>{group}</caption>
           <tbody>
             {rows
@@ -33,30 +48,29 @@ export function SpecsReview({ rows, drafts, onDraft }: Props) {
                 const parsed = parseSpec(text, r)
                 const source: Source = parsed.ok && parsed.value !== r.value ? 'edited' : r.source
                 const evidence = source === 'edited' ? null : r.evidence
+                const estimate = evidence?.startsWith('estimate') ?? false
                 return (
                   <tr key={r.field}>
                     <th scope="row">
                       <label htmlFor={`spec-${r.field}`}>{r.label}</label>
-                      {evidence && (
-                        <span className="muted ob-evidence">
-                          {r.source === 'answer' ? `“${evidence}”` : evidence}
-                        </span>
-                      )}
+                      {evidence && <span className="ev">{r.source === 'answer' ? `“${evidence}”` : evidence}</span>}
                     </th>
-                    <td className="ob-spec-value">
+                    <td className="val">
                       <input
                         id={`spec-${r.field}`}
-                        className="ob-input"
                         inputMode="decimal"
                         value={text}
                         aria-invalid={!parsed.ok}
                         title={parsed.ok ? undefined : `${r.label} ${parsed.error}`}
                         onChange={(e) => onDraft(r.field, e.target.value)}
                       />
-                      <span className="muted">{r.unit}</span>
+                      <span className="u">{r.unit}</span>
                     </td>
                     <td>
-                      <span className={`badge source-${source}`}>{SOURCE_LABEL[source]}</span>
+                      <span className="src">
+                        <span className={`dot ${specAccuracy(source, evidence)}`} />
+                        {estimate ? 'Estimate' : SOURCE_LABEL[source]}
+                      </span>
                     </td>
                   </tr>
                 )
@@ -64,6 +78,6 @@ export function SpecsReview({ rows, drafts, onDraft }: Props) {
           </tbody>
         </table>
       ))}
-    </div>
+    </>
   )
 }

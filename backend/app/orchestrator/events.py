@@ -135,6 +135,7 @@ class ProjectView(BaseModel):
     use_case: str
     robot_kind: Literal["wheeled", "arm"]
     robot_params: dict[str, Any]
+    cad_robot: Literal["wheeled", "ar4", "stretch"] = "wheeled"
     deep_line: str
     bom: list[BomLine]
     facts: ProjectFacts

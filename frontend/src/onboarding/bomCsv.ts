@@ -42,9 +42,67 @@ export function splitCsv(text: string): string[][] {
   return lines
 }
 
+// Mirrors classify() in backend/app/intake/to_project.py, which picks the line the agents
+// source. Change both together.
+const RULES: [string[], string, boolean][] = [
+  [['driver', 'inverter'], 'power', false],
+  [['encoder'], 'sensing', false],
+  [['lidar'], 'sensing', false],
+  [['camera', 'sensor', 'imu'], 'sensing', false],
+  [['battery'], 'power', false],
+  [['harmonic', 'strain wave', 'strain-wave'], 'actuation', false],
+  [['motor', 'servo', 'stepper', 'actuator'], 'actuation', true],
+  [['gearbox'], 'actuation', false],
+  [['computer', 'compute', 'sbc'], 'compute', false],
+  [['controller', 'mcu', 'microcontroller'], 'compute', false],
+  [['frame', 'bracket', 'plate', 'chassis', 'wheel', 'enclosure', 'fastener'], 'structure', false],
+]
+const SUBSYSTEMS = new Map([
+  ['actuation', 'actuation'],
+  ['transmission', 'actuation'],
+  ['structure', 'structure'],
+  ['power', 'power'],
+  ['sensors', 'sensing'],
+])
+
+/** True when the backend reads this line as a motor: the first keyword rule that matches
+ * "<category> <part>" is the motor rule, and a subsystem category does not name another domain. */
+export function isMotorLine(row: Pick<BomRow, 'part' | 'category'>): boolean {
+  const text = `${row.category} ${row.part}`.toLowerCase()
+  const stated = SUBSYSTEMS.get(row.category.trim().toLowerCase())
+  const rule = RULES.find(([words, domain]) => words.some((w) => text.includes(w)) && (stated ?? domain) === domain)
+  return rule?.[2] ?? false
+}
+
 export interface BomParse {
   rows: BomRow[]
   errors: string[]
+  /** Which welcome-screen rules the file broke (see bomCriteria). */
+  failed: CriterionId[]
+  /** True when some line is a motor (see isMotorLine), the part the agents look for. */
+  hasMotor: boolean
+}
+
+export type CriterionId = 'csv' | 'columns' | 'lines' | 'cost' | 'origin' | 'motor'
+export type CriterionStatus = 'pass' | 'fail' | 'pending'
+export const CRITERIA: readonly CriterionId[] = ['csv', 'columns', 'lines', 'cost', 'origin', 'motor']
+
+/**
+ * The welcome checklist for one uploaded file. `parse` null = nothing uploaded yet (all pending).
+ * When the header or the whole file is unusable, the per-line rules stay pending: they were
+ * never checked.
+ */
+export function bomCriteria(fileName: string | null, parse: BomParse | null): Record<CriterionId, CriterionStatus> {
+  const out = Object.fromEntries(CRITERIA.map((c) => [c, 'pending'])) as Record<CriterionId, CriterionStatus>
+  if (fileName === null || parse === null) return out
+  const fail = (c: CriterionId) => parse.failed.includes(c)
+  out.csv = /\.csv$/i.test(fileName) && !fail('csv') ? 'pass' : 'fail'
+  if (fail('csv')) return out
+  out.columns = fail('columns') ? 'fail' : 'pass'
+  if (fail('columns')) return out
+  for (const c of ['lines', 'cost', 'origin'] as const) out[c] = fail(c) ? 'fail' : 'pass'
+  out.motor = parse.hasMotor ? 'pass' : 'fail'
+  return out
 }
 
 /**
@@ -56,41 +114,49 @@ export interface BomParse {
  */
 export function parseBomCsv(text: string): BomParse {
   const lines = splitCsv(text)
-  if (lines.length === 0) return { rows: [], errors: ['The file is empty.'] }
+  if (lines.length === 0) return { rows: [], errors: ['The file is empty.'], failed: ['csv'], hasMotor: false }
 
   const header = lines[0].map((h) => h.trim().toLowerCase())
   const missing = BOM_COLUMNS.filter((c) => !header.includes(c))
   if (missing.length > 0) {
-    return { rows: [], errors: [`line 1: missing column${missing.length > 1 ? 's' : ''} ${missing.join(', ')}`] }
+    return {
+      rows: [],
+      errors: [`line 1: missing column${missing.length > 1 ? 's' : ''} ${missing.join(', ')}`],
+      failed: ['columns'],
+      hasMotor: false,
+    }
   }
   const col = (name: string) => header.indexOf(name)
 
   const rows: BomRow[] = []
   const errors: string[] = []
+  const failed = new Set<CriterionId>()
+  const bad = (c: CriterionId, text: string) => {
+    failed.add(c)
+    errors.push(text)
+  }
   lines.slice(1).forEach((cells, i) => {
     const n = i + 2
     if (cells.every((c) => c.trim() === '')) return
     const get = (name: string) => (cells[col(name)] ?? '').trim()
 
     const part = get('part')
-    if (!part) errors.push(`line ${n}: part is empty`)
+    if (!part) bad('lines', `line ${n}: part is empty`)
     const category = get('category')
-    if (!category) errors.push(`line ${n}: category is empty`)
+    if (!category) bad('lines', `line ${n}: category is empty`)
 
     const qty = get('qty')
-    if (!/^[1-9]\d*$/.test(qty)) errors.push(`line ${n}: qty is not a whole number above 0`)
+    if (!/^[1-9]\d*$/.test(qty)) bad('lines', `line ${n}: qty is not a whole number above 0`)
 
     const rawCost = get('unit_cost_usd').replace(/^\$/, '').replaceAll(',', '')
     const cost = rawCost === '' || rawCost.toLowerCase() === 'unknown' ? null : rawCost
-    if (cost !== null && !/^\d+(\.\d+)?$/.test(cost)) {
-      errors.push(`line ${n}: unit_cost_usd is not a number or "unknown"`)
-    }
+    if (cost !== null && !/^\d+(\.\d+)?$/.test(cost)) bad('cost', `line ${n}: unit_cost_usd is not a number or "unknown"`)
 
     const rawOrigin = get('origin')
     let origin = 'unknown'
     if (/^[A-Za-z]{2}$/.test(rawOrigin)) origin = rawOrigin.toUpperCase()
     else if (rawOrigin !== '' && rawOrigin.toLowerCase() !== 'unknown') {
-      errors.push(`line ${n}: origin must be a 2-letter country code or "unknown"`)
+      bad('origin', `line ${n}: origin must be a 2-letter country code or "unknown"`)
     }
 
     const risk = col(OPTIONAL_COLUMN) >= 0 ? get(OPTIONAL_COLUMN) : ''
@@ -108,8 +174,18 @@ export function parseBomCsv(text: string): BomParse {
       ...extras,
     })
   })
-  if (rows.length === 0 && errors.length === 0) errors.push('The file has a header but no parts.')
-  return errors.length > 0 ? { rows: [], errors } : { rows, errors }
+  if (rows.length === 0 && errors.length === 0) bad('lines', 'The file has a header but no parts.')
+  const hasMotor = rows.some(isMotorLine)
+  return { rows: errors.length > 0 ? [] : rows, errors, failed: [...failed], hasMotor }
+}
+
+/** What the parts cost per robot, saying how many lines have no price. */
+export function costPerRobot(rows: BomRow[]): string {
+  const priced = rows.filter((r) => r.unit_cost_usd !== null)
+  if (priced.length === 0) return 'no prices'
+  const total = priced.reduce((sum, r) => sum + r.qty * Number(r.unit_cost_usd), 0)
+  const unpriced = rows.length - priced.length
+  return `$${total.toFixed(0)} per robot${unpriced ? ` + ${unpriced} unpriced` : ''}`
 }
 
 const quote = (cell: string) => (/[",\r\n]/.test(cell) ? `"${cell.replaceAll('"', '""')}"` : cell)

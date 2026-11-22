@@ -241,3 +241,7 @@ cad/out/
 # Editors / OS
 .DS_Store
 .idea/
+
+# Built design prototypes (docs/design/ui-v5/build.py inlines the GLBs into these)
+docs/design/ui-v5/bombot.html
+docs/design/ui-v5/onboarding.html

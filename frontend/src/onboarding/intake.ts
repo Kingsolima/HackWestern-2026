@@ -1,5 +1,6 @@
 // Intake API (backend/app/api/intake.py): files and open answers in, specs review rows out.
 
+import type { CadRobot } from '../events'
 import type { BomRow } from '../types'
 import type { OpenAnswers } from './questions'
 
@@ -46,7 +47,7 @@ export interface CadMeasure {
  * arm's joint numbers, and the drivetrain question does not apply. */
 export interface KnownArm {
   robot: string
-  cad_robot: string
+  cad_robot: CadRobot
   arm: {
     joint: string
     payload_kg: number

@@ -22,7 +22,7 @@ export function ClaimsList({ claims }: { claims: ClaimRow[] }) {
             {claims.map(({ claim, verified, reason }) => (
               <tr key={claim.id} className={verified ? '' : 'rejected'}>
                 <td title={verified ? `verified (${claim.verify_method})` : (reason ?? 'rejected')}>
-                  {verified ? '✅' : '❌'}
+                  <span className={`dot ${verified ? 'hi' : 'lo'}`} />
                 </td>
                 <td>{claim.field.replaceAll('_', ' ')}</td>
                 <td>
@@ -30,7 +30,7 @@ export function ClaimsList({ claims }: { claims: ClaimRow[] }) {
                 </td>
                 <td>
                   <q>{claim.quote}</q>
-                  {!verified && reason ? <div className="error">{reason}</div> : null}
+                  {!verified && reason ? <div className="err">{reason}</div> : null}
                 </td>
                 <td>
                   <a href={claim.source.url} target="_blank" rel="noreferrer">

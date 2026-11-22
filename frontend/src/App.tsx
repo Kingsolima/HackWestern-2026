@@ -1,35 +1,25 @@
 import { useEffect, useState } from 'react'
 import { api } from './api'
-import { AgentTiles } from './components/AgentTiles'
-import { BeforeAfterViewer } from './components/BeforeAfterViewer'
-import { ChecksTable } from './components/ChecksTable'
-import { ClaimsList } from './components/ClaimsList'
-import { CompanyCard } from './components/CompanyCard'
-import { ComplianceCard } from './components/ComplianceCard'
-import { JobBar } from './components/JobBar'
-import { ModelViewer } from './components/ModelViewer'
-import { Onboarding } from './components/Onboarding'
-import { ProjectCard } from './components/ProjectCard'
-import type { ProjectId } from './projects'
-import { genericModelNotes } from './modelNotes'
-import { Recommendations } from './components/Recommendations'
-import { RiskTable } from './components/RiskTable'
-import { useJob, type CreateJobOptions } from './job'
+import { AgentBays } from './components/AgentBays'
+import { Brief } from './components/Brief'
+import { CadViewer } from './components/CadViewer'
+import { JobConsole } from './components/JobConsole'
+import { Onboarding, type Progress } from './components/Onboarding'
+import { Welcome } from './components/Welcome'
+import { STAGE_ORDER, stageLabel } from './events'
+import { isTerminal, useJob, type CreateJobOptions } from './job'
 import { askLiveToken } from './liveToken'
-import {
-  loadSaved,
-  matchesDemo,
-  needsLiveAgents,
-  saveOnboarded,
-  toRobot,
-  type Onboarded,
-} from './onboarding/answers'
-import type { OpenAnswers } from './onboarding/questions'
-import type { ComplianceCard as Card, Robot } from './types'
+import { genericModelNotes } from './modelNotes'
+import type { PartLine } from './modelParts'
+import { loadSaved, matchesDemo, needsLiveAgents, saveOnboarded, toRobot, type Onboarded } from './onboarding/answers'
+import type { CadMeasure } from './onboarding/intake'
+import { STEP_LABEL, stepsFor, type OpenAnswers } from './onboarding/questions'
+import { PROJECTS, PROJECT_ROBOT, cadUrl, starterModel, type ProjectId } from './projects'
+import type { BomRow, ComplianceCard as Card, Robot } from './types'
 
 // ?live=1 shows a "Run live" button. The token is asked once per tab and kept in sessionStorage.
-const params = new URLSearchParams(window.location.search)
-const LIVE_ENABLED = params.get('live') === '1'
+const LIVE_ENABLED = new URLSearchParams(window.location.search).get('live') === '1'
+const pad2 = (n: number) => String(n).padStart(2, '0')
 
 /** Start a job that makes real calls ('mixed' replays what is recorded and runs the rest). */
 async function startWithToken(
@@ -41,142 +31,253 @@ async function startWithToken(
   if (token) start(mode, { ...opts, liveToken: token })
 }
 
-/** What the robot panel shows before a job: the CAD worker's starter design for the project. */
-function starterRobot(project: ProjectId) {
-  if (project === 'ar4_club')
-    return { src: '/cad/designs/starter_ar4/glb', title: 'Robot: AR4 arm, NEMA 23 J2 motor' }
-  if (project === 'stretch')
-    return { src: '/cad/designs/starter_stretch/glb', title: 'Robot: Stretch, NEMA 34 shoulder motor' }
-  return { src: '/cad/designs/starter/glb', title: 'Robot: NEMA 23 stepper baseline' }
+function Clock() {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(t)
+  }, [])
+  return <span className="label">{now.toLocaleTimeString('en-CA', { hour12: false })}</span>
 }
 
+/** Console content: the onboarding questions, a demo project waiting to launch, or the job. */
+type Mode = 'onboarding' | 'ready' | 'job'
+type ModelStatus = { parts: number; size_mm: [number, number, number] } | 'error' | null
+
 export default function App() {
-  const [health, setHealth] = useState<string>('checking…')
-  const [baselineCard, setBaselineCard] = useState<Card | null>(null)
-  const { state: job, start } = useJob()
-  const [project, setProject] = useState<ProjectId>('')
-  const projectId = project || undefined
-  // Onboarding: the demo robot gives the defaults; `saved` is what the user confirmed before
-  // (onboarded: null = they skipped to the demo robot).
+  const [health, setHealth] = useState<'checking' | 'ok' | 'down'>('checking')
   const [demo, setDemo] = useState<Robot | null>(null)
   const [example, setExample] = useState<OpenAnswers | null>(null)
-  const [saved, setSaved] = useState(loadSaved)
-  const [view, setView] = useState<'onboarding' | 'dashboard'>(saved ? 'dashboard' : 'onboarding')
-  const onboarded = saved?.onboarded ?? null
+  const [baselineCard, setBaselineCard] = useState<Card | null>(null)
+  const { state: job, start } = useJob()
+
+  const [onboarded, setOnboarded] = useState(() => loadSaved()?.onboarded ?? null)
+  const [welcome, setWelcome] = useState<'on' | 'leaving' | 'off'>(onboarded ? 'off' : 'on')
+  const [mode, setMode] = useState<Mode>('onboarding')
+  const [project, setProject] = useState<ProjectId | null>(null)
+  const [bom, setBom] = useState<BomRow[]>(onboarded?.bom ?? [])
+  const [cad, setCad] = useState<CadMeasure | null>(null)
+  const [progress, setProgress] = useState<Progress>({
+    steps: stepsFor(Boolean(onboarded?.arm)),
+    index: 0,
+    company: onboarded?.company ?? [],
+    arm: onboarded?.arm ?? null,
+  })
+  const [showAfter, setShowAfter] = useState(true)
+  const [model, setModel] = useState<ModelStatus>(null)
 
   useEffect(() => {
-    api.health().then((h) => setHealth(h.status), () => setHealth('backend unreachable'))
+    api.health().then(() => setHealth('ok'), () => setHealth('down'))
     api.robot().then(setDemo, console.error)
     api.example().then(setExample, console.error)
     api.compliance().then(setBaselineCard, console.error)
   }, [])
 
-  const jobOptions = (o: Onboarded | null): CreateJobOptions => ({
-    projectId,
-    robot: o && demo && !projectId ? toRobot(o, demo) : undefined,
-    company: o && demo && !projectId ? o.company : undefined,
-  })
+  const leaveWelcome = () => {
+    setWelcome('leaving')
+    setTimeout(() => setWelcome('off'), 900)
+  }
+
+  const jobOptions = (o: Onboarded | null): CreateJobOptions =>
+    project ? { projectId: project } : { robot: o && demo ? toRobot(o, demo) : undefined, company: o?.company }
   /** Replay when the recordings fit this robot; otherwise a mixed job, which needs the token. */
   const run = (o: Onboarded | null) => {
-    if (o && !projectId && needsLiveAgents(o.specs)) void startWithToken('mixed', start, jobOptions(o))
+    setMode('job')
+    setShowAfter(true)
+    if (o && !project && needsLiveAgents(o.specs)) void startWithToken('mixed', start, jobOptions(o))
     else start('replay', jobOptions(o))
   }
-  const finishOnboarding = (o: Onboarded | null) => {
-    saveOnboarded(o)
-    setSaved({ onboarded: o })
-    setView('dashboard')
-    if (o) run(o)
+  const restart = () => {
+    saveOnboarded(null)
+    window.location.reload()
   }
 
-  if (view === 'onboarding') {
-    return (
-      <main className="ob-page">
-        {demo ? (
-          <Onboarding
-            demo={demo}
-            example={example}
-            initial={onboarded}
-            onDone={finishOnboarding}
-            onSkip={() => finishOnboarding(null)}
-          />
-        ) : (
-          <p className="muted">
-            {health === 'backend unreachable' ? 'The backend is unreachable, so the questions cannot load.' : 'Loading…'}
-          </p>
-        )}
-      </main>
-    )
-  }
-
+  const launched = mode === 'job'
+  const done = isTerminal(job)
   const runs = job.runOrder.map((id) => job.runs[id])
-  // Project id the backend gives a project built from onboarding (backend/app/intake/to_project.py).
-  const onboardedJob = job.project?.id === 'onboarded'
+  const candidate = job.candidates[0]
+  const designs = job.baseline && candidate ? { before: job.baseline, after: candidate } : null
+  const shown = designs ? (showAfter ? designs.after : designs.before) : null
+  const starter = starterModel(
+    job.project?.cad_robot ?? (project ? PROJECT_ROBOT[project] : (progress.arm?.cad_robot ?? 'wheeled')),
+  )
+  const src = welcome === 'on' ? null : shown ? cadUrl(shown.glb_url) : starter.src
+  const deep = launched && job.stage !== null && job.stage !== 'CREATED'
+
+  const lines: PartLine[] = job.project
+    ? job.project.bom.map((l) => ({ part: l.part, category: l.domain, qty: l.qty, price: l.unit_price_usd, origin: l.origin_country }))
+    : bom.map((r) => ({ part: r.part, category: r.category, qty: r.qty, price: r.unit_cost_usd === null ? null : Number(r.unit_cost_usd), origin: r.origin }))
+  const modelNotes =
+    job.project?.id === 'onboarded' && job.project.robot_kind === 'wheeled' ? genericModelNotes(job.project) : []
   // The baseline compliance card comes from an endpoint that always uses the demo robot, so it
   // is only right when the user's robot gives the same numbers.
-  const demoPanels = !onboarded || (demo != null && matchesDemo(onboarded, demo))
+  const demoPanels = project === null && (!onboarded || (demo != null && matchesDemo(onboarded, demo)))
   const card = job.compliance ?? (demoPanels ? baselineCard : null)
 
+  const review = mode === 'onboarding' && progress.steps[progress.index] === 'review'
+  const w = window.innerWidth
+  const shift = launched ? (done ? Math.min(240, w * 0.15) : 0) : review ? Math.min(340, w * 0.22) : Math.min(150, w * 0.1)
+
+  const stageIndex = job.stage ? STAGE_ORDER.indexOf(job.stage) : -1
+  const timeline: [string, string][] = launched
+    ? STAGE_ORDER.map((s, i) => [stageLabel(s), done || i < stageIndex ? 'done' : i === stageIndex ? 'now' : ''])
+    : project
+      ? [
+          ['Project', 'done'],
+          ['Launch', 'now'],
+        ]
+      : [
+          ['BOM', 'done'],
+          ...progress.steps.map((s, i): [string, string] => [
+            STEP_LABEL[s],
+            i < progress.index ? 'done' : i === progress.index ? 'now' : '',
+          ]),
+          ['Launch', ''],
+        ]
+  const running = job.connection === 'starting' || job.connection === 'streaming'
+  const projectLabel = PROJECTS.find((p) => p.id === project)?.label
+
   return (
-    <main>
-      <header>
-        <h1>AI Robot Redesign Engine</h1>
-        <span className="muted">
-          API: {health} ·{' '}
-          <button type="button" className="ob-link" onClick={() => setView('onboarding')}>
-            {onboarded ? 'Edit answers' : 'Describe your robot'}
-          </button>
-        </span>
-      </header>
-      <JobBar
-        state={job}
-        onStart={() => run(onboarded)}
-        onStartLive={LIVE_ENABLED ? () => void startWithToken('live', start, jobOptions(onboarded)) : undefined}
-        project={project}
-        onProjectChange={setProject}
-      />
-      {onboarded && !job.project && <CompanyCard company={onboarded.company} />}
-      {job.project && <ProjectCard project={job.project} criteria={job.criteria} claims={job.claims} />}
-      {job.riskLines.length > 0 && <RiskTable rows={job.riskLines} alternatives={job.alternatives} />}
-      {job.recommendations.length > 0 && (
-        <Recommendations
-          recommendations={job.recommendations}
-          rows={job.riskLines}
-          alternatives={job.alternatives}
+    <>
+      <CadViewer src={src} deep={deep} build={designs !== null && showAfter} lines={lines} shift={shift} onStatus={setModel} />
+
+      {welcome !== 'off' && (
+        <Welcome
+          sample={demo?.bom ?? null}
+          leaving={welcome === 'leaving'}
+          onContinue={(rows, c) => {
+            setBom(rows)
+            setCad(c)
+            setProject(null)
+            setOnboarded(null)
+            setMode('onboarding')
+            leaveWelcome()
+          }}
+          onProject={(id) => {
+            setProject(id)
+            setMode('ready')
+            leaveWelcome()
+          }}
         />
       )}
-      {job.baseline && job.candidates[0] ? (
-        onboardedJob && job.project?.robot_kind === 'wheeled' ? (
-          <BeforeAfterViewer
-            before={job.baseline}
-            after={job.candidates[0]}
-            title="Redesign · generic wheeled model"
-            notes={genericModelNotes(job.project)}
-          />
-        ) : (
-          <BeforeAfterViewer before={job.baseline} after={job.candidates[0]} />
-        )
-      ) : onboarded?.arm && !projectId ? (
-        <ModelViewer
-          src={`/cad/designs/starter_${onboarded.arm.cad_robot}/glb`}
-          title={`${onboarded.arm.robot}: your redesign appears here after the BUILD step`}
-        />
-      ) : onboarded && !projectId ? (
-        <ModelViewer
-          src={starterRobot('').src}
-          title="Example robot: your redesign appears here after the BUILD step"
-        />
-      ) : (
-        <ModelViewer {...starterRobot(project)} />
-      )}
-      <div className="grid">
-        {(card || demoPanels) && <ComplianceCard card={card} />}
-        <AgentTiles runs={runs} />
+
+      <div className={`shell${welcome === 'on' ? '' : ' on'}${launched ? ' launched' : ''}`}>
+        <header className="topbar">
+          <div className="brand">BOMbot</div>
+          <ol className="timeline">
+            {timeline.map(([t, c], i) => (
+              <li key={t} className={c} title={t}>
+                <b>{pad2(i + 1)}</b>
+                <span>{t}</span>
+              </li>
+            ))}
+          </ol>
+          <div className="status">
+            <span className="label">
+              <span className={`dot ${health === 'ok' ? 'hi' : health === 'down' ? 'lo' : ''}`} />
+              {health === 'down' ? 'API offline' : 'API online'}
+            </span>
+            {job.mode && (
+              <span className="label">
+                <span className={`dot ${running ? 'acc blink' : ''}`} />
+                {job.mode}
+                {running ? ' / running' : ''}
+              </span>
+            )}
+            <Clock />
+            {launched && project === null && (
+              <button type="button" className="linkbtn" onClick={() => setMode('onboarding')} disabled={running}>
+                Edit answers
+              </button>
+            )}
+            <button type="button" className="linkbtn" onClick={restart}>
+              Restart
+            </button>
+          </div>
+        </header>
+
+        <div className="hud">
+          <div>
+            Model <b>{shown?.label ?? starter.title}</b>
+          </div>
+          {model === 'error' ? (
+            <div className="lo-text">Model unavailable: is the CAD worker running?</div>
+          ) : (
+            model && (
+              <div>
+                <b>{model.parts}</b> parts / {model.size_mm.join(' x ')} mm
+              </div>
+            )
+          )}
+          <div>Hover a part / drag to orbit</div>
+          {designs && (
+            <div className="toggle" role="radiogroup" aria-label="Before or after the redesign">
+              <button type="button" role="radio" aria-checked={!showAfter} className={showAfter ? '' : 'on'} onClick={() => setShowAfter(false)}>
+                Before
+              </button>
+              <button type="button" role="radio" aria-checked={showAfter} className={showAfter ? 'on' : ''} onClick={() => setShowAfter(true)}>
+                After
+              </button>
+            </div>
+          )}
+        </div>
+
+        <aside className={`console frame${review ? ' wide' : ''}${launched && done ? ' report-wide' : ''}`}>
+          {mode === 'job' ? (
+            <JobConsole
+              job={job}
+              onboarded={project ? null : onboarded}
+              card={card}
+              modelNotes={modelNotes}
+              onRunAgain={() => run(onboarded)}
+              onRunLive={LIVE_ENABLED ? () => void startWithToken('live', start, jobOptions(onboarded)) : undefined}
+            />
+          ) : mode === 'ready' ? (
+            <div className="q">
+              <div className="label">Demo project</div>
+              <h1>{projectLabel}</h1>
+              <p className="help">
+                A prepared project with its own parts list and facts. Agents replay recorded runs to find a better
+                source for its deep line, then the CAD worker regenerates the mount.
+              </p>
+              <div className="nav">
+                <button type="button" className="btn go" onClick={() => run(null)}>
+                  Find and Redesign
+                </button>
+                <button type="button" className="link" onClick={restart}>
+                  Back
+                </button>
+              </div>
+            </div>
+          ) : demo ? (
+            <Onboarding
+              key={onboarded ? 'edit' : 'new'}
+              demo={demo}
+              example={example}
+              bom={bom}
+              cad={cad}
+              initial={onboarded}
+              onProgress={setProgress}
+              onChangeBom={restart}
+              onDone={(o) => {
+                saveOnboarded(o)
+                setOnboarded(o)
+                run(o)
+              }}
+            />
+          ) : (
+            <p className="help">{health === 'down' ? 'The backend is unreachable, so the questions cannot load.' : 'Loading…'}</p>
+          )}
+        </aside>
+
+        {mode === 'onboarding' && bom.length > 0 && (
+          <aside className="dossier frame">
+            <Brief bom={bom} company={progress.company} />
+          </aside>
+        )}
+
+        <AgentBays runs={runs} />
       </div>
-      <ClaimsList claims={job.claims} />
-      {job.jobId && <ChecksTable checks={job.checks} candidates={job.candidates} />}
-      <footer className="muted">
-        Not legal advice. Pass* = passes the checks we implemented, not engineering certification.
-      </footer>
-    </main>
+    </>
   )
 }

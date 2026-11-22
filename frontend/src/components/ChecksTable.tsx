@@ -1,6 +1,6 @@
 import type { Design, SpecCheck } from '../events'
 
-const MARK: Record<SpecCheck['verdict'], string> = { pass: '✅', fail: '❌', review: '❔' }
+const MARK: Record<SpecCheck['verdict'], string> = { pass: 'hi', fail: 'lo', review: 'mid' }
 const num = (v: number | null) => (v === null ? '–' : Number(v.toPrecision(3)).toString())
 
 /** The job's engineering checks: one row per candidate motor, one column per check. Each cell is
@@ -43,7 +43,8 @@ export function ChecksTable({
                     const c = checks[id].find((x) => x.check === name)
                     return c ? (
                       <td key={name} title={c.note}>
-                        {MARK[c.verdict]} {num(c.value)} / {num(c.threshold)} {c.unit}
+                        <span className={`dot ${MARK[c.verdict]}`} />
+                        {num(c.value)} / {num(c.threshold)} {c.unit}
                       </td>
                     ) : (
                       <td key={name} className="muted">
