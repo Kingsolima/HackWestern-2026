@@ -196,6 +196,7 @@ def test_onboarded_ar4_job_scores_every_part_and_builds_the_ar4(client):
     assert events[-1]["data"]["stage"] == "DONE"
     project = next(e for e in events if e["type"] == "project")["data"]["project"]
     assert project["robot_kind"] == "arm" and project["robot_params"]["joint"] == "J2 shoulder"
+    assert project["cad_robot"] == "ar4"
     recs = [e["data"]["recommendation"] for e in events if e["type"] == "recommendation"]
     assert len(recs) == len(robot["bom"])
     # No origin on the other parts and a federal buyer: unknown is investigated, never kept.

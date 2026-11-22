@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
@@ -271,10 +272,14 @@ export function CadViewer({ src, deep, build, lines, shift, onStatus }: Props) {
   return (
     <div className="stage" ref={host}>
       {offline && <p className="stage-offline label">3D view unavailable: this browser has no WebGL</p>}
-      <div className="tip" ref={tip}>
-        <div className="t" />
-        <div className="s" />
-      </div>
+      {/* On body: the panels above the stage would otherwise cover the label. */}
+      {createPortal(
+        <div className="tip" ref={tip}>
+          <div className="t" />
+          <div className="s" />
+        </div>,
+        document.body,
+      )}
     </div>
   )
 }

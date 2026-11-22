@@ -29,14 +29,11 @@ function changes(before: Design, after: Design) {
     { label: 'Pilot hole', before: mm(b.bracket?.pilot_hole_mm), after: mm(a.bracket?.pilot_hole_mm) },
     { label: 'Bracket (w × h)', before: size(before), after: size(after) },
     { label: 'Bracket foot', before: mm(b.bracket?.foot_len_mm), after: mm(a.bracket?.foot_len_mm) },
-    {
-      label: 'Shaft / wheel bore',
-      before: `${mm(b.shaft_diameter_mm)} / ${mm(b.wheel_bore_mm)}`,
-      after: `${mm(a.shaft_diameter_mm)} / ${mm(a.wheel_bore_mm)}`,
-    },
+    { label: 'Motor shaft', before: mm(b.shaft_diameter_mm), after: mm(a.shaft_diameter_mm) },
+    { label: 'Wheel bore', before: mm(b.wheel_bore_mm), after: mm(a.wheel_bore_mm) },
     { label: 'Hub adapter', before: yesNo(b.needs_hub_adapter), after: yesNo(a.needs_hub_adapter) },
     { label: 'Ground clearance', before: mm(b.ground_clearance_mm), after: mm(a.ground_clearance_mm) },
-  ]
+  ].filter((r) => r.before !== '–' || r.after !== '–') // an arm's design has no wheel or bracket numbers
 }
 
 function DesignChanges({ before, after, notes }: { before: Design; after: Design; notes: string[] }) {

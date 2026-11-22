@@ -313,6 +313,7 @@ describe('v4 supply-risk events', () => {
           robot: 'AR4',
           use_case: 'teaching arm',
           robot_kind: 'arm',
+          cad_robot: 'ar4',
           robot_params: {},
           deep_line: 'j2_motor',
           bom: [],

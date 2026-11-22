@@ -14,7 +14,7 @@ import type { PartLine } from './modelParts'
 import { loadSaved, matchesDemo, needsLiveAgents, saveOnboarded, toRobot, type Onboarded } from './onboarding/answers'
 import type { CadMeasure, CompanyFact } from './onboarding/intake'
 import { STEPS, STEP_LABEL, type OpenAnswers } from './onboarding/questions'
-import { PROJECTS, cadUrl, starterModel, type ProjectId } from './projects'
+import { PROJECTS, PROJECT_ROBOT, cadUrl, starterModel, type ProjectId } from './projects'
 import type { BomRow, ComplianceCard as Card, Robot } from './types'
 
 // ?live=1 shows a "Run live" button. The token is asked once per tab and kept in sessionStorage.
@@ -99,7 +99,7 @@ export default function App() {
   const candidate = job.candidates[0]
   const designs = job.baseline && candidate ? { before: job.baseline, after: candidate } : null
   const shown = designs ? (showAfter ? designs.after : designs.before) : null
-  const starter = starterModel(project)
+  const starter = starterModel(job.project?.cad_robot ?? (project ? PROJECT_ROBOT[project] : 'wheeled'))
   const src = welcome === 'on' ? null : shown ? cadUrl(shown.glb_url) : starter.src
   const deep = launched && job.stage !== null && job.stage !== 'CREATED'
 
@@ -158,7 +158,7 @@ export default function App() {
           <div className="brand">BOMbot</div>
           <ol className="timeline">
             {timeline.map(([t, c], i) => (
-              <li key={t} className={c}>
+              <li key={t} className={c} title={t}>
                 <b>{pad2(i + 1)}</b>
                 <span>{t}</span>
               </li>
@@ -190,7 +190,7 @@ export default function App() {
 
         <div className="hud">
           <div>
-            Model <b>{shown?.label ?? (projectLabel ? starter.title : 'Generic wheeled model')}</b>
+            Model <b>{shown?.label ?? starter.title}</b>
           </div>
           {model === 'error' ? (
             <div className="lo-text">Model unavailable: is the CAD worker running?</div>

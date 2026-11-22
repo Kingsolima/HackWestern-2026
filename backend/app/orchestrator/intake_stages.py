@@ -101,6 +101,7 @@ async def criteria(ctx: JobContext, workers: Sequence[object]) -> None:
                 robot_params=(project.arm or project.wheeled).model_dump()
                 if (project.arm or project.wheeled)
                 else {},
+                cad_robot=project.cad_robot,
                 deep_line=project.deep_line,
                 bom=project.bom,
                 facts=facts,

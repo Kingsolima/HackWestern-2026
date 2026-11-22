@@ -43,6 +43,7 @@ export const STAGE_ORDER: readonly Stage[] = [
 export const stageLabel = (s: Stage) => (s === 'COMPLIANCE_BASELINE' ? 'Baseline' : s)
 
 export type JobMode = 'live' | 'replay' | 'mixed'
+export type CadRobot = 'wheeled' | 'ar4' | 'stretch'
 export type Product = 'search' | 'fetch' | 'agent' | 'browser' | 'monitor' | 'gemini'
 export type Outcome =
   | 'success'
@@ -195,6 +196,8 @@ export interface Project {
   use_case: string
   robot_kind: 'wheeled' | 'arm'
   robot_params: Record<string, unknown>
+  /** The robot model the CAD worker draws for this project. */
+  cad_robot: CadRobot
   deep_line: string
   bom: BomLine[]
   facts: ProjectFacts

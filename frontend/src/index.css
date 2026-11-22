@@ -414,6 +414,12 @@ code {
     display: none;
   }
 }
+/* a job's eleven stages only fit with every label on a very wide screen */
+@media (max-width: 1919px) {
+  .launched .timeline li:not(.now) span {
+    display: none;
+  }
+}
 .status {
   display: flex;
   gap: 16px;
@@ -496,6 +502,7 @@ code {
 }
 .launched .console.report-wide {
   width: min(780px, calc(100vw - 440px));
+  max-height: calc(100vh - 210px);
 }
 .q {
   display: flex;
