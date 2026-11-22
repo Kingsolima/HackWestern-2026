@@ -73,6 +73,9 @@ export function BeforeAfterViewer({ before, after }: { before: Design; after: De
           camera-controls
           camera-orbit={START_ORBIT}
           interaction-prompt="none"
+          // Both layers are transparent: clip each to its own side so neither robot shows
+          // through the other (and each side only takes its own pointer input).
+          style={{ clipPath: `inset(0 ${100 - split}% 0 0)` }}
         />
         <model-viewer
           ref={setAfterEl}
