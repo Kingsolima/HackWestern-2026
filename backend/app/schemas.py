@@ -362,6 +362,9 @@ class BomLine(BaseModel):
     availability: Availability = "unknown"
     lead_time_days: int | None = None
     hts_code: str | None = None
+    component_class: str | None = Field(
+        default=None, description="Key in data/research/article_map.yaml (bottleneck level)"
+    )
     illustrative: bool = False
     sources: list[str] = Field(default_factory=list, description="URLs behind price and origin")
     notes: str | None = None
@@ -377,6 +380,7 @@ class Project(BaseModel):
     arm: ArmParams | None = None
     wheeled: RobotRequirements | None = None
     deep_line: str = Field(description="BomLine id the agents work on")
+    deep_frame: NemaFrameName = Field(default="23", description="NEMA frame the agents search")
     bom: list[BomLine]
     intake_sources: list[IntakeSource] = Field(default_factory=list)
     stated: ProjectFacts = Field(default_factory=ProjectFacts, description="Team-stated facts")

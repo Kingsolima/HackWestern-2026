@@ -211,7 +211,8 @@ class SwapWorker:
     ) -> tuple[Outcome, AgentRunResult, bool]:
         domain = urlparse(target.url).hostname or target.url
         req = requirement_for(ctx.robot, ctx.project)
-        goal = target.goal_for(req.t_cont_nm, req.t_peak_nm, req.v_bus)
+        frame = ctx.project.deep_frame if ctx.project else "23"
+        goal = target.goal_for(req.t_cont_nm, req.t_peak_nm, req.v_bus, frame)
         events: list[AgentEvent] = []
         async with ctx.fleet.slot("agent", ctx.budget, domain):
             async for event in ctx.tf.agent_run(

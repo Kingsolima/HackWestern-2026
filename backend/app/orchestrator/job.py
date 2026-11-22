@@ -33,6 +33,7 @@ from app.orchestrator.events import (
     StagePayload,
 )
 from app.orchestrator.intake_stages import criteria, intake
+from app.orchestrator.risk_stages import alternatives, recommend_lines, risk_baseline
 from app.orchestrator.workers import Worker
 from app.schemas import BoardEntry, Claim
 
@@ -40,6 +41,7 @@ PIPELINE: tuple[Stage, ...] = (
     "INTAKE",
     "CRITERIA",
     "COMPLIANCE_BASELINE",
+    "RISK_BASELINE",
     "PLAN",
     "DISCOVER",
     "TRIAGE",
@@ -47,6 +49,8 @@ PIPELINE: tuple[Stage, ...] = (
     "VERIFY",
     "CHECK",
     "RANK",
+    "ALTERNATIVES",
+    "RECOMMEND",
     "BUILD",
     "REPORT",
 )
@@ -59,7 +63,7 @@ async def compliance_baseline(ctx: JobContext, workers: Sequence[Worker]) -> Non
 
 
 async def plan(ctx: JobContext, workers: Sequence[Worker]) -> None:
-    ctx.queries = plan_queries()
+    ctx.queries = plan_queries(ctx.project)
 
 
 async def discover_leads(ctx: JobContext, workers: Sequence[Worker]) -> None:
@@ -191,12 +195,13 @@ async def check(ctx: JobContext, workers: Sequence[Worker]) -> None:
                 body_len_mm=facts["body_length"][0] if "body_length" in facts else None,
                 shaft_d_mm=facts["shaft_diameter"][0] if "shaft_diameter" in facts else None,
                 highlight=True,
+                robot=cad_robot(ctx),
             )
         except CadError as exc:
             await ctx.log.emit(ErrorPayload(message=str(exc), stage="CHECK"))
             build = None
         fit = build.fit if build else None
-        checks = check_candidate(candidate, req, fit)
+        checks = check_candidate(candidate, req, fit, generic_fit=cad_robot(ctx) != "wheeled")
         for row in checks:
             await ctx.log.emit(CheckResultPayload(check=row))
         overall = verdict(checks)
@@ -206,7 +211,7 @@ async def check(ctx: JobContext, workers: Sequence[Worker]) -> None:
                 candidate=candidate,
                 checks=checks,
                 verdict=overall,
-                fit_badge=fit_badge(overall, candidate.nema_frame, BASELINE_FRAME, fit),
+                fit_badge=fit_badge(overall, candidate.nema_frame, baseline_frame(ctx), fit),
                 price_usd=facts["price"][0] if "price" in facts else None,
                 build=build,
             )
@@ -236,25 +241,47 @@ BASELINE_LABEL = "Before: NEMA 23 stepper"
 BASELINE_MOTOR = "NEMA 23 stepper (baseline)"
 
 
+def cad_robot(ctx: JobContext) -> str:
+    """The CAD worker's robot model: the project id for v4 arm projects, else the v3 wheeled one."""
+    return ctx.project.id if ctx.project and ctx.project.robot_kind == "arm" else "wheeled"
+
+
+def baseline_frame(ctx: JobContext) -> str:
+    return ctx.project.deep_frame if ctx.project else BASELINE_FRAME
+
+
+def baseline_names(ctx: JobContext) -> tuple[str, str]:
+    """(viewer label, motor name) of the before design."""
+    if ctx.project is None:
+        return BASELINE_LABEL, BASELINE_MOTOR
+    line = next(b for b in ctx.project.bom if b.id == ctx.project.deep_line)
+    name = " ".join(x for x in (line.manufacturer, line.part_number) if x) or line.part
+    suffix = " (ILLUSTRATIVE)" if line.illustrative else ""
+    return f"Before: {name}{suffix}", name
+
+
 async def build(ctx: JobContext, workers: Sequence[Worker]) -> None:
     """Build the baseline robot, then publish every candidate bracket built during CHECK (fit
     numbers come from the CAD worker there). CAD trouble is reported, never fatal."""
     wheel_r_mm = ctx.robot.requirements.wheel_radius_m * 1000
     baseline_id = design_id(ctx.job_id, "before")
     try:
-        before = await ctx.cad.build(baseline_id, BASELINE_FRAME, wheel_r_mm, highlight=False)
+        before = await ctx.cad.build(
+            baseline_id, baseline_frame(ctx), wheel_r_mm, highlight=False, robot=cad_robot(ctx)
+        )
     except CadError as exc:
         await ctx.log.emit(ErrorPayload(message=str(exc), stage="BUILD"))
         return
-    if before is None:  # unreachable: BASELINE_FRAME is a frame the worker models
+    if before is None:  # the baseline frames (17/23/34) are all ones the worker models
         return
+    label, motor = baseline_names(ctx)
     await ctx.log.emit(
         DesignReady(
             design_id=before.design_id,
             role="baseline",
-            label=BASELINE_LABEL,
-            motor=BASELINE_MOTOR,
-            frame=BASELINE_FRAME,
+            label=label,
+            motor=motor,
+            frame=baseline_frame(ctx),
             glb_url=before.glb_url,
             step_url=before.step_url,
             fit=before.fit,
@@ -293,6 +320,7 @@ HANDLERS: dict[Stage, StageFn] = {
     "INTAKE": intake,
     "CRITERIA": criteria,
     "COMPLIANCE_BASELINE": compliance_baseline,
+    "RISK_BASELINE": risk_baseline,
     "PLAN": plan,
     "DISCOVER": discover_leads,
     "TRIAGE": triage_leads,
@@ -300,6 +328,8 @@ HANDLERS: dict[Stage, StageFn] = {
     "VERIFY": verify,
     "CHECK": check,
     "RANK": rank_designs,
+    "ALTERNATIVES": alternatives,
+    "RECOMMEND": recommend_lines,
     "BUILD": build,
 }
 

@@ -14,13 +14,17 @@ from pydantic import BaseModel
 from app.engineering.compliance import ComplianceCard
 from app.engineering.spec_checks import FitBadge, SpecCheck, Verdict
 from app.schemas import (
+    Alternative,
+    BomLine,
     Claim,
     Criteria,
     Fact,
+    LineRisk,
     Objective,
     OriginEvidence,
     Outcome,
     Product,
+    Recommendation,
 )
 
 EventType = Literal[
@@ -35,6 +39,9 @@ EventType = Literal[
     "compliance",
     "design_ready",
     "project",
+    "risk_line",
+    "alternative",
+    "recommendation",
     "advocate",
     "synthesis",
     "error",
@@ -45,6 +52,7 @@ Stage = Literal[
     "INTAKE",
     "CRITERIA",
     "COMPLIANCE_BASELINE",
+    "RISK_BASELINE",
     "PLAN",
     "DISCOVER",
     "TRIAGE",
@@ -52,6 +60,8 @@ Stage = Literal[
     "VERIFY",
     "CHECK",
     "RANK",
+    "ALTERNATIVES",
+    "RECOMMEND",
     "BUILD",
     "REPORT",
     "DONE",
@@ -125,6 +135,28 @@ class ProjectPayload(Payload):
     use_case: str
     facts: list[Fact]
     criteria: Criteria
+
+
+class RiskLinePayload(Payload):
+    """Supply risk of one BOM line. Sent at RISK_BASELINE for every line, and again for the deep
+    line after ALTERNATIVES (its sources factor needs them): the latest per line_id wins."""
+
+    type: ClassVar[EventType] = "risk_line"
+    line: BomLine
+    risk: LineRisk
+
+
+class AlternativePayload(Payload):
+    type: ClassVar[EventType] = "alternative"
+    alternative: Alternative
+
+
+class RecommendationPayload(Payload):
+    """One per BOM line, sent in rank order (rank 1 = act on this first)."""
+
+    type: ClassVar[EventType] = "recommendation"
+    rank: int
+    recommendation: Recommendation
 
 
 class CompliancePayload(Payload):

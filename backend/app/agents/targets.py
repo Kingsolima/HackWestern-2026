@@ -25,9 +25,10 @@ class SwapTarget:
     goal: str
     max_duration_s: int = 300
 
-    def goal_for(self, t_cont_nm: float, t_peak_nm: float, bus_v: float) -> str:
+    def goal_for(self, t_cont_nm: float, t_peak_nm: float, bus_v: float, frame: str = "23") -> str:
         oz_in = 0.0070615518
         return self.goal.format(
+            frame=frame,
             bus_v=f"{bus_v:g}",
             cont_oz_in=math.ceil(t_cont_nm / oz_in),
             peak_oz_in=math.ceil(t_peak_nm / oz_in),
@@ -46,7 +47,7 @@ fill forms or sign up for anything.
 
 1. On this Teknic ClearPath-SD page, go to the list of ClearPath-SD models \
 ("All ClearPath models", filtered to SDSK if possible).
-2. Pick ONE NEMA 23 SDSK model (part number starts with CPM-SDSK-23) for a robot with a \
+2. Pick ONE NEMA {frame} SDSK model (part number starts with CPM-SDSK-{frame}) for a robot with a \
 {bus_v} VDC bus that needs, at {bus_v} VDC, a Cont. (RMS) Torque of at least {cont_oz_in} oz-in \
 and a Peak Torque of at least {peak_oz_in} oz-in. Compare the models (list filters or model \
 pages) and pick the cheapest one that meets both; if none does, pick the one with the highest \
@@ -71,12 +72,12 @@ exact text in origin_quote, its page URL in origin_source_url, and the country i
 country_of_origin. "Designed in" or a headquarters address is NOT \
 a manufacturing statement: leave origin fields null in that case.
 5. manufacturer = "Teknic", part_number = the model's part number, motor_type = \
-"servo_integrated", nema_frame = "23", product_url = the model page URL, datasheet_url = a \
+"servo_integrated", nema_frame = "{frame}", product_url = the model page URL, datasheet_url = a \
 manual/datasheet PDF link if one is on the model page, else null.
 
 Rules: never guess or fill placeholders; use null (or omit a spec) when not shown. \
 If a CAPTCHA, bot check or access-denied page blocks you, return status "blocked" with the \
-reason. If you cannot find any NEMA 23 SDSK model, return status "not_found". If some fields \
+reason. If you cannot find any NEMA {frame} SDSK model, return status "not_found". If some fields \
 are missing, return status "incomplete" and list what is missing in reason. Otherwise status \
 "success".
 """,
@@ -90,8 +91,9 @@ GENERIC_GOAL = """\
 You are a sourcing engineer collecting verifiable specs for ONE motor. Do not buy, log in, \
 fill forms or sign up for anything.
 
-1. Starting from this page, find ONE NEMA 23 servo, integrated servo or brushless DC motor \
-model sold by this manufacturer, for a robot with a {bus_v} VDC bus that needs at least \
+1. Starting from this page, find ONE NEMA {frame} servo, integrated servo, closed-loop stepper \
+or brushless DC motor model sold by this manufacturer, for a robot with a {bus_v} VDC bus that \
+needs at least \
 {cont_oz_in} oz-in continuous torque and {peak_oz_in} oz-in peak torque. Prefer the cheapest \
 model that meets both; if none clearly does, pick the one with the highest continuous torque. \
 Open that model's own specification page or datasheet.

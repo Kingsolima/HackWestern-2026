@@ -1,0 +1,79 @@
+{
+  "id": "ar4_club",
+  "kind": "club",
+  "name": "Western robotics club",
+  "robot": "Annin Robotics AR4 MK5 arm",
+  "use_case": "A student club in London, Ontario building a 6-axis AR4 arm for a pick-and-place demo; the J2 shoulder joint carries the most load.",
+  "robot_kind": "arm",
+  "arm": {
+    "joint": "J2 shoulder",
+    "payload_kg": 1.9,
+    "reach_m": 0.629,
+    "links": [{"name": "everything beyond J2 (upper arm, forearm, wrist)", "mass_kg": 4.0, "com_m": 0.3145}],
+    "gear_ratio": 50,
+    "efficiency": 0.94,
+    "omega_max_dps": 9.11,
+    "t_accel_s": 0.25,
+    "safety_factor": 1.5,
+    "bus_voltage_v": 24,
+    "illustrative": false,
+    "notes": [
+      "payload 1.9 kg and reach 629 mm: https://anninrobotics.com/desktop-robot-arm 'The AR4 is rated for 1.9 kg (4.15 lb).' / 'The AR4 reaches 629 mm (24.75 in) from the J1 center to the flange' (checked 2026-11-22)",
+      "ASSUMED: 4.0 kg beyond J2 at half reach. Not published; the whole arm is 12.25 kg ('The aluminum AR4 is 12.25 kg (27 lb).', same page)",
+      "gear 50:1, efficiency 94%: https://omc-stepperonline.com/ar4-upgraded-nema-23-stepper-motor-with-ygs-gearbox-gear-ratio-50-1-high-precision-planetary-gearbox-23hs22-2804d-ygs50-ar4 'Gear Ratio: 50:1' / 'Efficiency: 94%'",
+      "joint speed 9.11 deg/s derived from 'its published max linear speed is 100 mm/s' at 629 mm reach (0.1 / 0.629 rad/s)",
+      "ASSUMED: 0.25 s to reach top speed",
+      "24 V bus: 'a 24 VDC supply rated for the arm's 198 W (8.25 A) maximum' (desktop-robot-arm page)"
+    ]
+  },
+  "deep_line": "j2_motor",
+  "bom": [
+    {
+      "id": "j2_motor",
+      "domain": "actuation",
+      "qty": 1,
+      "part": "J2 NEMA 23 stepper with 50:1 planetary gearbox and encoder",
+      "manufacturer": "STEPPERONLINE",
+      "part_number": "23HS22-2804D-YGS50-AR4",
+      "unit_price_usd": 152.52,
+      "origin_country": "CN",
+      "origin_tier": "T3",
+      "availability": "in_stock",
+      "hts_code": "8501.31.40",
+      "component_class": "motor",
+      "sources": [
+        "https://omc-stepperonline.com/ar4-upgraded-nema-23-stepper-motor-with-ygs-gearbox-gear-ratio-50-1-high-precision-planetary-gearbox-23hs22-2804d-ygs50-ar4",
+        "https://www.omc-stepperonline.com/about-us"
+      ],
+      "notes": "Price '$152.52', stock 'In stock · Stock: 48', 'Ships from China' (product page, 2026-11-22). Origin is company-level (T3). HTS from research pass 1 for a similar motor; a broker should confirm."
+    },
+    {
+      "id": "motor_package_rest",
+      "domain": "actuation",
+      "qty": 1,
+      "part": "Other joint motors, stepper drivers and 24 V supply (StepperOnline AR4 motor package)",
+      "manufacturer": "STEPPERONLINE",
+      "unit_price_usd": null,
+      "origin_country": "CN",
+      "origin_tier": "T3",
+      "availability": "unknown",
+      "component_class": "motor",
+      "sources": ["https://anninrobotics.com/desktop-robot-arm"],
+      "notes": "'Combo kit $1,229 + StepperOnline motor package $699.' The $699 package includes the J2 motor, so this line is not priced separately."
+    },
+    {
+      "id": "combo_kit",
+      "domain": "structure",
+      "qty": 1,
+      "part": "AR4 MK5 combo kit (machined aluminum parts, hardware, electrical parts)",
+      "manufacturer": "Annin Robotics",
+      "unit_price_usd": 1229.0,
+      "origin_country": null,
+      "availability": "unknown",
+      "sources": ["https://anninrobotics.com/desktop-robot-arm"],
+      "notes": "'Combo kit $1,229' (2026-11-22). Origin not stated."
+    }
+  ],
+  "intake_sources": [],
+  "stated": {"deploy_countries": ["CA"], "budget_usd": 2500, "need_by_days": 21}
+}

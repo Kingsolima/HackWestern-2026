@@ -13,6 +13,7 @@ import httpx
 from app.agents.triage import Lead, TriageInput, TriageLabel, route_page
 from app.orchestrator.context import JobContext
 from app.orchestrator.events import RunFinished, RunProgress, RunStarted
+from app.schemas import Project
 from app.tfclient.recorder import ReplayMiss
 
 EXCLUDED_DOMAINS = (
@@ -52,11 +53,20 @@ TRIAGE_OPTIONS: dict[TriageLabel, str] = {
 }
 
 
-def plan_queries() -> list[str]:
+def plan_queries(project: Project | None = None) -> list[str]:
+    """v3 jobs look for US-made motors; project jobs look for any maker of the deep line's frame,
+    since origin is one risk factor among several (BUILD-PLAN-v4 section 1)."""
+    if project is None:
+        return [
+            "NEMA 23 servo motor made in USA",
+            "NEMA 23 integrated servo motor manufactured in the United States",
+            "US made NEMA 23 brushless DC motor 24V",
+        ]
+    f = project.deep_frame
     return [
-        "NEMA 23 servo motor made in USA",
-        "NEMA 23 integrated servo motor manufactured in the United States",
-        "US made NEMA 23 brushless DC motor 24V",
+        f"NEMA {f} servo motor manufacturer datasheet",
+        f"NEMA {f} closed loop stepper motor manufacturer",
+        f"NEMA {f} integrated servo motor price",
     ]
 
 

@@ -49,6 +49,7 @@ class CadClient:
         body_len_mm: float | None = None,
         shaft_d_mm: float | None = None,
         highlight: bool = False,
+        robot: str = "wheeled",
     ) -> CadBuild | None:
         """None when the frame cannot be modelled; CadError when the worker is unreachable or
         refuses. Either way the fit checks go to Review instead of failing the job. highlight
@@ -61,6 +62,8 @@ class CadClient:
             "wheel_r": wheel_r_mm,
             "highlight": highlight,
         }
+        if robot != "wheeled":
+            body["robot"] = robot
         if body_len_mm is not None:
             body["body_len"] = body_len_mm
         if shaft_d_mm is not None:
@@ -74,6 +77,8 @@ class CadClient:
         if r.status_code != 200:
             raise CadError(f"CAD build {design_id} failed: HTTP {r.status_code} {r.text[:200]}")
         built = CadBuild.model_validate(r.json())
+        if robot != "wheeled":
+            return built  # generic fit_checks rows; a missing list reads as review
         missing = FIT_KEYS - built.fit.keys()
         if missing or "min_ground_clearance" not in built.fit.get("params", {}):
             gaps = sorted(missing) or ["params.min_ground_clearance"]

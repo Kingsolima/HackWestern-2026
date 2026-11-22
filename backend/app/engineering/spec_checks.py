@@ -17,7 +17,14 @@ G = 9.81
 BASELINE_FRAME = "23"
 
 CheckName = Literal[
-    "torque_cont", "torque_peak", "speed", "voltage", "fit_envelope", "fit_ground", "fit_shaft"
+    "torque_cont",
+    "torque_peak",
+    "speed",
+    "voltage",
+    "fit_envelope",
+    "fit_ground",
+    "fit_shaft",
+    "fit_cad",
 ]
 CheckVerdict = Literal["pass", "fail", "review"]
 Verdict = Literal["pass", "review", "rejected"]
@@ -220,9 +227,37 @@ def _fit(
     return [envelope, ground, shaft_row]
 
 
-def check_candidate(c: Candidate, req: Requirement, fit: dict[str, Any] | None) -> list[SpecCheck]:
+def check_candidate(
+    c: Candidate, req: Requirement, fit: dict[str, Any] | None, generic_fit: bool = False
+) -> list[SpecCheck]:
+    """generic_fit: the robot is not the v3 wheeled one, so fit comes as the CAD worker's
+    generic `fit_checks` rows (BUILD-PLAN-v4 section 7) instead of the wheeled keys."""
     f = si_facts(c)
-    return [*_torque(c, req, f), _speed(c, req, f), _voltage(c, req, f), *_fit(c, f, fit)]
+    fit_rows = _generic_fit(c, fit) if generic_fit else _fit(c, f, fit)
+    return [*_torque(c, req, f), _speed(c, req, f), _voltage(c, req, f), *fit_rows]
+
+
+def _generic_fit(c: Candidate, fit: dict[str, Any] | None) -> list[SpecCheck]:
+    rows = (fit or {}).get("fit_checks") or []
+    if not rows:
+        return [_row(c, "fit_cad", None, None, "", [], "CAD worker returned no fit checks")]
+    return [
+        _row(
+            c,
+            "fit_cad",
+            row.get("value"),
+            row.get("limit"),
+            row.get("unit", ""),
+            [],
+            str(row.get("name", "")),
+            verdict="pass"
+            if row.get("ok") is True
+            else "fail"
+            if row.get("ok") is False
+            else "review",
+        )
+        for row in rows
+    ]
 
 
 def verdict(checks: list[SpecCheck]) -> Verdict:
@@ -241,5 +276,5 @@ def fit_badge(
         return None
     if overall == "review":
         return "needs_review"
-    same = frame == baseline_frame and fit is not None and not fit["needs_hub_adapter"]
+    same = frame == baseline_frame and fit is not None and not fit.get("needs_hub_adapter", True)
     return "drop_in" if same else "close"

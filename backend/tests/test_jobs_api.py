@@ -403,7 +403,9 @@ async def test_frames_the_cad_worker_cannot_model_are_not_sent(frame):
 def test_failed_discovery_degrades_the_job_but_seeds_still_run(client, monkeypatch):
     from app.orchestrator.workers import FakeSwapWorker
 
-    monkeypatch.setattr("app.orchestrator.job.plan_queries", lambda: ["never recorded"])
+    monkeypatch.setattr(
+        "app.orchestrator.job.plan_queries", lambda project=None: ["never recorded"]
+    )
     events = sse_events(client, start(client, FakeSwapWorker()))
     error = next(e["data"] for e in events if e["type"] == "error")
     assert error["stage"] == "DISCOVER" and error["message"].startswith("ReplayMiss")

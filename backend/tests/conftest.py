@@ -13,7 +13,7 @@ def anyio_backend() -> str:
 @pytest.fixture(autouse=True)
 def no_discovery(monkeypatch):
     """Jobs in tests run only their workers' seed targets; discovery tests opt back in."""
-    monkeypatch.setattr("app.orchestrator.job.plan_queries", lambda: [])
+    monkeypatch.setattr("app.orchestrator.job.plan_queries", lambda project=None: [])
 
 
 @pytest.fixture

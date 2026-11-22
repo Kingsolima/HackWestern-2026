@@ -1,0 +1,52 @@
+# Bottleneck levels by component class, from the article the problem framing follows:
+# docs/turning-humanoid-supply-chain-constraints-into-billion-dollar-wins.pdf (McKinsey, 2026).
+# Its Exhibit 3 is graphical, so levels come from the prose sections "Low risk", "Medium
+# risk" and "High risk" (pages 6, 8 and 9). Quotes are copied from the PDF text layer.
+# Classes the article does not place are absent: the risk factor is then unknown.
+source: docs/turning-humanoid-supply-chain-constraints-into-billion-dollar-wins.pdf
+checked: 2026-11-22
+classes:
+  motor:
+    level: low
+    page: 6
+    quote: "Brushless DC (BLDC) and permanent magnet synchronous motors (PMSM) are produced at scale for EVs, industrial automation, and consumer electronics."
+    note: "Stepper motors are not named; mapped to this class as electric motors produced at scale."
+  power_electronics:
+    level: low
+    page: 6
+    quote: "Power electronics, standard bearings, camera modules, and LiDAR/radar systems have similarly large and diversified supplier bases."
+  lidar:
+    level: low
+    page: 6
+    quote: "Power electronics, standard bearings, camera modules, and LiDAR/radar systems have similarly large and diversified supplier bases."
+  battery_cells:
+    level: low
+    page: 6
+    quote: "Battery cells are supplied by global leaders such as CATL, LG Energy Solution, Panasonic, and Samsung SDI."
+  encoder:
+    level: medium
+    page: 8
+    quote: "Encoders, certain real-time control electronics, and inertial measurement units (IMUs) are widely available across consumer, industrial, and aerospace grades, yet not all variants provide the latency, drift stability, and fault tolerance required for dynamic bipedal balance."
+  control_electronics:
+    level: medium
+    page: 8
+    quote: "Encoders, certain real-time control electronics, and inertial measurement units (IMUs) are widely available across consumer, industrial, and aerospace grades"
+  harmonic_drive:
+    level: high
+    page: 8
+    quote: "The compact, high-torque-density gearboxes used in humanoid joints remain concentrated among a small group of manufacturers, including Harmonic Drive, Nabtesco, and emerging Chinese players such as Leaderdrive."
+  ndfeb_magnet:
+    level: high
+    page: 8
+    quote: "China controls approximately 69 percent of global rare-earth mining and 90 percent of magnet"
+  compute_platform:
+    level: high
+    page: 9
+    quote: "This makes compute a systems bottleneck (integration and certification) rather than a component supply bottleneck (capacity constraints)"
+    note: "The article calls this a system-level bottleneck, not component capacity."
+domain_bom_share:
+  page: 3
+  quote: "The core hardware stack of a humanoid spans five domains: actuators (40 to 60 percent of the bill of materials, or BOM), sensing and perception systems (10 to 20 percent), compute and control platforms (10 to 15 percent), structural components (5 to 10 percent), and battery modules (5 to 10 percent)."
+china_shares:
+  page: 7
+  quote: "In addition to accounting for 90 percent of permanent magnet processing globally, China holds strong shares in precision bearings (40 percent), motors (35 percent), and power electronics (30 percent)."

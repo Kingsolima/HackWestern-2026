@@ -6,7 +6,18 @@ from app.engineering.spec_checks import FitBadge, SpecCheck, Verdict
 from app.orchestrator.board import Board
 from app.orchestrator.events import EventLog
 from app.orchestrator.fleet import Fleet, JobBudget
-from app.schemas import Candidate, Claim, Criteria, Fact, JobMode, Objective, Project, Robot
+from app.schemas import (
+    Alternative,
+    Candidate,
+    Claim,
+    Criteria,
+    Fact,
+    JobMode,
+    LineRisk,
+    Objective,
+    Project,
+    Robot,
+)
 from app.tfclient.client import TFClient
 from app.tfclient.gemini import GeminiClient
 
@@ -47,3 +58,5 @@ class JobContext:
     project: Project | None = None  # None: the v3 wheeled demo job
     verified_facts: list[Fact] = field(default_factory=list)
     criteria: Criteria | None = None
+    line_risks: dict[str, LineRisk] = field(default_factory=dict)
+    alternatives: list[Alternative] = field(default_factory=list)
