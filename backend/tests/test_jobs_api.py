@@ -21,6 +21,8 @@ class NoClaimWorker:
 @pytest.fixture
 def client(monkeypatch):
     monkeypatch.setattr(settings, "replay_speed", 0)
+    # Never reach a real CAD worker on the dev machine; tests that need one install fake_cad.
+    monkeypatch.setattr(settings, "cad_worker_url", "http://cad.invalid")
     with TestClient(app) as c:
         yield c
 
@@ -74,6 +76,7 @@ def test_every_mode_runs_the_swap_worker(client, mode):
 
 
 def test_recorded_teknic_job_replays_offline(client):
+    client.app.state.runtime.cad = fake_cad([])
     events = sse_events(client, start(client))
     assert events[-1]["data"]["stage"] == "DONE"
     finished = next(e for e in events if e["type"] == "run_finished")["data"]
