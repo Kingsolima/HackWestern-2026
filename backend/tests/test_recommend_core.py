@@ -147,3 +147,22 @@ def test_real_drive_motor_case():
     r = recommend(line, risk("high"), [teknic])
     assert (r.action, r.alternative_id) == ("dual_source", "teknic")
     assert abs(r.cost_delta_usd - 375.70) < 1e-9
+
+
+def test_an_alternative_that_passed_beats_a_safer_one_that_needs_review():
+    alts = [
+        alt("unchecked_low", "low", 90.0, "review"),
+        alt("passed_medium", "medium", 90.0, "pass"),
+    ]
+    r = recommend(LINE, risk("high"), alts)
+    assert (r.action, r.alternative_id) == ("re_source", "passed_medium")
+    assert "need review" not in r.reason
+
+
+def test_reasons_say_what_is_not_verified():
+    # Real Stretch case: Moog SM34405D found live, no spec or price verified
+    r = recommend(LINE, risk("high"), [alt("moog", "low", None, "review")])
+    assert r.action == "dual_source"
+    assert "price is not verified" in r.reason and "specs still need review" in r.reason
+    priced = recommend(LINE, risk("high"), [alt("a", "low", 150.0, "pass")])
+    assert "costs more" in priced.reason and "review" not in priced.reason

@@ -160,13 +160,22 @@ def recommend(line: BomLine, current: LineRisk, alternatives: list[Alternative])
           smallest cost_delta (unknown last), then by id.
     3. Else keep: alternative_id None, risk_after = current.overall, cost_delta None.
     risk_before is always current.overall; risk_after is the chosen alternative's overall.
-    reason: one plain sentence a team lead can read.
+    In every choice above, an alternative whose specs passed comes before one that needs review
+    (or was never checked), ahead of the other keys.
+    reason: plain sentences a team lead can read; they say when the alternative's specs still
+    need review and when its price is not verified.
     """
 
     def delta(a: Alternative) -> float | None:
         if a.unit_price_usd is None or line.unit_price_usd is None:
             return None
         return (a.unit_price_usd - line.unit_price_usd) * line.qty
+
+    def unchecked(a: Alternative) -> bool:
+        return a.verdict != "pass"
+
+    def caveat(a: Alternative) -> str:
+        return " Its specs still need review." if unchecked(a) else ""
 
     def decide(action, a: Alternative | None, reason: str) -> Recommendation:
         return Recommendation(
@@ -186,31 +195,43 @@ def recommend(line: BomLine, current: LineRisk, alternatives: list[Alternative])
             return decide(
                 "keep", None, "The current part is blocked and no eligible alternative was found."
             )
-        a = min(eligible, key=lambda a: (a.unit_price_usd is None, a.unit_price_usd or 0.0, a.id))
+        a = min(
+            eligible,
+            key=lambda a: (unchecked(a), a.unit_price_usd is None, a.unit_price_usd or 0.0, a.id),
+        )
         return decide(
             "re_source",
             a,
             f"The current part is blocked: move to {a.manufacturer} {a.part_number}, "
-            "the cheapest eligible alternative.",
+            "the cheapest eligible alternative." + caveat(a),
         )
 
     safer = [a for a in eligible if lower(a.risk.overall, current.overall)]
     no_dearer = [a for a in safer if (d := delta(a)) is not None and d <= 0]
     if no_dearer:
-        a = min(no_dearer, key=lambda a: (RANK[a.risk.overall], delta(a), a.id))
+        a = min(no_dearer, key=lambda a: (unchecked(a), RANK[a.risk.overall], delta(a), a.id))
         return decide(
-            "re_source", a, f"{a.manufacturer} {a.part_number} is lower risk at no extra cost."
+            "re_source",
+            a,
+            f"{a.manufacturer} {a.part_number} is lower risk at no extra cost." + caveat(a),
         )
     if safer:
         a = min(
             safer,
-            key=lambda a: (RANK[a.risk.overall], delta(a) is None, delta(a) or 0.0, a.id),
+            key=lambda a: (
+                unchecked(a),
+                RANK[a.risk.overall],
+                delta(a) is None,
+                delta(a) or 0.0,
+                a.id,
+            ),
         )
+        cost = "its price is not verified" if delta(a) is None else "it costs more"
         return decide(
             "dual_source",
             a,
-            f"{a.manufacturer} {a.part_number} is lower risk but costs more: "
-            "add it as a second source.",
+            f"{a.manufacturer} {a.part_number} is lower risk but {cost}: "
+            "add it as a second source." + caveat(a),
         )
     return decide("keep", None, "No eligible alternative lowers the risk.")
 
