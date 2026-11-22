@@ -67,3 +67,11 @@ def test_server_build_and_design_routes(tmp_path, monkeypatch):
     assert c.get("/designs/teknic_a/fit").json()["ground_clearance_mm"] == pytest.approx(15.4)
     assert c.get("/designs/missing/glb").status_code == 404
     assert c.post("/build", json={"design_id": "../x"}).status_code == 422
+
+
+def test_fit_exposes_bracket_thickness_and_clearance_for_the_checks():
+    m = measure(RobotParams(frame="23", clearance=7.0))
+    assert m["bracket"]["thickness_mm"] == 5.0
+    assert m["clearance_mm"] == 7.0
+    # envelope uses the same numbers the checks will read
+    assert m["envelope_used_mm"] == 56.0 + m["bracket"]["thickness_mm"] + m["clearance_mm"]

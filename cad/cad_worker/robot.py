@@ -23,6 +23,8 @@ import cadquery as cq
 
 from cad_worker.nema import BOLT_HOLE_MM, NEMA, SHAFT_MM
 
+# Single source of truth for bracket geometry: the checks read these from /designs/{id}/fit
+# (bracket.thickness_mm, clearance_mm) instead of keeping their own copies.
 BRACKET_T = 5.0  # bracket plate thickness (05 §4 "plate_t")
 BRACKET_MARGIN = 5.0  # bracket material around the motor face
 EDGE_INSET = 5.0  # bracket outer face inset from the deck edge
@@ -82,7 +84,9 @@ def measure(p: RobotParams) -> dict:
         "shaft_diameter_mm": shaft_d,
         "wheel_bore_mm": p.wheel_bore,
         "needs_hub_adapter": not math.isclose(shaft_d, p.wheel_bore, abs_tol=0.01),
+        "clearance_mm": p.clearance,
         "bracket": {
+            "thickness_mm": BRACKET_T,
             "width_mm": flange + 2 * BRACKET_MARGIN,
             "height_mm": round(axis_above_deck + flange / 2 + BRACKET_MARGIN, 2),
             "foot_len_mm": round(p.body_len + p.clearance + BRACKET_T, 2),
