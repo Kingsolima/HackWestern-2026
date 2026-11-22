@@ -3,7 +3,7 @@
   "checkpoint_id": "01M8109YAGJ097AD5HNCA2C8E2",
   "strategy": "manual-commit",
   "branch": "onboarding-intake",
-  "checkpoints_count": 11,
+  "checkpoints_count": 12,
   "files_touched": [
     "backend/app/tfclient/gemini.py"
   ],
@@ -21,6 +21,13 @@
       "compact_transcript": "/1/transcript.jsonl",
       "content_hash": "/1/content_hash.txt",
       "prompt": "/1/prompt.txt"
+    },
+    {
+      "metadata": "/2/metadata.json",
+      "transcript": "/2/full.jsonl",
+      "compact_transcript": "/2/transcript.jsonl",
+      "content_hash": "/2/content_hash.txt",
+      "prompt": "/2/prompt.txt"
     }
   ],
   "token_usage": {
@@ -31,7 +38,7 @@
     "api_call_count": 6
   },
   "redaction": {
-    "replacements": 23,
+    "replacements": 28,
     "layers": {
       "betterleaks": 18,
       "connection_string": 0,
@@ -39,7 +46,7 @@
       "credential_value": 2,
       "credentialed_uri": 4,
       "entropy": 0,
-      "key_context": 11,
+      "key_context": 16,
       "provider_token": 0,
       "shell_stdin": 0
     }
