@@ -1,0 +1,392 @@
+what does degraded mean for this project? and what is this error? How much of this is hardcoded and actual agentic work? what about these claims. treat me as if i dont know the code or the variables.
+
+---
+
+why do we have replay and why are eng checks not made. what is missing for this to work properly for this hard coded partly test? cause we want to be able to the full pipeline with onboarding and a more advanced robot.
+
+---
+
+Make a whole plan to implement all of these changes that you recommeneded and in the image. First pull all of the main code. Also make sure that  the deployment is working properly with things it needs. i also implemented the postrgres url from tiger data. I want to jus tbe able to have a proper run end to end.
+
+---
+
+<task-notification>
+<task-id>a684eb248f7b8691b</task-id>
+<tool-use-id>toolu_01CvnSFjucY1Sz5DB8pweAdL</tool-use-id>
+<output-file>/tmp/claude-1000/-home-omar--s-projects-HackWestern-2026/5b1e75ea-2b88-488e-a1de-0e51ff9ff520/tasks/a684eb248f7b8691b.output</output-file>
+<status>completed</status>
+<summary>Agent "Explore deployment and git state" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>I did not run anything that changes state. No secret values are printed below, only variable names.
+
+## Summary
+`make deploy` ssh-es into the VM, runs `git pull` and rebuilds three Docker services. Nothing is copied from your laptop, so untracked recordings never reach the server. Postgres is not used: the backend keeps everything in memory and nothing imports the DB helper. Job mode is chosen per request, not by an env var.
+
+## 1. Deployment
+
+**`Makefile`**
+- Targets: help, install, dev-backend, dev-cad, dev-frontend, up, down, db, test, test-cad, lint, prod-up, prod-down, deploy.
+- `PROD` compose command is at `:56`, `DEPLOY_HOST ?= vultr-hw` at `:57`.
+- `prod-up` (`:59-60`) runs the prod stack locally on ports 8080/8443.
+
+**What `make deploy` does (`Makefile:65-66`)**
+1. `ssh vultr-hw`. This is an ssh config alias that `docs/DEPLOY.md:21-27` tells you to point at the VM IP (should be 155.138.154.176).
+2. `cd /opt/hackwestern &amp;&amp; git pull --ff-only`. It pulls whatever branch the server has checked out, presumably `main` (the clone in `DEPLOY.md:30` is from GitHub Kingsolima/HackWestern-2026).
+3. `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build web backend cad`. This uses the default project name, not `hackwestern-prod`, which only `prod-up`/`prod-down` use.
+
+**Recordings and data**
+- Only committed recordings reach the server, through git.
+- On the server, `./data` is mounted read-only at `/data` and `./data/recordings` is mounted read-write at `/recordings` (`docker-compose.yml:33-34`).
+- Live runs made on the server write into that server checkout. Those files will be untracked there, and could block a future `--ff-only` pull if the same paths are later committed upstream.
+
+**Services**
+- `web` (`docker-compose.prod.yml:3-16`)
+  - Caddy plus the built frontend (`deploy/web.Dockerfile`, Node 22 build, then caddy:2-alpine).
+  - The only public service, ports 80/443 (`WEB_HTTP_PORT`/`WEB_HTTPS_PORT`).
+  - `deploy/Caddyfile` routes: `/api/*` to `backend:8000` with SSE flush (`:4-8`), `/health` to the backend (`:9-11`), `/cad/*` to `cad:8001` with the prefix stripped (`:14-16`), everything else to static files with an `index.html` fallback.
+  - `SITE_ADDRESS` defaults to `:80`, i.e. plain HTTP.
+- `backend` (`backend/Dockerfile`, Python 3.12 + uv, uvicorn on :8000)
+  - Not public in prod (`ports: !reset []`, `prod.yml:19`).
+  - `depends_on` is reset to just `cad`, with the comment "no database in use yet" (`:20`).
+  - Sets `REQUIRE_LIVE_TOKEN=REDACTED and `REPLAY_SPEED=0.1` (`:22-24`).
+- `cad` on :8001, internal only, with `./cad/out` mounted.
+- `db` (TimescaleDB) is defined in `docker-compose.yml:3-12`, but deploy does not start it.
+
+**How env and secrets reach the server**
+- `docs/DEPLOY.md:33-36`: you `scp .env vultr-hw:/opt/hackwestern/.env` once, then append `LIVE_JOBS_TOKEN`.
+- The backend loads it through `env_file: .env` (`required: false`, `docker-compose.yml:21-24`). Compose also uses it to fill `${SITE_ADDRESS}`.
+- `backend/app/config.py:12` reads the repo-root `.env` as well.
+
+## 2. Environment variable names
+- **`.env.example`**: CORS_ORIGINS, CAD_WORKER_URL, GEMINI_API_KEY, GEMINI_MODEL, TINYFISH_API_KEY, LIVE_JOBS_TOKEN, DATABASE_URL (`:26`).
+- **Local `.env`**: the same names plus REQUIRE_LIVE_TOKEN. DATABASE_URL is at `:14`.
+- **`backend/.env`**: does not exist.
+- **Other names `config.py` reads**: GEMINI_FLASH_MODEL, S3_ENDPOINT/BUCKET/ACCESS_KEY/SECRET_KEY, AUTH0_DOMAIN/AUDIENCE, DATA_DIR, RECORDINGS_DIR, REPLAY_SPEED, and the *_SLOTS / MAX_AGENT_RUNS_PER_JOB limits.
+
+**Postgres / Tiger Data / Timescale**
+- `docker-compose.yml:26` hard-codes `DATABASE_URL=REDACTED` under `environment:`. That overrides any `DATABASE_URL` in `.env`, so a Tiger Cloud URL in the server's `.env` would be ignored. You would need to edit the compose file (prod override) to fix that.
+- `docs/DEPLOY.md:66-69` says "Tiger Data ... no code uses them yet".
+- The Postgres driver is installed: `psycopg[binary]&gt;=3.3.9` (`backend/pyproject.toml:11`).
+- `backend/app/db/tiger.py:11-14` has an async `connect()` built on `psycopg.AsyncConnection.connect(settings.database_url)`. Nothing in `backend/app` imports `app.db`, so it is dead code.
+- `config.py:30` defaults the URL to localhost.
+- The schema is in `db/schema.sql`.
+
+## 3. Job mode and API keys
+- Mode is a per-request body field, not an env var: `JobRequest.mode: JobMode = "replay"` (`backend/app/api/jobs.py:24`). The allowed values are `"live" | "replay" | "mixed"` (`schemas.py:14`). There is no "record" mode; live runs record automatically to `RECORDINGS_DIR`.
+- `live` and `mixed` jobs need the `X-Live-Token` header when `REQUIRE_LIVE_TOKEN` is true (`jobs.py:65-72`). In prod it is true, so if `LIVE_JOBS_TOKEN` is unset, every live job is refused.
+- `TINYFISH_API_KEY` and `GEMINI_API_KEY` come from `.env` (`config.py:19,23`). Intake returns 503 without the Gemini key (`api/intake.py:59`).
+
+## 4. Git state
+- **Branch**: `onboarding-intake`.
+- **Modified**: `data/recordings/agent/00a415c9…json.gz`, `docs/ARCHITECTURE.md`, `docs/HANDOFF-v2.md`.
+- **Untracked**: `docs/REMAINING-WORK.md` and 19 recordings:
+  - agent: 2bfe27, 4457dd, a05988, c6433f, d5a1d0
+  - fetch: 1520c1, 553c42, ae6561
+  - gemini: 1ed7e8, 2e5b9b, 35ce47, 4c4ab3, b29aa6, bc6bf1, e0041c
+  - search: 8f1757, 916c33, c68 5e2 (c685e228…)
+- **Branches**: local cad-ar4, cad-bracket, deploy-vultr, design-viewer, design/v3, frontend-demo, main, merge-core-scaffold, onboarding-intake, repo-setup, starter-robot, swap-finder-swarm, tygo/core-scaffold, v4-ui. Remotes have the same set plus `engineering-checks`, with `origin/HEAD` pointing to `origin/main`.
+- **Last 8 commits**: b896184 Merge origin/main into onboarding-intake, 875c5e8, 7b564d6, e7b6069, 197e052, 257dbe6, 90e5e28, 8a0c9c1.
+- **`HEAD..origin/main`**: one commit, `194ea76 Merge pull request #15 from Kingsolima/onboarding-intake`.
+- **`origin/main..HEAD`**: empty, so `main` already contains this branch. The local `origin/main` ref may be stale since nothing was fetched.
+- **`.gitignore`**: no rule affects `data/recordings` (`git check-ignore` matched nothing). It does ignore `cad/out/`, `*.glb`, `*.step` and `.env`. The new recordings are simply not added yet; they would need to be committed and merged to `main` to ship.
+
+## 5. CI
+`.github/workflows/ci.yml` runs on pushes to `main` and on every PR:
+- **backend**: `uv sync`, `ruff check`, `pytest`.
+- **frontend**: `npm ci`, `lint`, `test`, `build`.
+
+There is no deploy step and no `ruff format` check.
+
+## 6. Health and smoke checks
+- `GET /health` returns `{"status":"ok"}` (`backend/app/main.py:38-40`). Caddy proxies it publicly, so `curl http://155.138.154.176/health` checks Caddy and the backend. There is no `/api/health`.
+- There are no smoke scripts and no make target for this. An end-to-end check would be:
+  - `GET /` for the frontend.
+  - `GET /api/jobs/...` (the projects list) for the API.
+  - `POST /api/jobs` with `{"mode":"replay","project_id":"ar4_club"}`, then follow its SSE stream, to check replay with the shipped recordings.
+  - `/cad/...` for the CAD worker.
+- Locally, `make prod-up` serves the same stack on :8080, and `make test` / `make test-cad` cover unit tests.</result>
+<usage><subagent_tokens>47660</subagent_tokens><tool_uses>6</tool_uses><duration_ms>48013</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a5141e2b6877bd48a</task-id>
+<tool-use-id>toolu_01N8YvPxNVsHfcycYnK7tgW9</tool-use-id>
+<output-file>/tmp/claude-1000/-home-omar--s-projects-HackWestern-2026/5b1e75ea-2b88-488e-a1de-0e51ff9ff520/tasks/a5141e2b6877bd48a.output</output-file>
+<status>completed</status>
+<summary>Agent "Explore frontend job wiring" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>I covered everything under `frontend/src`. I made no changes. All paths below are relative to `/home/omar__s/projects/HackWestern-2026/frontend/src`.
+
+## 1. The `?v4=1` gate
+- **Where it's read:** only at `App.tsx:31-34`. `?live=1` is read on the same lines:
+  ```ts
+  const LIVE_ENABLED = params.get('live') === '1'
+  // ?v4=1 shows the project switcher. Hidden until the backend handles project_id.
+  const V4_ENABLED = params.get('v4') === '1'
+  ```
+- **What it gates:** only the project switcher. `App.tsx:140` passes `onProjectChange={V4_ENABLED ? setProject : undefined}`, and `JobBar.tsx:89-91` renders `&lt;ProjectSwitcher&gt;` only when that prop is set. No other panel depends on the flag. ProjectCard, RiskTable and Recommendations show whenever job state has data (`App.tsx:142-151`).
+- **`project` / `projectId`:** `App.tsx:60-61`: `useState&lt;ProjectId&gt;('')` and `const projectId = project || undefined`. The IDs are listed in `projects.ts:2-6`: `''` (Wheeled demo), `'stretch'`, `'ar4_club'`. `project` also chooses the starter GLB through `starterRobot()` (`App.tsx:47-51`, used at :155).
+- **`demoPanels`:** `App.tsx:121`: `const demoPanels = !onboarded || (demo != null &amp;&amp; matchesDemo(onboarded, demo))`. It gates ChecksTable (:162), DesignTabs (:163) and the fallback baseline compliance card (:122, :158). It does not look at `project` at all.
+
+## 2. Creating and streaming a job
+- **`api.ts` has no job creation.** It only has the REST helpers: health, robot, example, compliance, seedCandidates, checks, designs (`api.ts:15-25`). Job creation is `createJob` in `job.ts:306-324`:
+  - It POSTs `{mode, project_id?, robot?}` to `/api/jobs`.
+  - It adds `X-Live-Token` only when `mode !== 'replay'`.
+  - `CreateJobOptions` (`job.ts:293-300`) is `{liveToken?, projectId?, robot?}`.
+- **Modes:** `JobMode = 'live' | 'replay' | 'mixed'` (`events.ts:42`). There is no `record` mode.
+- **How the mode is chosen** (`App.tsx:87-90`, no env var):
+  - **Replay:** the default.
+  - **Mixed:** chosen when the user is onboarded, there is no projectId, and `needsLiveAgents(o.specs)` is true. This calls `askLiveToken` (`liveToken.ts:14`, a `window.prompt` whose answer is kept in sessionStorage).
+  - **Live:** only through the "Run live" button, which needs `?live=1` (`App.tsx:138`, `JobBar.tsx:95`).
+  - The only env var is `VITE_API_URL`, used as the base URL.
+- **Streaming:** `useJob` (`job.ts:256`) calls `followJob` on `${BASE}/api/jobs/{id}/events` (EventSource on `onmessage`). It closes the stream at a terminal stage (`job.ts:333-350`).
+- **Event types** (`events.ts`). Every event has the envelope `{id, type, job_id, ts, data}`:
+
+  | type | `data` | line |
+  |---|---|---|
+  | `stage` | `{stage}` | :82 |
+  | `run_started` | `{run_id, worker, product, site, url, goal, live}` | :83 |
+  | `run_streaming_url` | `{run_id, streaming_url}` | :95 |
+  | `run_progress` | `{run_id, purpose}` | :99 |
+  | `run_finished` | `{run_id, outcome, reason, duration_s, live}` | :100 |
+  | `claim_verified` | `{claim}` | :104 |
+  | `claim_rejected` | `{claim, reason}` | :105 |
+  | `compliance` | `{card}` | :106 |
+  | `error` | `{message, stage}` | :107 |
+  | `design_ready` | `Design` | :128-139 |
+  | `project` | `{project, criteria}` | :259 |
+  | `risk_line` | `{risk: LineRisk, line: BomLine}` | :260 |
+  | `alternative` | `{alternative}` | :261 |
+  | `recommendation` | `{recommendation}` | :262 |
+  | `check_result`, `advocate`, `synthesis` | `PendingEvent`, typed as `Record&lt;string, unknown&gt;` | :264-268 |
+
+- **Reducer:** `applyEvent` (`job.ts:142-217`) handles every type except the three pending ones. Its `default:` branch at `job.ts:215` is `return state // check_result, advocate, synthesis: not rendered yet`. Events with `id &lt;= lastEventId` are dropped (:143). A later `risk_line` for the same line replaces the earlier one. Alternatives are de-duplicated by `id`. Recommendations keep one per line and are re-ranked with `rankRecommendations`.
+- **`JobState`** (`job.ts:45-67`):
+  - `jobId`, `mode`, `stage`, `lastEventId`
+  - `runs: Record&lt;string, Run&gt;`, `runOrder`
+  - `claims: ClaimRow[]`, `compliance`
+  - `baseline: Design | null`, `candidates: Design[]`
+  - `errors`
+  - `connection: 'idle' | 'starting' | 'streaming' | 'closed' | 'failed'`
+  - `project`, `criteria`, `riskLines: RiskRow[]` (where `RiskRow` is `{line, risk}`), `alternatives: Record&lt;lineId, Alternative[]&gt;`, `recommendations`
+
+## 3. ChecksTable and DesignTabs (the `demoPanels`)
+- **`ChecksTable({results: CheckResult[]})`** (`components/ChecksTable.tsx:4`): one column per `rows[i].check`, each cell showing passed, value and threshold. It does not render `CheckRow.sources`.
+- **`DesignTabs({designs: DesignVariant[]})`** (`components/DesignTabs.tsx:6`): a list showing objective label, motor, cost and domestic %.
+- **Where the data comes from** (`App.tsx:75-79`):
+  - `api.designs()` → `GET /api/designs`
+  - `api.seedCandidates()` → `GET /api/candidates/seed`, then `api.checks` (`POST /api/checks`) for each candidate
+  - Neither comes from the job stream (comment at `App.tsx:56`).
+- **Types** (`types.ts:62-85`):
+  - `CheckResult {candidate, verdict, fit, rows: CheckRow[]}`
+  - `CheckRow {check, value, threshold, passed: boolean|null, sources: string[]}`
+  - `DesignVariant {design_id, objective: 'cost'|'performance'|'us_first', motor, cost_usd: string, domestic_pct, glb_url?, step_url?}`
+- **Comparison with the `check_result` event: the shapes differ.** `SpecCheck` is not defined anywhere in the frontend. On the backend:
+  - The event is `CheckResultPayload {check: SpecCheck}` (`backend/app/orchestrator/events.py:180-182`), so there is one check per event.
+  - `SpecCheck` (`backend/app/engineering/spec_checks.py:41-50`) is `{candidate_id, check, verdict, value, threshold, unit, margin, claim_ids, note}`.
+  - `CheckResult` groups many rows per candidate and adds `fit`, `passed` and `sources: string[]`. `SpecCheck` has a verdict per check, plus `unit`, `margin`, `claim_ids` and `note`.
+  - Unrelated drift: the backend `Objective` also has `supply_risk` and `lead_time` (`schemas.py:142-147`), but the frontend `Objective` does not.
+
+## 4. Onboarding
+- **Components:** `Onboarding.tsx` (Typeform-style steps: questions, files, drivetrain, review), plus `BomUpload`, `CadUpload`, `SpecsReview` and `CompanyCard`.
+- **`OpenAnswers`:** `Record&lt;'who'|'market'|'limits'|'drivetrain', string&gt;` (`onboarding/questions.ts:4-5`).
+- **`Onboarded`:** `{answers, bom: BomRow[], company: CompanyFact[], specs: SpecRow[]}` (`onboarding/answers.ts:9-14`).
+- **`toRobot(o, demo)`** (`answers.ts:36-49`): starts from the demo requirements and overwrites them with `s.value / s.divisor` for each spec's `robot_field`. Name and assembly country come from the company facts. `bom` is `o.bom`.
+- **`loadSaved` / `saveOnboarded`:** use localStorage key `'onboarding-v2'` (`answers.ts:109-135`). `onboarded: null` means the user skipped.
+- **Intake API calls:**
+  - `POST /api/intake` with `{robot_kind:'wheeled', bom, cad, answers}`. It sends `X-Live-Token` if set, and on a 403 it asks for the token and retries (`onboarding/intake.ts:88-96`, `Onboarding.tsx:70-85`). It is also called with `answers: null` for a files-only reading (`Onboarding.tsx:118`).
+  - `POST /api/intake/cad` (`intake.ts:98`).
+  - `GET /api/intake/example` (`api.ts:18`).
+- **Flow into the job:** `finishOnboarding` (`App.tsx:91-96`) saves, switches to the dashboard and calls `run(o)`. `jobOptions` (`App.tsx:82-85`):
+  ```ts
+  projectId,
+  robot: o &amp;&amp; demo &amp;&amp; !projectId ? toRobot(o, demo) : undefined,
+  ```
+- **With a project selected:** the robot is dropped, the job is always replay, and `project_id` is sent. CompanyCard is replaced by ProjectCard once a `project` event arrives (`App.tsx:142-143`).
+
+## 5. `BomLine` and `sources`
+- **`BomLine`** (`events.ts:165-178`) includes `sources: Source[]`, where `Source` is `{url, kind, fetched_at, html_key, via}`.
+- **Where BOM lines render:** RiskTable rows (`components/RiskTable.tsx:76-91`: part, manufacturer, illustrative badge, domain, qty), `domesticShare` inside ProjectCard (`ProjectCard.tsx:18`), and part names in Recommendations (`Recommendations.tsx:25`).
+- **`sources` is not rendered anywhere.** A grep finds no `.sources` use outside types.
+- **`RiskFactor.source_urls`** (`events.ts:223`) is also not rendered. Factor chips only use `value` and `reason` in a tooltip (`RiskTable.tsx:96-99`).
+- The onboarding `BomRow` (`types.ts:8`) is a different type.
+
+## 6. How project jobs render (`App.tsx:143-151`)
+- **`ProjectCard`** (project, criteria, claims): facts with verified/stated badges, plus criteria.
+- **`RiskTable`** (rows, alternatives): five factor chips from `RISK_FACTORS`, an overall `LevelChip`, and an alternatives sub-row (an inner `Alternatives` component).
+- **`Recommendations`** (recommendations, rows, alternatives).
+
+## 7. Tests and tooling
+- **Test files (Vitest):**
+  - `job.test.ts`: applyEvent, design_ready, followJob, createJob, v4 events, domesticShare
+  - `onboarding/answers.test.ts`
+  - `onboarding/bomCsv.test.ts`
+- **Commands** (`package.json`, run from `frontend/`):
+  - `npm test` runs `vitest run`
+  - `npm run lint` runs `oxlint`
+  - `npm run build` runs `tsc -b &amp;&amp; vite build`. There is no separate typecheck script; `npx tsc -b` does the typecheck alone.
+- **Dev proxy** (`vite.config.ts`): `/api` and `/health` go to :8000, and `/cad` goes to :8001.</result>
+<usage><subagent_tokens>62418</subagent_tokens><tool_uses>7</tool_uses><duration_ms>50347</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a2903c24a11b40916</task-id>
+<tool-use-id>toolu_01MB2mvyBRtnzDTD9wbUSBik</tool-use-id>
+<output-file>/tmp/claude-1000/-home-omar--s-projects-HackWestern-2026/5b1e75ea-2b88-488e-a1de-0e51ff9ff520/tasks/a2903c24a11b40916.output</output-file>
+<status>completed</status>
+<summary>Agent "Explore backend project pipeline" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>I couldn't find any section addressed to "Omar" that contains "Remove the ?v4=1 gate". That line is in `docs/REMAINING-WORK.md:95-96`, under "### 6. UI clean-up for the demo", which isn't assigned to anyone. The only sections naming Omar are `docs/BUILD-PLAN-v4.md:169-206` ("## 7. Asks for Omar") and `REMAINING-WORK.md:91`. Everything else is below with file:line references.
+
+## 1. Job creation API and settings
+
+**Request body** (`backend/app/api/jobs.py:22-25`):
+```python
+robot: Robot | None = None
+mode: JobMode = "replay"
+project_id: str | None = None  # None = the v3 wheeled demo job
+```
+- `JobMode = Literal["live","replay","mixed"]` (`schemas.py:14`). There is no "record" mode: `live` records, and `mixed` replays where a recording exists and goes live otherwise.
+- The mode comes from each request only. No setting picks it.
+- Live and mixed jobs go through `require_live_permission` (`jobs.py:65-72`). It only checks the `X-Live-Token` header when `require_live_token=REDACTED, and then the header must match `live_jobs_token`.
+- A missing robot falls back to `load_demo_robot()` (`jobs.py:88`). An unknown project returns 404.
+- `GET /api/projects` returns `{id, kind, name, robot, use_case}` (`jobs.py:94-96`).
+
+**Recorder** (`recorder.py:34`): `Recorder(root, mode, replay_speed)`.
+- Built per job in `Runtime.start_job` (`orchestrator/runtime.py:51`) as `Recorder(settings.recordings_dir, mode, settings.replay_speed)`.
+- One recorder is shared by `TFClient` and `GeminiClient`. `Runtime.gemini(mode)` (`runtime.py:42-47`) builds one for the intake API.
+- In `live` mode it never reads recordings. In `replay` mode a missing recording raises `ReplayMiss` (`recorder.py:43-52`).
+- Recordings are keyed by sha256 of the product plus canonical request JSON (`recorder.py:26-30`).
+
+**Every Settings field** (`config.py:17-49`, loaded from repo-root `.env` and `./.env`):
+
+| Field | Default |
+|---|---|
+| `cors_origins` | `"http://localhost:5173"` |
+| `cad_worker_url` | `"http://localhost:8001"` |
+| `gemini_api_key` | `""` |
+| `gemini_model` | `"gemini-2.5-pro"` |
+| `gemini_flash_model` | `"gemini-2.5-flash"` (this is the one jobs use) |
+| `tinyfish_api_key` | `""` |
+| `require_live_token` | `False` |
+| `live_jobs_token` | `""` |
+| `database_url` | `"REDACTED"` |
+| `s3_endpoint`, `s3_bucket`, `s3_access_key`, `s3_secret_key` | `""` |
+| `auth0_domain`, `auth0_audience` | `""` |
+| `data_dir` | `REPO_ROOT/data` |
+| `recordings_dir` | `data/recordings` (must be writable for live runs) |
+| `replay_speed` | `1.0` |
+| `agent_slots` / `browser_slots` / `search_slots` / `fetch_slots` / `gemini_slots` | `2` / `5` / `4` / `4` / `4` |
+| `max_agent_runs_per_job` | `8` |
+
+A live run really needs `TINYFISH_API_KEY`, `GEMINI_API_KEY` and `CAD_WORKER_URL`, plus `LIVE_JOBS_TOKEN` if `REQUIRE_LIVE_TOKEN` is on. The database URL is not needed (see §4). `.env.example` lists the same names.
+
+## 2. Projects
+
+- **Loader** (`projects.py:19-29`): `data/projects/&lt;id&gt;.json`, id must match `^[a-z0-9_-]{1,40}$`.
+- **`Project`** (`schemas.py:374-390`): `id`, `kind` ("company"|"club"), `name`, `robot`, `use_case`, `robot_kind` ("wheeled"|"arm"), `arm: ArmParams|None`, `wheeled: RobotRequirements|None`, `deep_line`, `deep_frame` (default "23"), `cad_robot: Literal["wheeled","ar4","stretch"]` (default "wheeled"), `bom: list[BomLine]`, `intake_sources`, `stated: ProjectFacts`.
+- **`ArmParams`** (`schemas.py:336-350`): `joint`, `payload_kg`, `reach_m`, `links[{name, mass_kg, com_m}]`, `gear_ratio`, `efficiency`, `omega_max_dps`, `t_accel_s`, `safety_factor` (1.5), `bus_voltage_v`, `illustrative`, `notes`.
+- **`BomLine`** (`schemas.py:353-371`): `sources: list[str]` (URLs behind price and origin), alongside `id, domain, qty, part, manufacturer, part_number, unit_price_usd, origin_country, origin_tier, availability, lead_time_days, hts_code, component_class, illustrative, notes`.
+- **`ar4_club`**: club, `deep_line="j2_motor"`, one BOM line, no intake sources, `stated` = CA / $2500 / 21 days, `cad_robot="ar4"`, `deep_frame` left at the default "23".
+- **`stretch`**: company, illustrative arm, `deep_line="shoulder_motor"`, 4 BOM lines, 4 intake sources, `deep_frame="34"`, `cad_robot="stretch"`.
+
+**How a `project_id` changes the pipeline** (`orchestrator/job.py:40-56`):
+- `intake` (`intake_stages.py:29`) returns early when there's no project or no `intake_sources`. That means it does nothing for ar4_club.
+- `criteria` (`:84`) and `risk_baseline` / `alternatives` / `recommend_lines` (`risk_stages.py:23,40,86`) all skip when there is no project.
+- `compliance_baseline` runs only when there is no project (`job.py:60-61`).
+- `plan_queries(ctx.project)` (`job.py:66`), `requirement_for(robot, project)` (`job.py:185`), and `baseline_frame` / `baseline_names` (`job.py:249-260`) all depend on the project.
+- REPORT has no handler.
+
+**What `cad_robot="stretch"` does today:** `cad_robot()` (`job.py:244-246`) sends `robot="stretch"` to the worker. The worker's `BuildRequest.robot` only accepts `"wheeled"|"ar4"`, so it answers 422. `CadClient` turns that into `CadError("CAD build … failed: HTTP 422 …")` (`cad_client.py:78-79`). That error is emitted as a non-fatal error event in CHECK (`job.py:200-202`, fit goes to Review) and in BUILD (`job.py:271-273`, no baseline design and no candidate `design_ready` events). Separately, `generic_fit` is set to True because the robot isn't "wheeled" (`job.py:204`).
+
+## 3. Onboarding / intake
+
+`api/intake.py` has three endpoints:
+- **`POST /api/intake`**
+  - Takes `{robot_kind: "wheeled", bom: [BomRow], cad?: CadMeasure, answers?: Answers}` (`:35-39`).
+  - Returns `IntakeResult{robot_kind, company, specs, dropped}` (`intake/schema.py:166-171`).
+  - `RobotKind = Literal["wheeled"]` only (`schema.py:13`).
+- **`POST /api/intake/cad`**: raw STEP bytes in (25 MB limit), `CadMeasure` out via the worker's `/measure`.
+- **`GET /api/intake/example`**: returns `data/onboarding_example.json`.
+
+Gemini is used in two places:
+- `read_answers` (`intake.py:47-66`) tries a replay first, then a mixed call, which needs the token and the key. The prompt and check code are in `intake/extract.py`.
+- The job's INTAKE stage, Flash on the fetched company pages (`intake_stages.py:58-59`).
+
+Onboarding never creates or saves a Project. The frontend turns the answers into a `Robot` and the job runs with `project=None`. `REMAINING-WORK.md:26-55` proposes `intake/to_project.py` and an `onboarding` field on `JobRequest`.
+
+## 4. Database
+
+- The intended database is Postgres with TimescaleDB ("Tiger Data"). `db/tiger.py:11-14` has a psycopg `connect()` using `settings.database_url`.
+- The schema is `db/schema.sql`: tables `agent_runs`, `price_observations`, `check_results`, `design_variants` and a materialized view `site_success_hourly`. These are v2 tables.
+- `docker-compose.yml:4,11,26` runs `timescale/timescaledb:latest-pg17`, loads `schema.sql` as an init script, and sets `DATABASE_URL=…@db:5432/redesign`.
+- There are no migrations.
+- Nothing imports `app.db` (`tiger.py` or `storage.py`, the S3 client). Jobs, events and the board are all in memory: `Runtime.jobs` dict, `EventLog`, `MemoryBoard` (`orchestrator/board.py:1-2`: "the Tiger Data version implements the same Protocol").
+
+## 5. CAD worker
+
+- **`BuildRequest`** (`cad/cad_worker/server.py:77-105`): `robot: Literal["wheeled","ar4"]`, `frame: Literal["17","23","34"]`, `body_len`, `shaft_d`, `pilot_d`, `bolt_spacing`, `highlight`. Wheeled-only fields: `wheel_r`, `wheel_bore`, `min_ground_clearance`. AR4-only fields: `gearbox_bore`, `j2_space`.
+- `params()` builds `ArmParams` for "ar4" and `RobotParams` otherwise. `build_design` (`:49-62`) dispatches on the params type.
+- **Wheeled geometry**: `cad_worker/robot.py`, with `RobotParams` (`:38`), `measure` (`:80`), `motor` / `bracket` (`:133,146`) and `robot()` (`:187`).
+- **AR4 geometry**: `cad_worker/arm.py`, with `ArmParams` (`:50`), `measure_arm` (`:73`, returns `fit_checks` rows), `mount_plate` (`:120`) and `arm()` (`:136`).
+- Starter designs are listed in `STARTERS` (`server.py:41-46`).
+
+To add "stretch":
+1. Add a `stretch.py` module with a params dataclass, a measure function returning `fit_checks`, and an assembly function. BUILD-PLAN-v4 §7 describes it as a mobile base, mast and arm with a NEMA 34 shoulder mount.
+2. Extend the `BuildRequest` Literal and `params()`, and the `build_design` dispatch.
+3. Optionally add a starter design.
+
+No backend change is needed: `CadClient` already sends any robot that isn't "wheeled" (`cad_client.py:66-67`) and skips the `FIT_KEYS` check for it (`:81-82`).
+
+## 6. Recordings
+
+- Layout: `data/recordings/{agent,fetch,gemini,search}/&lt;sha256&gt;.json.gz`, currently 78 / 23 / 41 / 9 files.
+- `git status` shows 6 untracked agent files, 2 untracked fetch files and 1 modified agent file, so a newer live run isn't committed yet.
+- The ar4_club replay was recorded in commit `90e5e28` ("Live AR4 club job recorded…": Teknic CPM-SDSK-2331S-RLN, Automation Technology ISV-B23130T-D4, McLennan). Stretch was recorded in `7b564d6`.
+- `REMAINING-WORK.md:19-21` says both projects have recorded replays. The recording script is `backend/scripts/run_job.py` (`--mode live --project ar4_club`).
+
+The section you asked for (`REMAINING-WORK.md:93-104`, no owner named):
+&gt; ### 6. UI clean-up for the demo
+&gt; - Remove the `?v4=1` gate on the project switcher in `App.tsx`. The backend now handles `project_id`, so the comment saying it doesn't is out of date.
+&gt; - The stepper shows 15 stages. Group them into 5 steps the customer understands: Understand you (INTAKE, CRITERIA), Risk map (RISK_BASELINE), Find parts (PLAN to VERIFY), Check and rank (CHECK, RANK, ALTERNATIVES, RECOMMEND), Your new robot (BUILD, REPORT). Show the raw stage name as a tooltip.
+&gt; - Results order on screen: summary (REPORT) → recommendations → risk table → before/after 3D → motor candidate details.
+&gt; - The demo panels (`demoPanels` in `App.tsx`) hide when the onboarded robot differs from the demo robot. Once gap 1 lands, the project panels replace them, so remove that special case.
+
+## 7. Seed endpoints
+
+All of these are in `backend/app/api/routes.py`:
+- `GET /api/candidates/seed` (`:29-32`) reads `data/seed_motors.json["motors"]`. That list is empty (0 entries); the `_comment` says "Owner 3: add 2-3 real, pre-identified NEMA motors…". This is why `seedCandidates` returns `[]`.
+- `POST /api/checks` (`:35-37`) runs the v2 `run_checks` against the demo robot.
+- `GET /api/designs` (`:46-49`) is a stub that always returns `[]`.
+- `GET /api/designs/{id}/{kind}` in `api/designs.py` proxies GLB/STEP files from the worker.
+
+The frontend calls them at `App.tsx:75-79`.
+
+## 8. Price verification
+
+- **Teknic goal** (`agents/targets.py:60-63`): "quote = the row label and the value exactly as they appear… Do not add colons, words or labels that are not on the page… For price, quote the price text exactly as displayed (e.g. "$293")."
+- **Check** (`verifier.py:84-90`): the claim passes only if the normalized quote is a substring of the normalized page. Normalizing removes tags, colons and thousands separators, collapses whitespace and lowercases.
+
+Why a quote like "Price $265.00" can fail (from the code; I didn't check the live page):
+- The word "Price" may have been added by the agent and not appear next to the amount on the page.
+- The page may render "$" and the number with a space between them, or show "$265" instead of "$265.00".
+- The price may be filled in by JavaScript, so it is missing from both fresh fetch passes (`VERIFY_PASSES`, `job.py:84`). The last fallback, `verify_on_agent_snapshot` (`job.py:135-159`), only helps if:
+  - the claim has a `source.run_id`,
+  - a step's canonical URL passes `same_page()` against the claim's URL (the model page, with the selected voltage),
+  - that step's HTML exists.
+  
+  It checks only the most recent matching step and then stops (`break`), so a snapshot taken before the price loaded fails too.
+- In replay, `run_steps`, `step_canonical` and `step_html` must each have a recording, or the job raises `ReplayMiss`.
+
+## 9. Tests and tooling
+
+- Backend: `make test` runs `cd backend &amp;&amp; uv run pytest` (pytest config in `backend/pyproject.toml`, `testpaths=["tests"]`, `pythonpath=["."]`). Project-replay tests are in `tests/test_risk_stages.py:84,117-126`.
+- Lint: `make lint` runs `uv run ruff check . &amp;&amp; uv run ruff format --check .` (line length 100, rules E/F/I/UP/B), plus `npm run lint` for the frontend. There is no type checker.
+- CAD: `make test-cad` runs pytest inside the Docker image. CadQuery needs Python 3.12.
+- Install with `make install` (`uv sync` plus `npm install`).</result>
+<usage><subagent_tokens>88045</subagent_tokens><tool_uses>24</tool_uses><duration_ms>117258</duration_ms></usage>
+</task-notification>

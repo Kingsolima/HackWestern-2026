@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01CvnSFjucY1Sz5DB8pweAdL",
+  "agent_id": "a684eb248f7b8691b",
+  "subagent_type": "Explore",
+  "task_description": "Explore deployment and git state",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 44199,
+    "cache_read_tokens": 133997,
+    "output_tokens": 4892,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-22T02:23:52.603567964-05:00",
+  "completed_at": "2026-11-22T02:24:40.025404321-05:00"
+}

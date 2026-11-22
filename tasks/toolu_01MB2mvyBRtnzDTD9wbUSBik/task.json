@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01MB2mvyBRtnzDTD9wbUSBik",
+  "agent_id": "a2903c24a11b40916",
+  "subagent_type": "Explore",
+  "task_description": "Explore backend project pipeline",
+  "token_usage": {
+    "input_tokens": 44,
+    "cache_creation_tokens": 82214,
+    "cache_read_tokens": 1248008,
+    "output_tokens": 10343,
+    "api_call_count": 22
+  },
+  "started_at": "2026-11-22T02:23:52.459172771-05:00",
+  "completed_at": "2026-11-22T02:25:49.089254193-05:00"
+}

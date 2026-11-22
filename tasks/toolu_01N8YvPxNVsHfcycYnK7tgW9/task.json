@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01N8YvPxNVsHfcycYnK7tgW9",
+  "agent_id": "a5141e2b6877bd48a",
+  "subagent_type": "Explore",
+  "task_description": "Explore frontend job wiring",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 58102,
+    "cache_read_tokens": 205424,
+    "output_tokens": 5495,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-22T02:23:52.404824792-05:00",
+  "completed_at": "2026-11-22T02:24:42.174103913-05:00"
+}
