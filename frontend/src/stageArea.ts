@@ -35,7 +35,7 @@ export function freeArea(panels: Box[], width: number, height: number): FreeArea
   return { shift: (left + right) / 2 - width / 2, width: right - left }
 }
 
-const PANELS = '.shell.on .console, .shell.on .dossier, .shell.on .bays'
+const PANELS = '.shell.on .console, .shell.on .dossier, .shell.on .part-card'
 
 /** freeArea for the panels on screen, measured again when `layout` changes, when a panel
  * resizes and when the window does. */

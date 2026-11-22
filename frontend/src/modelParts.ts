@@ -8,6 +8,8 @@ export type PartRole = 'deep' | 'build'
 
 /** One BOM line, whichever shape it came in (onboarding BomRow or a project's BomLine). */
 export interface PartLine {
+  /** The project's BOM line id, when the line came from a job's project. */
+  id?: string
   part: string
   category?: string
   qty: number
@@ -39,12 +41,22 @@ export function partRole(robot: CadRobot, node: string, show: { deep: boolean; b
 export function matchLines(node: string, lines: PartLine[]): PartLine[] {
   const words = node.toLowerCase().split('_').filter((w) => w && !SIDES.has(w) && !/^\d+$/.test(w))
   if (words.includes('shaft')) return []
+  // The AR4's link_N meshes are joint N's machined housings, not a part named "link".
+  const link = /^link_(\d)$/i.exec(node)
+  if (link) {
+    const named = lines.filter(
+      (l) => new RegExp(`\\bj${link[1]}\\b`, 'i').test(l.part) && !isMotorLine({ part: l.part, category: l.category ?? '' }),
+    )
+    const machined = named.filter((l) => /machined/i.test(l.part))
+    return machined.length ? machined : named
+  }
   const joint = words.find((w) => /^j\d$/.test(w))
   const inJoint = (ls: PartLine[]) => {
     const named = ls.filter((l) => joint && new RegExp(`\\b${joint}\\b`, 'i').test(l.part))
     return named.length ? named : ls
   }
-  if (words.includes('motor')) {
+  // A gearbox node is the gear head of its joint's motor line ("J2 gear head motor").
+  if (words.includes('motor') || words.includes('gearbox')) {
     const motors = inJoint(lines.filter((l) => isMotorLine({ part: l.part, category: l.category ?? '' })))
     return motors.slice(0, 1)
   }

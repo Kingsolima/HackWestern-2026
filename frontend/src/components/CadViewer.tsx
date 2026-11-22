@@ -3,8 +3,9 @@ import { createPortal } from 'react-dom'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { partInfo, partRole, type PartLine, type PartRole } from '../modelParts'
-import type { CadRobot } from '../events'
+import { partRole, type PartRole } from '../modelParts'
+import type { PartDetail } from '../partDetail'
+import type { CadRobot, Level } from '../events'
 import type { FreeArea } from '../stageArea'
 
 interface Props {
@@ -15,8 +16,13 @@ interface Props {
   /** Highlight the deep line (a job is running) and the regenerated mount (the redesign is shown). */
   deep: boolean
   build: boolean
-  /** BOM lines the hover label is matched against. */
-  lines: PartLine[]
+  /** What to say about a part (hover and pin); changes identity when the answer may change. */
+  detail: (node: string, role: PartRole | null) => PartDetail
+  /** Colour each part by its supply-risk level. */
+  heat: boolean
+  /** The part whose card is pinned, and the callback for a click on a part (null: empty space). */
+  pinned: string | null
+  onPick: (node: string | null) => void
   /** The part of the window no panel covers: the model is centred and fitted in it. */
   area: FreeArea
   onStatus?: (status: { parts: number; size_mm: [number, number, number] } | 'error') => void
@@ -25,6 +31,12 @@ interface Props {
 const ORANGE = new THREE.Color('#f2a93b')
 const EDGE = new THREE.Color('#cfcfcf')
 const FILL = new THREE.Color('#151617')
+const HEAT: Record<Level, THREE.Color> = {
+  high: new THREE.Color('#ef5f52'),
+  medium: new THREE.Color('#e4cf5a'),
+  low: new THREE.Color('#6fcf8e'),
+  unknown: new THREE.Color('#6a6a6a'),
+}
 const HOME_DIR = new THREE.Vector3(3.2, 2.1, 3.7).normalize()
 const ease = (x: number) => 1 - Math.pow(1 - x, 3)
 
@@ -54,6 +66,9 @@ interface World {
   box: THREE.Box3
   roles: Map<string, PartRole>
   hover: string | null
+  pinned: string | null
+  /** Risk level per part while the heat view is on; empty when it is off. */
+  heat: Map<string, Level>
   shift: number
   shiftGoal: number
   /** Free area width / window width. */
@@ -67,28 +82,38 @@ function paint(w: World, name: string) {
   const part = w.parts.get(name)
   if (!part) return
   const role = w.roles.get(name)
-  const lit = w.hover === name
+  const level = w.heat.get(name)
+  const pinned = w.pinned === name
+  const lit = w.hover === name || pinned
   part.traverse((o) => {
     if (o instanceof THREE.Mesh) {
-      const base = role === 'build' ? ORANGE.clone().multiplyScalar(0.32) : FILL.clone()
-      ;(o.material as THREE.MeshStandardMaterial).color.copy(lit ? base.multiplyScalar(1.6) : base)
+      const base = level
+        ? HEAT[level].clone().multiplyScalar(0.3)
+        : role === 'build'
+          ? ORANGE.clone().multiplyScalar(0.32)
+          : FILL.clone()
+      ;(o.material as THREE.MeshStandardMaterial).color.copy(lit ? base.multiplyScalar(pinned ? 2.2 : 1.6) : base)
     }
     if (o instanceof THREE.LineSegments) {
       const m = o.material as THREE.LineBasicMaterial
-      m.color.copy(role ? ORANGE : EDGE)
-      m.opacity = role || lit ? 1 : 0.5
+      m.color.copy(pinned ? ORANGE : level ? HEAT[level] : role ? ORANGE : EDGE)
+      m.opacity = role || lit || level ? 1 : 0.5
     }
   })
 }
 
 /** The full-screen CAD stage: dark solids with hairline edges, hover names a part, and the job's
  * parts turn orange. Camera and framing survive a model swap (before/after). */
-export function CadViewer({ src, robot, deep, build, lines, area, onStatus }: Props) {
+export function CadViewer({ src, robot, deep, build, detail, heat, pinned, onPick, area, onStatus }: Props) {
   const host = useRef<HTMLDivElement>(null)
   const tip = useRef<HTMLDivElement>(null)
   const world = useRef<World | null>(null)
-  const linesRef = useRef(lines)
-  linesRef.current = lines
+  const detailRef = useRef(detail)
+  detailRef.current = detail
+  const pickRef = useRef(onPick)
+  pickRef.current = onPick
+  const heatRef = useRef(heat)
+  heatRef.current = heat
   const robotRef = useRef(robot)
   robotRef.current = robot
   const [offline, setOffline] = useState(false)
@@ -128,7 +153,7 @@ export function CadViewer({ src, robot, deep, build, lines, area, onStatus }: Pr
       renderer, scene, camera, controls,
       clip: new THREE.Plane(new THREE.Vector3(0, -1, 0), 10),
       model: null, robot: 'wheeled', parts: new Map(), box: new THREE.Box3(), roles: new Map(),
-      hover: null, shift: 0, shiftGoal: 0, freeFrac: 1, grow: null, tween: null,
+      hover: null, pinned: null, heat: new Map(), shift: 0, shiftGoal: 0, freeFrac: 1, grow: null, tween: null,
       applyView: () => {
         const r = el.getBoundingClientRect()
         if (!r.width) return
@@ -169,9 +194,21 @@ export function CadViewer({ src, robot, deep, build, lines, area, onStatus }: Pr
       const t = tip.current
       if (!t) return
       if (!name) return t.classList.remove('show')
-      const info = partInfo(name, linesRef.current, w.roles.get(name) ?? null)
-      t.firstElementChild!.textContent = info.title
-      t.lastElementChild!.textContent = info.detail
+      const d = detailRef.current(name, w.roles.get(name) ?? null)
+      const set = (cls: string, text: string, tone = '') => {
+        const el = t.querySelector<HTMLElement>(`.${cls}`)!
+        el.textContent = text
+        el.hidden = !text
+        el.dataset.tone = tone
+      }
+      set('t', d.title)
+      set('s', d.facts.join(' · '))
+      const p = d.risk?.priority
+      const score = p ? ` ${p.hi > p.lo ? `${p.lo}–${p.hi}` : p.lo}/9` : ''
+      set('r', d.level ? `Risk ${d.level}${score}${d.worst ? ` · ${d.worst.name}: ${d.worst.value}` : ''}` : '', d.level ?? '')
+      set('a', d.action ? `Action: ${d.action}` : '')
+      set('o', d.role ?? '')
+      set('h', w.pinned === name ? 'Pinned' : 'Click for details')
       t.style.left = `${e.clientX}px`
       t.style.top = `${e.clientY}px`
       t.classList.add('show')
@@ -182,8 +219,22 @@ export function CadViewer({ src, robot, deep, build, lines, area, onStatus }: Pr
       w.hover = null
       if (old) paint(w, old)
     }
+    // A click (not a drag to orbit) pins the part under the pointer, or unpins on empty space.
+    let down: { x: number; y: number } | null = null
+    const onDown = (e: PointerEvent) => {
+      down = { x: e.clientX, y: e.clientY }
+    }
+    const onUp = (e: PointerEvent) => {
+      if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 5) {
+        onMove(e)
+        pickRef.current(w.hover)
+      }
+      down = null
+    }
     renderer.domElement.addEventListener('pointermove', onMove)
     renderer.domElement.addEventListener('pointerleave', onLeave)
+    renderer.domElement.addEventListener('pointerdown', onDown)
+    renderer.domElement.addEventListener('pointerup', onUp)
 
     let raf = 0
     const frame = (now: number) => {
@@ -265,6 +316,7 @@ export function CadViewer({ src, robot, deep, build, lines, area, onStatus }: Pr
         w.model = model
         w.box.setFromObject(model)
         w.roles.clear()
+        w.heat.clear()
         onStatus?.({ parts: w.parts.size, size_mm: [size.x, size.z, size.y].map(Math.round) as [number, number, number] })
         if (first) {
           w.grow = { t0: performance.now(), h: w.box.max.y }
@@ -274,6 +326,7 @@ export function CadViewer({ src, robot, deep, build, lines, area, onStatus }: Pr
         }
         else if (before !== w.robot) frame(w, w.box.getCenter(new THREE.Vector3())) // another robot
         setRoles(w, deep, build)
+        setHeat(w, heatRef.current, detailRef.current)
       },
       undefined,
       () => !cancelled && onStatus?.('error'),
@@ -289,6 +342,20 @@ export function CadViewer({ src, robot, deep, build, lines, area, onStatus }: Pr
     const w = world.current
     if (w) setRoles(w, deep, build)
   }, [deep, build])
+
+  useEffect(() => {
+    const w = world.current
+    if (w) setHeat(w, heat, detail)
+  }, [heat, detail])
+
+  useEffect(() => {
+    const w = world.current
+    if (!w || w.pinned === pinned) return
+    const old = w.pinned
+    w.pinned = pinned
+    if (old) paint(w, old)
+    if (pinned) paint(w, pinned)
+  }, [pinned])
 
   // The panels moved: slide the model into the new free area and fit it there.
   useEffect(() => {
@@ -308,6 +375,10 @@ export function CadViewer({ src, robot, deep, build, lines, area, onStatus }: Pr
         <div className="tip" ref={tip}>
           <div className="t" />
           <div className="s" />
+          <div className="r" />
+          <div className="a" />
+          <div className="o" />
+          <div className="h" />
         </div>,
         document.body,
       )}
@@ -331,4 +402,16 @@ function setRoles(w: World, deep: boolean, build: boolean) {
   const c = w.box.getCenter(new THREE.Vector3())
   c.lerp(new THREE.Box3().setFromObject(w.parts.get(target)!).getCenter(new THREE.Vector3()), 0.25)
   frame(w, c)
+}
+
+/** Colour every part with a known risk level, or clear the colours. */
+function setHeat(w: World, on: boolean, detail: Props['detail']) {
+  w.heat.clear()
+  if (on) {
+    for (const name of w.parts.keys()) {
+      const level = detail(name, null).level
+      if (level) w.heat.set(name, level)
+    }
+  }
+  for (const name of w.parts.keys()) paint(w, name)
 }

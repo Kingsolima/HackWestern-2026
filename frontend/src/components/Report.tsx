@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { outcomeAccuracy, type Accuracy } from '../accuracy'
 import { RISK_FACTORS, type Claim, type Recommendation, type Score } from '../events'
 import type { JobState, RiskRow } from '../job'
@@ -31,6 +31,8 @@ interface Props {
   /** The baseline compliance card, when it is right for this robot. */
   card: ComplianceCard | null
   modelNotes: string[]
+  /** A BOM line id to open and scroll to (from "See in report" on a 3D part). */
+  focus?: string | null
 }
 
 const label = (s: string) => s.replaceAll('_', ' ')
@@ -43,7 +45,7 @@ const host = (url: string) => {
 }
 const Dot = ({ tone }: { tone: Accuracy }) => <span className={`dot ${tone}`} />
 
-function Src({ url }: { url: string }) {
+export function Src({ url }: { url: string }) {
   return url.startsWith('http') ? (
     <a href={url} target="_blank" rel="noreferrer">
       {host(url)}
@@ -268,7 +270,7 @@ const SCORE_NAME: [keyof Pick<NonNullable<RiskRow['risk']['priority']>, 'supply'
   ['impact', 'Impact on the robot'],
 ]
 
-function ScoreLine({ name, score }: { name: string; score: Score }) {
+export function ScoreLine({ name, score }: { name: string; score: Score }) {
   return (
     <div className="score">
       <LevelChip level={scoreLevel(score)}>{score.value === null ? '?' : `${score.value}/3`}</LevelChip>
@@ -380,7 +382,7 @@ function ActionGroup({ action, items }: { action: Recommendation['action']; item
 function SupplyRow({ row, alts }: { row: RiskRow; alts: JobState['alternatives'][string] }) {
   const { line, risk } = row
   return (
-    <details className="item">
+    <details className="item" id={`line-${line.id}`}>
       <summary className="supply-sum">
         <span className="name">
           {shortPart(line.part)}
@@ -671,8 +673,18 @@ function Evidence({ job }: { job: JobState }) {
 // ---------- page ----------
 
 /** The report tab: one page from the decision down to the evidence, with a contents list. */
-export function Report({ job, onboarded, card, modelNotes }: Props) {
+export function Report({ job, onboarded, card, modelNotes, focus }: Props) {
   const page = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!focus) return
+    const el = page.current?.querySelector<HTMLDetailsElement>(`#line-${CSS.escape(focus)}`)
+    if (!el) return
+    el.open = true
+    el.classList.add('flash')
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    const t = setTimeout(() => el.classList.remove('flash'), 1800)
+    return () => clearTimeout(t)
+  }, [focus])
   const deep = deepLineComparison(job)
   const sections: [string, string, boolean][] = [
     ['summary', 'Summary', true],

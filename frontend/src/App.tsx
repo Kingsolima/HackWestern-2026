@@ -1,19 +1,21 @@
-import { Suspense, lazy, useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from './api'
 import { AgentGraph } from './components/AgentGraph'
 import { Brief } from './components/Brief'
 import { JobConsole } from './components/JobConsole'
 import { Onboarding, type Progress } from './components/Onboarding'
+import { PartCard } from './components/PartCard'
 import { Report } from './components/Report'
 import { Welcome } from './components/Welcome'
 import { STAGE_ORDER, stageLabel } from './events'
 import { isTerminal, useJob, type CreateJobOptions } from './job'
 import { askLiveToken } from './liveToken'
 import { genericModelNotes } from './modelNotes'
-import type { PartLine } from './modelParts'
+import { partRole, type PartLine, type PartRole } from './modelParts'
 import { loadSaved, matchesDemo, needsLiveAgents, saveOnboarded, toRobot, type Onboarded } from './onboarding/answers'
 import type { CadMeasure } from './onboarding/intake'
 import { stepsFor, type OpenAnswers } from './onboarding/questions'
+import { partDetail } from './partDetail'
 import { PROJECTS, PROJECT_ROBOT, cadUrl, starterModel, type ProjectId } from './projects'
 import { useFreeArea } from './stageArea'
 import type { BomRow, ComplianceCard as Card, Robot } from './types'
@@ -70,6 +72,10 @@ export default function App() {
   const [showAfter, setShowAfter] = useState(true)
   const [model, setModel] = useState<ModelStatus>(null)
   const [view, setView] = useState<View>('model')
+  const [pinned, setPinned] = useState<string | null>(null)
+  const [heat, setHeat] = useState(false)
+  /** The BOM line "See in report" jumps to. */
+  const [focus, setFocus] = useState<string | null>(null)
 
   useEffect(() => {
     api.health().then(() => setHealth('ok'), () => setHealth('down'))
@@ -107,9 +113,22 @@ export default function App() {
   const src = welcome === 'on' ? null : shown ? cadUrl(shown.glb_url) : starter.src
   const deep = launched && job.stage !== null && job.stage !== 'CREATED'
 
-  const lines: PartLine[] = job.project
-    ? job.project.bom.map((l) => ({ part: l.part, category: l.domain, qty: l.qty, price: l.unit_price_usd, origin: l.origin_country }))
-    : bom.map((r) => ({ part: r.part, category: r.category, qty: r.qty, price: r.unit_cost_usd === null ? null : Number(r.unit_cost_usd), origin: r.origin }))
+  const lines: PartLine[] = useMemo(
+    () =>
+      job.project
+        ? job.project.bom.map((l) => ({ id: l.id, part: l.part, category: l.domain, qty: l.qty, price: l.unit_price_usd, origin: l.origin_country }))
+        : bom.map((r) => ({ part: r.part, category: r.category, qty: r.qty, price: r.unit_cost_usd === null ? null : Number(r.unit_cost_usd), origin: r.origin })),
+    [job.project, bom],
+  )
+  // What the 3D view says about a part. Its identity changes only when the answer can, so the
+  // viewer re-colours the heat view then and not on every render.
+  const { project: jobProject, riskLines, recommendations, alternatives } = job
+  const detail = useCallback(
+    (node: string, role: PartRole | null) =>
+      partDetail(node, lines, { project: jobProject, riskLines, recommendations, alternatives }, role),
+    [lines, jobProject, riskLines, recommendations, alternatives],
+  )
+  const hasRisk = riskLines.length > 0
   const modelNotes =
     job.project?.id === 'onboarded' && job.project.robot_kind === 'wheeled' ? genericModelNotes(job.project) : []
   // The baseline compliance card comes from an endpoint that always uses the demo robot, so it
@@ -118,7 +137,7 @@ export default function App() {
   const card = job.compliance ?? (demoPanels ? baselineCard : null)
 
   const review = mode === 'onboarding' && progress.steps[progress.index] === 'review'
-  const area = useFreeArea([welcome, mode, review, done, designs !== null, view].join('|'))
+  const area = useFreeArea([welcome, mode, review, done, designs !== null, view, pinned !== null].join('|'))
 
   // The demo flow: the agents take over the screen when a job starts, the report when it ends.
   // Each switch happens once per job; after that the tabs are the user's.
@@ -153,7 +172,18 @@ export default function App() {
   return (
     <>
       <Suspense fallback={null}>
-        <CadViewer src={src} robot={robot} deep={deep} build={designs !== null && showAfter} lines={lines} area={area} onStatus={setModel} />
+        <CadViewer
+          src={src}
+          robot={robot}
+          deep={deep}
+          build={designs !== null && showAfter}
+          detail={detail}
+          heat={heat && hasRisk && view === 'model'}
+          pinned={view === 'model' ? pinned : null}
+          onPick={setPinned}
+          area={area}
+          onStatus={setModel}
+        />
       </Suspense>
 
       {welcome !== 'off' && (
@@ -188,7 +218,10 @@ export default function App() {
                 aria-selected={view === t.id}
                 className={view === t.id ? 'on' : ''}
                 disabled={!t.on}
-                onClick={() => setView(t.id)}
+                onClick={() => {
+                  setFocus(null)
+                  setView(t.id)
+                }}
               >
                 {t.title}
                 {t.badge && (
@@ -242,7 +275,25 @@ export default function App() {
               </div>
             )
           )}
-          <div>Hover a part / drag to orbit</div>
+          <div>Hover a part / click to pin / drag to orbit</div>
+          {hasRisk && (
+            <div className="toggle" role="radiogroup" aria-label="Colour parts by supply risk">
+              <button type="button" role="radio" aria-checked={!heat} className={heat ? '' : 'on'} onClick={() => setHeat(false)}>
+                Plain
+              </button>
+              <button type="button" role="radio" aria-checked={heat} className={heat ? 'on' : ''} onClick={() => setHeat(true)}>
+                Risk heat
+              </button>
+            </div>
+          )}
+          {heat && hasRisk && (
+            <div className="heat-legend">
+              <span><span className="dot lo" />high</span>
+              <span><span className="dot mid" />medium</span>
+              <span><span className="dot hi" />low</span>
+              <span><span className="dot" />unknown / not in BOM</span>
+            </div>
+          )}
           {designs && (
             <div className="toggle" role="radiogroup" aria-label="Before or after the redesign">
               <button type="button" role="radio" aria-checked={!showAfter} className={showAfter ? '' : 'on'} onClick={() => setShowAfter(false)}>
@@ -301,7 +352,23 @@ export default function App() {
           )}
         </aside>
 
-        {mode === 'onboarding' && bom.length > 0 && (
+        {pinned && (
+          <PartCard
+            d={detail(pinned, partRole(robot, pinned, { deep, build: designs !== null && showAfter }))}
+            onClose={() => setPinned(null)}
+            onReport={
+              done && job.riskLines.length > 0
+                ? () => {
+                    const id = detail(pinned, null).line?.id
+                    if (id) setFocus(id)
+                    setView('report')
+                  }
+                : undefined
+            }
+          />
+        )}
+
+        {mode === 'onboarding' && bom.length > 0 && !pinned && (
           <aside className="dossier frame">
             <Brief bom={bom} company={progress.company} />
           </aside>
@@ -315,7 +382,7 @@ export default function App() {
           </div>
         )}
         {view === 'report' && done && (
-          <Report job={job} onboarded={project ? null : onboarded} card={card} modelNotes={modelNotes} />
+          <Report job={job} onboarded={project ? null : onboarded} card={card} modelNotes={modelNotes} focus={focus} />
         )}
       </div>
     </>
