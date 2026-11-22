@@ -1,0 +1,29 @@
+can we keep the parts in the original state in three js render instead of making it a cylinder or square and changed ti a color
+
+---
+
+can i take the bom and cad file of a more advanced robot and use that instead?
+
+---
+
+why would we want to resize brackets? dont we make the new model based off of the cad and edit in new parts and give new version
+
+---
+
+find an open source robot with step and bom
+
+---
+
+we want to be able to do this with more advanced robot for this arm or whatever. what should be the correct answer
+
+---
+
+why is this three js model so bad? when the robot its based off has an online 3d model that looks like this:
+
+---
+
+Look at option 1, make a plan.
+
+---
+
+yes commit it
