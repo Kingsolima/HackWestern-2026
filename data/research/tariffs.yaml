@@ -1,0 +1,179 @@
+# US import duty layers for the demo BOM, as in force on 2026-11-21 (checked that day).
+# Not legal advice. Code computes landed cost; this file only lists layers, rates and sources.
+# Quotes: " | " marks a cell or line break in the source; "..." marks an omission.
+date_checked: "2026-11-21"
+hts_edition: "Harmonized Tariff Schedule of the United States Revision 23 (2026)"
+
+sources:
+  usitc_api: "https://hts.usitc.gov/reststop/search?keyword=<code>"
+  ch99_pdf: "https://hts.usitc.gov/reststop/file?release=currentRelease&filename=Chapter%2099"
+  ustr_flip_frn: "https://ustr.gov/sites/default/files/files/Press/Releases/2026/FLIP%20301%20Investigation%20Final%20Action%20FRN%207-23-26%20FINAL.pdf"
+  htsbase_301: "https://htsbase.com/blog/section-301-china-tariffs-2026"
+  aba_ieepa: "https://www.americanbar.org/groups/public_contract_law/resources/procurement-lawyer/2026-fall/ieepa-tariffs-struck-down-replacement-tariffs-expired/"
+
+# ---------------------------------------------------------------------------------------
+# Layer rules (what each layer is, its rate, and where it comes from)
+# ---------------------------------------------------------------------------------------
+layers:
+  ieepa:
+    status: "not in force"
+    rate_pct: 0
+    source_url: "https://www.americanbar.org/groups/public_contract_law/resources/procurement-lawyer/2026-fall/ieepa-tariffs-struck-down-replacement-tariffs-expired/"
+    quote: "On February 20, 2026, the US Supreme Court struck down tariffs imposed by President Trump under the International Emergency Economic Powers Act (IEEPA),"
+    note: "Covers the old reciprocal and fentanyl tariffs. Refunds of IEEPA duties paid are a separate topic (docs/design/02 B.9, not re-verified)."
+  section_122:
+    status: "expired"
+    rate_pct: 0
+    source_url: "https://www.americanbar.org/groups/public_contract_law/resources/procurement-lawyer/2026-fall/ieepa-tariffs-struck-down-replacement-tariffs-expired/"
+    quote: "The Section 122 tariffs expired on July 24, 2026 by operation of statute and have been largely replaced by Section 301 forced labor tariffs, which impose additional duties of 10% or 12.5% on imports from 60 major economies."
+  s301_forced_labor:
+    status: "in force from 12:01 a.m. ET July 24, 2026"
+    source_url: "https://ustr.gov/sites/default/files/files/Press/Releases/2026/FLIP%20301%20Investigation%20Final%20Action%20FRN%207-23-26%20FINAL.pdf"
+    rates:
+      CN: {rate_pct: 12.5, heading: "9903.05.31", quote_source: "ch99_pdf", quote: "articles the product of China, as provided for in U.S. note 52 to this subchapter... 1/9903.05.31 The duty provided in the applicable subheading + 12.5%"}
+      GB: {rate_pct: 10, heading: "9903.05.81", quote_source: "ustr_flip_frn", quote: "impose a tariff of 10 percent on goods of Argentina, Bangladesh, Cambodia, Canada, Ecuador, El Salvador, Guatemala, Honduras, India, Indonesia, Jordan, Malaysia, Mexico, Pakistan, Sri Lanka, the United Kingdom, and Trinidad and Tobago."}
+      MY: {rate_pct: 10, heading: null, quote_source: "ustr_flip_frn", quote: "same sentence as GB (Malaysia is in the 10 percent group)"}
+      CA: {rate_pct: 10, heading: null, quote_source: "ustr_flip_frn", quote: "same sentence as GB (Canada is in the 10 percent group); USMCA-qualifying goods exempt per htsbase"}
+      TW: {rate_rule: "301 rate = 10 - MFN if MFN < 10, else 0", heading: null, quote_source: "ustr_flip_frn", quote: "For greater certainty, for a product of the Taiwan, where such product's MFN tariff is less than 10 percent, the sum of the MFN tariff and the Section 301 tariff shall be 10 percent, and where such product's MFN tariff is greater than or equal to 10 percent, the Section 301 tariff applied shall be zero."}
+      JP: {rate_rule: "301 rate = 12.5 - MFN if MFN < 12.5 (Japan, Korea, Switzerland)", heading: null, quote_source: "ustr_flip_frn", quote: "For a product of Japan, Korea, or Switzerland that is not otherwise exempted, where such product's MFN tariff is less than 12.5 percent, the Trade Representative has determined to impose a Section 301 tariff pursuant to these investigations so that the sum of the MFN tariff and the tariff imposed pursuant to these investigations shall be 12."}
+    exemptions:
+      - quote_source: "htsbase_301"
+        quote: "Section 232 goods are exempt. If your product pays Section 232 steel, aluminum, copper or another 232 duty, the 12.5% does not apply."
+      - quote_source: "htsbase_301"
+        quote: "USMCA-qualifying goods are exempt, along with informational materials, donations and products in the annex lists of the notice."
+      - quote_source: "ustr_flip_frn"
+        quote: "All products that are properly classified in the provisions of the Harmonized Tariff Schedule of the United States (HTSUS) that are listed in this Annex are not covered by the actions, except as provided in the \"Scope Limitations\" column."
+        note: "Annex II Part A = goods of any investigated economy. Checked by text search: 8471.50.01 is listed with no scope limitation (so EXEMPT). 8507.60.00 and 8504.40.95 are listed only with 'Aircraft' scope (so NOT exempt for a robot). 8501.31.40 is not listed (only 8501.31.50/.60/.81 with 'Aircraft'). 9031.80.80 is listed only with 'Aircraft' scope."
+    note: "The quoted JP sentence is cut at '12.' by the PDF line break; it continues '5 percent' in the source."
+  s301_china_lists:
+    status: "in force (Lists 1-3 at 25%, List 4A at 7.5%)"
+    source_url: "https://hts.usitc.gov/reststop/file?release=currentRelease&filename=Chapter%2099"
+    headings:
+      "9903.88.01": {list: 1, rate_pct: 25, quote: "articles the product of China, as provided for in U.S. note 20(a) to this subchapter and as provided for in the subheadings enumerated in U.S. note 20(b) ... 1/9903.88.01 The duty provided in the applicable subheading plus 25%"}
+      "9903.88.02": {list: 2, rate_pct: 25, quote: "articles the product of China, as provided for in U.S. note 20(c) to this subchapter and as provided for in the subheadings enumerated in U.S. note 20(d)... 1/9903.88.02 The duty provided in the applicable subheading + 25%"}
+      "9903.88.03": {list: 3, rate_pct: 25, quote: "articles the product of China, as provided for in U.S. note 20(e) to this subchapter and as provided for in the subheadings enumerated in U.S. note 20(f)... 1/9903.88.03 The duty provided in the applicable subheading + 25%"}
+    exclusions_quote_source: "htsbase_301"
+    exclusions_quote: "The remaining 178 exclusions expire at 11:59 p.m. on November 9, 2026 unless USTR extends them."
+    note: "List membership below was found by text search of the Ch. 99 PDF (which note 20 subdivision the code sits under). Verify per code with a broker; we did not check 10-digit carve-outs."
+  s301_four_year_review:
+    status: "in force"
+    source_url: "https://hts.usitc.gov/reststop/file?release=currentRelease&filename=Chapter%2099"
+    headings:
+      "9903.91.06": {rate_pct: 25, quote: "Effective with respect to entries on or after January 1, 2026, articles the product of China, as provided for in subdivision (g) of U.S. note 31 to this subchapter... 1/9903.91.06 The duty provided in the applicable subheading + 25%"}
+    replaces_list_rate_quote_source: "htsbase_301"
+    replaces_list_rate_quote: "USTR framed these as increases to the existing rate (non-EV lithium-ion batteries went from 7.5% to 25%), so the new rate takes the place of the list rate."
+  s232_metals:
+    status: "in force on full customs value"
+    source_url: "https://hts.usitc.gov/reststop/file?release=currentRelease&filename=Chapter%2099"
+    quote_scope: "Headings 9903.82.02-9903.82.26 apply to the full customs value of articles classifiable in the provisions of the HTSUS enumerated in the following lists. For articles classified in the listed provisions that are not in chapters 72, 73, 74 or 76 of the HTSUS, headings ... only apply where the weight of the applicable metal is at least 15 percent of the weight of the imported article."
+    headings:
+      "9903.82.02": {rate_pct: 50, applies_to: "note 16(c)(i)-(v): articles of aluminum, steel, copper and the first derivative lists", quote: "articles of aluminum, of steel or of copper and derivative aluminum or steel articles, as provided for in subdivisions (c)(i)-(v) of U.S. note 16 to this subchapter... 1/9903.82.02 The duty provided in the applicable subheading + 50%"}
+      "9903.82.09": {rate_pct: 25, applies_to: "note 16(c)(vi)-(viii) and (xi)", quote: "articles of copper and derivative aluminum and steel articles, as provided for in subdivisions (c)(vi)-(viii) and (xi) of U.S. note 16 to this subchapter... 1/9903.82.09 The duty provided in the applicable subheading + 25%"}
+    note: "Partner-specific 15% and 10% (>= 85% US metal) tiers exist (docs/design/02 B.4); not re-verified here. Quotes ASCII-normalized (en dash -> '-')."
+  s232_robotics_machinery:
+    status: "no tariff found for our codes"
+    note: "docs/design/02 says Proclamation 11077 (Oct 28, 2026) imposed no robotics tariff yet and the 15% machinery tier hits 8428.70 handling robots. None of our BOM codes are 8428/8479; not re-verified in this pass."
+  de_minimis:
+    note: "docs/design/02 B.8 says the $800 de minimis is suspended; not re-verified."
+
+# ---------------------------------------------------------------------------------------
+# Per HTS code: MFN rate and which layers apply by origin
+# ---------------------------------------------------------------------------------------
+hts_codes:
+  "8501.31.40":
+    used_by: ["drive motor (baseline iSV57T-090S, CN)", "drive motor (Teknic, US - not imported)"]
+    mfn_general_pct: 4
+    mfn_source_url: "https://hts.usitc.gov/reststop/search?keyword=8501.31.40"
+    mfn_quote: "'htsno': '8501.31.40.00', 'description': 'Exceeding <il>74.6 W</il> but not exceeding <il>735 W</il>', 'general': '4%'"
+    s301_china_list: {list: 2, heading: "9903.88.02", rate_pct: 25, evidence: "code found under Ch. 99 U.S. note 20(d) (List 2) by text search"}
+    s301_forced_labor_annex_ii_exempt: false
+    s232: "none found (not in note 16 lists)"
+    by_origin:
+      CN: ["MFN 4%", "301 List 2 25%", "301 forced labor 12.5%"]
+      GB: ["MFN 4%", "301 forced labor 10%"]
+      MY: ["MFN 4%", "301 forced labor 10%"]
+      TW: ["MFN 4%", "301 forced labor: 10 - 4"]
+      JP: ["MFN 4%", "301 forced labor: 12.5 - 4"]
+  "8471.50.01":
+    used_by: ["Raspberry Pi 5 (GB per distributors; one listing says CN)"]
+    mfn_general_pct: 0
+    mfn_source_url: "https://hts.usitc.gov/reststop/search?keyword=8471.50.01"
+    mfn_quote: "'htsno': '8471.50.01', ... 'general': 'Free'"
+    s301_china_list: {list: 3, heading: "9903.88.03", rate_pct: 25, evidence: "code found under Ch. 99 U.S. note 20(f) (List 3) by text search"}
+    s301_forced_labor_annex_ii_exempt: true
+    annex_ii_quote: "8471.50.01 | Processing units other than those of subheading | 8471.41 and 8471.49, nesoi"
+    by_origin:
+      GB: ["MFN Free", "forced-labor 301 exempt (Annex II Part A)"]
+      CN: ["MFN Free", "301 List 3 25%", "forced-labor 301 exempt (Annex II Part A)"]
+  "8507.60.00":
+    used_by: ["24 V LiFePO4 pack (origin unknown)"]
+    mfn_general_pct: 3.4
+    mfn_source_url: "https://hts.usitc.gov/reststop/search?keyword=8507.60.00"
+    mfn_quote: "'htsno': '8507.60.00', 'description': 'Lithium-ion batteries', 'general': '3.4%'"
+    s301_china: {heading: "9903.91.06", rate_pct: 25, evidence: "code found under Ch. 99 U.S. note 31(g) by text search; replaces the list rate"}
+    s301_forced_labor_annex_ii_exempt: false
+    s301_forced_labor_note: "listed in Annex II Part A only with 'Aircraft' scope"
+    by_origin:
+      CN: ["MFN 3.4%", "301 four-year 25%", "301 forced labor 12.5%"]
+      unknown: "Unknown origin: duty cannot be set until origin is known. Compliance math treats it as foreign either way."
+    worked_example_source: "https://htsbase.com/blog/section-301-china-tariffs-2026"
+    worked_example_quote: "Section 301, forced labor action (9903.05.31) | 12.5% | $2,500.00"
+  "9031.80.80":
+    used_by: ["RPLIDAR A1M8 (CN) - classification is a guess"]
+    mfn_general_pct: 0
+    mfn_source_url: "https://hts.usitc.gov/reststop/search?keyword=9031.80.80"
+    mfn_quote: "9031.80.80 | Other | Free"
+    s301_china_list: {list: 1, heading: "9903.88.01", rate_pct: 25, evidence: "code found under Ch. 99 U.S. note 20(b) (List 1) by text search"}
+    s301_forced_labor_annex_ii_exempt: false
+    s301_forced_labor_note: "listed in Annex II Part A only with 'Aircraft' scope: 'Measuring and checking instruments, appliances and machines, nesoi Aircraft'"
+    alternative_code: {code: "9015.80.80", mfn_general_pct: 0, mfn_quote: "9015.80.80 | Other | Free", s301_china_list: 1, note: "also found under note 20(b)"}
+    by_origin:
+      CN: ["MFN Free", "301 List 1 25%", "301 forced labor 12.5%"]
+  "8504.40.95":
+    used_by: ["Pololu D36V50F5 (US - not imported)"]
+    mfn_general_pct: 0
+    mfn_source_url: "https://hts.usitc.gov/reststop/search?keyword=8504.40.95"
+    mfn_quote: "8504.40.95 | Other | Free"
+    s301_china_list: {list: 3, heading: "9903.88.03", rate_pct: 25, evidence: "found under note 20(f) by text search"}
+    note: "Only matters if we switch to an imported regulator."
+  "7616.99.51":
+    used_by: ["aluminum deck if imported (ours is US-made)"]
+    mfn_general_pct: 2.5
+    mfn_source_url: "https://hts.usitc.gov/reststop/search?keyword=7616.99.51"
+    mfn_quote: "7616.99.51 | Other | 2.5%"
+    s232: {heading: "9903.82.02", rate_pct: 50, evidence: "listed in note 16(c)(i) 'Articles of aluminum'"}
+    s301_forced_labor: "exempt when Section 232 applies"
+  "8544.42.90":
+    used_by: ["wiring harness if imported (not sourced)"]
+    mfn_general_pct: 2.6
+    mfn_source_url: "https://hts.usitc.gov/reststop/search?keyword=8544.42.90"
+    mfn_quote: "8544.42.90 | Other | 2.6%"
+    s232: {heading: "9903.82.09", rate_pct: 25, evidence: "listed in note 16(c)(vi) derivative aluminum and (viii) articles of copper; 15% metal-weight test applies"}
+  "7318.15.20":
+    used_by: ["fasteners if imported (not sourced)"]
+    mfn_general_pct: 0
+    mfn_source_url: "https://hts.usitc.gov/reststop/search?keyword=7318.15.20"
+    mfn_quote: "7318.15.20 | Bolts and bolts and their nuts or washers entered or exported in the same shipment | Free"
+    s232: {heading: "9903.82.02", rate_pct: 50, evidence: "listed in note 16(c)(iv) derivative steel articles"}
+
+# ---------------------------------------------------------------------------------------
+# FX
+# ---------------------------------------------------------------------------------------
+fx:
+  CADUSD:
+    value: 0.6981
+    date: "2026-11-20"
+    unit: "US dollars per Canadian dollar"
+    series: "FXCADUSD (Bank of Canada daily average)"
+    source_url: "https://www.bankofcanada.ca/valet/observations/FXCADUSD/json?recent=1"
+    quote: "[{'d': '2026-11-20', 'FXCADUSD': {'v': '0.6981'}}]"
+  USDCAD:
+    value: 1.4325
+    date: "2026-11-20"
+    unit: "Canadian dollars per US dollar"
+    source_url: "https://www.bankofcanada.ca/valet/observations/FXUSDCAD/json?recent=3"
+    quote: "\"d\": \"2026-11-20\", \"FXUSDCAD\": { \"v\": \"1.4325\""
+  note: "All BOM prices found are already in USD, so FX is only needed for Canadian quotes."
+
+# Not covered: merchandise processing and harbor maintenance fees (htsbase example shows
+# MPF 0.3464% and HMF 0.125%), freight, brokerage, Canadian counter-tariffs on US parts.

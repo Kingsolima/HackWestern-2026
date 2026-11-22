@@ -1,0 +1,233 @@
+# Demo robot BOM draft with sources (owner 3 research, checked 2026-11-21).
+# Rules: every number has a source URL, a verbatim quote and a date. Missing = null + note.
+# Tiers (suggested only; the verifier code decides):
+#   T1 = origin stated on the model's own product page or a datasheet naming the model
+#        (a distributor's per-SKU Country of Origin field is treated as T1, per docs/design/01)
+#   T2 = company page naming a US plant for the product line
+#   T3 = HQ address only or company-wide statement
+#   rejected = "designed in" / marketing only;  none = nothing found
+# Prices are qty-1 list prices in USD, before freight and duty.
+# Quotes were copied from page text read with a browser or web extract; " | " in a quote
+# marks a table-cell or line break in the rendered page.
+robot:
+  name: "Demo wheeled robot v3 (sourced draft)"
+  final_assembly_country: "CA"
+  mass_kg_target: 5.0
+  note: "Baseline motor is integrated (motor + drive), so there is no separate motor-driver line."
+date_checked: "2026-11-21"
+
+bom:
+  - part: "Drive motor (NEMA 23 integrated servo) - BASELINE"
+    category: "motor"
+    qty: 2
+    product: {manufacturer: "STEPPERONLINE (OMC Corporation Ltd.)", model: "iSV57T-090S"}
+    specs_quote: "Input Voltage: +20~50VDC(Typical 36VDC) | Rated Torque(Nm/oz.in): 0.3/42.49(Nm/oz.in) | Peak Torque(Nm/oz.in): 0.8/113.29(Nm/oz.in) | Rated Speed(rpm): 3000rpm"
+    specs_note: "Meets 0.26 N*m continuous and 0.39 N*m peak on paper; 24 V is inside the 20-50 VDC range but below the 36 V typical, so check torque at 24 V and 160 rpm (no curve read). Shaft 8 mm, body 108 mm, frame 57 x 57 mm."
+    unit_price_usd: 77.15
+    price_source_url: "https://www.omc-stepperonline.com/nema-23-integrated-easy-servo-motor-90w-3000rpm-0-3nm-42-49oz-in-20-50vdc-servo-motor-short-shaft-isv57t-090s"
+    price_quote: "iSV57T-090S | from | $77.15 | 5+ $74.51 | 10+ $72.05"
+    price_note: "Price is for shipping from China. Same page: 'United States (+$12.58)' for the US warehouse (duties handled by seller)."
+    origin_country: "CN"
+    origin_source_url: "https://www.omc-stepperonline.com/about-us"
+    origin_quote: "We own three manufacturing plants covering an area of 30,000m2 and cooperate with dozens of OEM factories"
+    origin_quote_2: "collaborates with dozens of OEM factories in Changzhou and Shenzhen China"
+    origin_note: "Company-wide statement, not model-specific. Product page only says 'Ships from | China'. Counts as foreign either way (unknown = foreign). Page renders 'm' with a superscript 2; quote ASCII-normalized."
+    suggested_origin_tier: "T3"
+    hts_code_guess: "8501.31.40"
+    hts_source_url: "https://hts.usitc.gov/reststop/search?keyword=8501.31.40"
+    hts_quote: "'htsno': '8501.31.40.00', 'description': 'Exceeding <il>74.6 W</il> but not exceeding <il>735 W</il>', 'general': '4%'"
+    hts_note: "Guess: DC motor 90 W. An integrated motor+drive could be argued elsewhere; ask a broker. 8501.31.40 is on Section 301 List 2 (see tariffs.yaml)."
+    supply_risk: ["ndfeb_magnets (PM servo rotor; China export-licence regime, docs/design/02 C.1)", "single_vendor_marketplace"]
+    date_checked: "2026-11-21"
+
+  - part: "Drive motor (NEMA 23 integrated servo) - US SWAP"
+    category: "motor"
+    qty: 2
+    swap_for: "Drive motor (NEMA 23 integrated servo) - BASELINE"
+    product: {manufacturer: "Teknic, Inc.", model: "CPM-SDSK-2310S-RLN (ClearPath-SDSK)"}
+    specs_quote: "Peak Torque | 223 oz-in | Cont. (RMS) Torque | 45 oz-in | Max Speed | 4,000 RPM"
+    specs_note: "Values shown at 75 VDC on the page; 45 oz-in = 0.318 N*m continuous. Page lists 'Input (bus) Voltage Range 24-75 VDC (90 VDC max)'. Torque at 24 V needs the JS curve (HANDOFF-v3 2.3). Default shaft 0.375 in (9.52 mm); a 0.25 in (6.35 mm) option exists."
+    unit_price_usd: 265.00
+    price_source_url: "https://teknic.com/model-info/CPM-SDSK-2310S-RLN/"
+    price_quote: "Motor Pricing | Qty: 1-9 10-49 50-99 100-199 200+ | $265"
+    price_note: "Page is JavaScript-rendered; read with a browser on 2026-11-21. A reseller lists it at $332.95 (vbindustrialsupply.com), not used."
+    origin_country: "US"
+    origin_source_url: "https://teknic.com/model-info/CPM-SDSK-2310S-RLN/"
+    origin_quote: "Country of Origin USA"
+    origin_note: "Stated on the model's own page, so T1 (HANDOFF-v3 had T2 from the line page's 'New York manufacturing plant')."
+    suggested_origin_tier: "T1"
+    hts_code_guess: "8501.31.40"
+    hts_source_url: "https://hts.usitc.gov/reststop/search?keyword=8501.31.40"
+    hts_quote: "'general': '4%'"
+    hts_note: "Not imported (US-made), so no US duty. Canadian counter-tariffs may apply if the parts are shipped into Canada for assembly (docs/design/02 D); not researched."
+    supply_risk: ["ndfeb_magnets inside motor (one level down: does not change domestic status, disclose only)", "sole_source"]
+    date_checked: "2026-11-21"
+
+  - part: "Single-board computer"
+    category: "compute"
+    qty: 1
+    product: {manufacturer: "Raspberry Pi Ltd", model: "Raspberry Pi 5 4GB (SC1111)"}
+    unit_price_usd: 110.00
+    price_source_url: "https://www.pishop.us/product/raspberry-pi-5-4gb/"
+    price_quote: "Raspberry Pi 5/4GB | ... | $110.00 | Brand Raspberry Pi | SKU: 4GB-9024"
+    price_note: "Memory-driven price rises in 2026 (raspberrypi.com/news/more-memory-driven-price-rises). Adafruit lists '4GB RAM$130.00'. Mouser category snippet also showed $110.00 but Mouser blocked the page (Access Denied)."
+    origin_country: "GB"
+    origin_source_url: "https://www.berrybase.de/en/raspberry-pi-5-4gb-ram"
+    origin_quote: "Zolltarifnummer: | 84715000 | ... | Country of Origin: | Great Britain"
+    origin_source_url_2: "https://raspberrypi.dk/en/product/raspberry-pi-5-4-gb"
+    origin_quote_2: "Manufacturer Product Number | SC1111 | Brand | Raspberry Pi | Country of Origin | GB | HS Tariff Code | 8471500000"
+    origin_conflict: "Amazon.de listing for the same SC1111 says 'Country of Origin: China' and an Indian reseller says Japan (search snippets only). Origin may vary by batch; ask the distributor for a COO declaration per lot."
+    suggested_origin_tier: "T1"
+    hts_code_guess: "8471.50.01"
+    hts_source_url: "https://hts.usitc.gov/reststop/search?keyword=8471.50.01"
+    hts_quote: "'htsno': '8471.50.01', 'description': 'Processing units other than those of subheading 8471.41 or 8471.49 ...', 'general': 'Free'"
+    supply_risk: ["DRAM price volatility (three price rises in 2026)", "origin varies by batch"]
+    date_checked: "2026-11-21"
+
+  - part: "2D lidar"
+    category: "sensor"
+    qty: 1
+    product: {manufacturer: "SLAMTEC (Shanghai Slamtec Co., Ltd.)", model: "RPLIDAR A1M8-R6"}
+    unit_price_usd: 99.00
+    price_source_url: "https://www.dfrobot.com/product-1125.html"
+    price_quote: "RPLIDAR A1M8-R6 - 360 Degree LiDAR Laser Range Scanner (12m) | $99.00 | SKU: DFR0315"
+    origin_country: "CN"
+    origin_source_url: "https://botland.store/laser-scanners-lidar/19625-rplidar-a1m8-r6-360-degree-laser-scanner-kit-12m-range-seeedstudio-114992561-5904422369248.html"
+    origin_quote: "GPSR data | Country of origin | **China**"
+    origin_note: "EU distributor per-SKU GPSR field for the A1M8-R6 kit. Indian resellers also state 'Country of Origin: China' with Slamtec's Shanghai address (search snippets)."
+    suggested_origin_tier: "T1"
+    hts_code_guess: "9031.80.80"
+    hts_source_url: "https://hts.usitc.gov/reststop/file?release=currentRelease&filename=Chapter%2099"
+    hts_quote: null
+    hts_note: "Low-confidence guess (measuring instrument nesoi). Alternative 9015.80.80. Both are on Section 301 List 1 per HTS Rev. 23 Chapter 99 note 20(b). We did not find a CBP ruling for this lidar; ask a broker."
+    supply_risk: ["no verified US-made 2D lidar found in this pass", "Slamtec not on 1260H (Hesai and RoboSense are)"]
+    date_checked: "2026-11-21"
+
+  - part: "24 V battery pack"
+    category: "battery"
+    qty: 1
+    product: {manufacturer: "Bioenno Power", model: "BLF-2410AS (24V, 10Ah LFP, ABS)"}
+    unit_price_usd: 189.99
+    price_source_url: "https://www.bioennopower.com/collections/24v-lifepo4-batteries"
+    price_quote: "24V, 10Ah LFP Battery (ABS, BLF-2410AS) | Sale priceFrom $189.99 | Sold out"
+    price_note: "Listed as sold out on 2026-11-21. 'From' price is assumed to be battery-only; the BLF-2410A product page shows 'Battery+Charger(2A) ... Sale price$229.99'."
+    origin_country: null
+    origin_source_url: "https://www.bioennopower.com/pages/about-us"
+    origin_quote: "Bioenno Power is an ISO-certified OEM serving both international and domestic markets."
+    origin_note: "No country of origin found on product, collection or about page. Unknown origin counts as foreign. Cells are lithium iron phosphate; cell origin not stated."
+    suggested_origin_tier: "none"
+    hts_code_guess: "8507.60.00"
+    hts_source_url: "https://hts.usitc.gov/reststop/search?keyword=8507.60.00"
+    hts_quote: "'htsno': '8507.60.00', 'description': 'Lithium-ion batteries', 'general': '3.4%'"
+    supply_risk: ["lithium (UFLPA high-priority sector, docs/design/02 C.2)", "Section 301 four-year review 25% if Chinese origin", "UN38.3 shipping", "stock-out"]
+    date_checked: "2026-11-21"
+
+  - part: "24 V to 5 V regulator for the SBC"
+    category: "electronics"
+    qty: 1
+    product: {manufacturer: "Pololu Corporation", model: "D36V50F5 (5V, 5.5A step-down regulator, item 4091)"}
+    unit_price_usd: 44.95
+    price_source_url: "https://www.pololu.com/product/4091"
+    price_quote: "Price break Unit price (US$) | 1 44.95"
+    price_note: "Page shows '0 in stock' and 'Rationed'. The 3.2 A D36V28F5 is $23.95 but is under the Pi 5's 5 A supply spec."
+    origin_country: "US"
+    origin_source_url: "https://www.pololu.com/product/4091"
+    origin_quote: "We manufacture these boards in-house at our Las Vegas facility"
+    suggested_origin_tier: "T1"
+    hts_code_guess: "8504.40.95"
+    hts_source_url: "https://hts.usitc.gov/reststop/file?release=currentRelease&filename=Chapter%2099"
+    hts_quote: null
+    hts_note: "Guess (static converter nesoi). Not imported."
+    supply_risk: ["rationed stock"]
+    date_checked: "2026-11-21"
+
+  - part: "Drive wheel 120 mm OD"
+    category: "frame"
+    qty: 2
+    product: {manufacturer: "goBILDA", model: "3601-0014-0120 Rhino Wheel (14mm bore, 120mm OD)"}
+    unit_price_usd: 9.99
+    price_source_url: "https://gobilda.com/rhino-wheels"
+    price_quote: "3601-0014-0120 | 120mm OD$9.99"
+    origin_country: null
+    origin_source_url: null
+    origin_quote: null
+    origin_note: "No origin statement found. 14 mm bore needs a hub for the 8 mm (baseline) or 9.52 mm (Teknic) shaft; hub not yet sourced."
+    suggested_origin_tier: "none"
+    hts_code_guess: null
+    hts_note: "Not classified; depends on material (plastic hub + rubber tread). Ask a broker."
+    supply_risk: []
+    date_checked: "2026-11-21"
+
+  - part: "Wheel hub / shaft adapter"
+    category: "frame"
+    qty: 2
+    product: null
+    unit_price_usd: null
+    price_source_url: null
+    price_quote: null
+    origin_country: null
+    suggested_origin_tier: "none"
+    note: "Needed: 8 mm D-shaft (iSV57T-090S) or 0.375 in shaft (Teknic) to goBILDA 14 mm/16 mm-pattern wheel. Not sourced in this pass. Note fit_shaft changes between baseline and swap."
+    date_checked: "2026-11-21"
+
+  - part: "Caster"
+    category: "frame"
+    qty: 1
+    product: {manufacturer: "Pololu Corporation", model: "Ball Caster with 3/4 in Metal Ball (item 955)"}
+    unit_price_usd: 4.49
+    price_source_url: "https://www.pololu.com/product/955"
+    price_quote: "Price break Unit price (US$) | 1 4.49"
+    origin_country: null
+    origin_source_url: null
+    origin_quote: null
+    origin_note: "Product page gives no origin. Pololu is in Las Vegas but that is HQ only (T3 at best)."
+    suggested_origin_tier: "none"
+    hts_code_guess: null
+    hts_note: "ABS housing + steel ball; 8302.20.00 (base metal castors) probably does not fit a plastic housing. Unclassified."
+    supply_risk: []
+    date_checked: "2026-11-21"
+
+  - part: "Aluminum deck plate (laser-cut 6061-T6)"
+    category: "frame"
+    qty: 1
+    product: {manufacturer: "SendCutSend", model: "custom laser-cut 6061-T6 plate (part drawing needed)"}
+    unit_price_usd: null
+    price_source_url: "https://sendcutsend.com/materials/6061-aluminum/"
+    price_quote: null
+    price_note: "Price needs an instant quote from a DXF of our deck. Not a list price. Do not use the old $120 placeholder."
+    origin_country: "US"
+    origin_source_url: "https://sendcutsend.com/"
+    origin_quote: "Made in the USA | All of our operations from production to customer support are done from our facilities in Nevada, Kentucky, Pennsylvania, and Texas."
+    origin_note: "Company-wide statement that names US plants. Suggest T2, but a strict reading of the rules could call it T3; human to decide. The plate is a part we have made to our drawing, so 'where manufactured' is the cutter's plant."
+    suggested_origin_tier: "T2"
+    hts_code_guess: "7616.99.51"
+    hts_source_url: "https://hts.usitc.gov/reststop/file?release=currentRelease&filename=Chapter%2099"
+    hts_note: "Only matters if imported: 7616.99.51 is listed under Section 232 'Articles of aluminum' (50%). Not imported here."
+    supply_risk: ["aluminum (UFLPA high-priority sector if imported)"]
+    date_checked: "2026-11-21"
+
+  - part: "Wiring harness"
+    category: "electronics"
+    qty: 1
+    product: null
+    unit_price_usd: null
+    origin_country: null
+    suggested_origin_tier: "none"
+    note: "Not sourced. Copper wire is a Section 232 copper article if imported (8544.42.90 appears in Chapter 99 note 16 lists)."
+    date_checked: "2026-11-21"
+
+  - part: "Fasteners"
+    category: "frame"
+    qty: 1
+    product: null
+    unit_price_usd: null
+    origin_country: null
+    suggested_origin_tier: "none"
+    note: "Not sourced. Steel screws (7318.15.20) are Section 232 'Derivative steel articles' if imported."
+    date_checked: "2026-11-21"
+
+# Lines the placeholder v2 BOM had that are dropped or merged here
+removed_from_v2:
+  - "Motor driver x2: not needed, baseline motor has an integrated drive."
+  - "Wheel encoder x2: both motors have built-in encoders."
+  - "Electronics enclosure: not sourced; add back if the design needs one."
