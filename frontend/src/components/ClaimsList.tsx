@@ -30,7 +30,7 @@ export function ClaimsList({ claims }: { claims: ClaimRow[] }) {
                 </td>
                 <td>
                   <q>{claim.quote}</q>
-                  {!verified && reason ? <div className="error">{reason}</div> : null}
+                  {!verified && reason ? <div className="err">{reason}</div> : null}
                 </td>
                 <td>
                   <a href={claim.source.url} target="_blank" rel="noreferrer">

@@ -1,6 +1,6 @@
 import { Fragment } from 'react'
 import { levelAccuracy } from '../accuracy'
-import { RISK_FACTORS, type Alternative, type Level } from '../events'
+import { RISK_FACTORS, type Alternative, type Level, type Priority, type Score } from '../events'
 import type { RiskRow } from '../job'
 
 const money = (v: number | null) => (v === null ? '–' : `$${v.toLocaleString()}`)

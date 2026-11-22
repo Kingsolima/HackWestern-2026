@@ -944,6 +944,9 @@ table.nested {
 .action-keep {
   color: var(--hi);
 }
+.action-investigate {
+  color: var(--mute);
+}
 .badge {
   font-family: var(--mono);
   font-size: 9.5px;
