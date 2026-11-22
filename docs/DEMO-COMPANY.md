@@ -1,55 +1,64 @@
-# Demo company for onboarding: Northfield Robotics
+# Demo company for onboarding: Northfield Robotics and the AR4 arm
 
-A made-up company for trying the onboarding flow by hand. Nothing here is real: the company,
-the robot, the prices and the countries are invented. Paste each answer into the matching
-onboarding step.
+A demo case for trying the onboarding flow by hand. The robot is real: the AR4, a six-axis
+articulated robotic arm designed by Annin Robotics for robotics education, research, automation
+and experimentation. The parts list is read from Annin Robotics' 37-page AR4 bill of materials
+PDF. The company is made up: Northfield Robotics, its customers, budget and deadline are
+invented so the risk engine has stated priorities to work with.
 
-Its numbers differ from the recorded example (`data/onboarding_example.json`), so the job needs
-real agent runs: the site asks for the live token and the run spends TinyFish and Gemini credit.
-To stay in free replay, use "Use the example" in onboarding instead.
+Paste each answer into the matching onboarding step, exactly as written. The reading of these
+answers is recorded, so the whole case replays offline with no token and no credit. If you
+change an answer or a part name in the CSV, the recording no longer matches: the site then asks
+for the live token and makes real Gemini calls.
+
+## What the parts list is, and is not
+
+[demo-company-bom.csv](demo-company-bom.csv) has 60 lines taken from the PDF. Each line keeps
+the component name, quantity and part number as the PDF prints them, and the PDF page it comes
+from.
+
+- The PDF states no price, country of origin or lead time for any part. Those columns say
+  `unknown` on every line. Nothing was filled in from memory or estimated.
+- Supplier is filled in only where the PDF names one: Stepperonline for the motors, the stepper
+  drivers and the J4 motor bracket.
+- The PDF is the source of the parts list. It is not evidence of supply risk, and not evidence
+  that any part meets a rule or regulation.
+- Lines are grouped into six subsystems in the `category` column:
+
+| Subsystem | Lines | What is in it |
+|---|---|---|
+| actuation | 6 | the six joint motors, J1 to J6 |
+| transmission | 22 | bearings, thrust washers, belts, pulleys, shafts |
+| structure | 13 | machined aluminum parts per joint, fasteners, 3D printed parts, cable sleeve and glands |
+| electronics | 10 | Teensy 4.1, breakout board, cables, connectors, fan |
+| power | 6 | stepper drivers, power jack, switch, power distribution block |
+| sensors | 3 | Hall effect sensors, limit switches, magnets |
+
+To stay near 60 lines, three groups are one line each: the machined aluminum parts of one joint
+(the line names every part), the 39 fastener sizes (311 pieces) and the 29 3D printed parts.
 
 ## Step 1: Who are you, and what are you building?
 
-> We are Northfield Robotics, a 12-person startup in Waterloo, Ontario. We build Porter, a
-> wheeled robot that moves supply carts between wards and the pharmacy in hospitals.
+> We are Northfield Robotics, a 12-person startup in Waterloo, Ontario. We build the AR4 Cell: an Annin Robotics AR4 six-axis robotic arm that we assemble and sell ready to run for robotics education, research and light automation.
 
 ## Step 2: Who buys it, where is it assembled and where will it run?
 
-> We sell to US Veterans Affairs hospitals, which are federal buyers, and to private hospital
-> networks in the US and Canada. Final assembly is in Canada. The robots run in the US and
-> Canada. Downtime is costly: when a robot stops, nurses go back to pushing carts by hand.
+> We sell to universities and research labs in Canada and the US, including US federal research labs. Final assembly is in Canada. The arms run in the US and Canada. Downtime is costly: a lab course or an experiment stops when the arm does.
 
 ## Step 3: What limits matter: budget, deadline, anything to avoid?
 
-> We have about $1,100 of parts per robot and need parts within 45 days. We want to avoid
-> motors that depend on Chinese rare-earth magnets, and any supplier on a US restricted list.
+> We have about $2,500 of parts per arm and need parts within 30 days. We want to avoid motors that depend on Chinese rare-earth magnets, and any supplier on a US restricted list.
 
 ## Step 4: Files
 
-Upload [demo-company-bom.csv](demo-company-bom.csv) as the parts list (13 lines, $896 per
-robot). There is no CAD file for this company; skip that upload.
-
-| Part | Category | Qty | Unit cost (USD) | Origin |
-|---|---|---|---|---|
-| Drive motor (NEMA 23 stepper) | motor | 2 | 62.00 | CN |
-| Planetary gearbox 5:1 | gearbox | 2 | 48.00 | CN |
-| Motor driver | electronics | 2 | 35.00 | CN |
-| Welded aluminum chassis | frame | 1 | 140.00 | US |
-| Drive wheel 150 mm | frame | 2 | 18.00 | CN |
-| Caster wheel | frame | 2 | 9.00 | TW |
-| 24V battery pack | battery | 1 | 110.00 | KR |
-| Single-board computer | compute | 1 | 80.00 | GB |
-| 2D lidar | lidar | 1 | 99.00 | CN |
-| Wheel encoder | encoder | 2 | 28.00 | US |
-| Electronics enclosure | frame | 1 | 30.00 | CA |
-| Wiring harness | electronics | 1 | 25.00 | US |
-| Fasteners | frame | 1 | 12.00 | US |
+Upload [demo-company-bom.csv](demo-company-bom.csv) as the parts list. There is no CAD file for
+this company; skip that upload.
 
 ## Step 5: What else should we know about the drivetrain?
 
-> It has 2 drive motors, each through a 5:1 gearbox, on wheels with a 75 mm radius. There is
-> 110 mm of space for each motor and its bracket. It weighs 18 kg with payload, drives at up
-> to 1.2 m/s, climbs a 6 degree ramp and accelerates at 0.6 m/s². The bus voltage is 24 V.
+Leave this empty. The question and the numbers on the review screen describe a wheeled
+drivetrain, which an arm does not have. The job does not use them for this parts list (see
+"How the J2 motor is handled").
 
 ## What to expect on the review screen
 
@@ -57,14 +66,47 @@ robot). There is no CAD file for this company; skip that upload.
 |---|---|
 | Name | Northfield Robotics |
 | Kind | company |
-| Robot | Porter |
+| Robot | AR4 Cell |
+| Use | robotics education, research and light automation |
 | Sells to US federal buyers | yes |
 | Deployed in | US, CA |
 | Final assembly | CA |
 | Uptime critical | yes |
-| Parts budget per robot | $1,100 |
-| Needs parts in | 45 days |
+| Wants to avoid | motors that depend on Chinese rare-earth magnets, and any supplier on a US restricted list |
+| Parts budget per robot | $2,500 |
+| Needs parts in | 30 days |
 
-With these numbers each drive motor needs about 0.28 N·m continuous and 0.41 N·m peak at about
-760 RPM, which a NEMA 23 servo can meet. The job searches for a replacement for the NEMA 23
-drive motor and maps supply risk for all 13 parts.
+The drivetrain numbers below the facts are the wheeled demo robot's defaults. Leave them as
+they are: changing one that feeds the agent's goal turns the run into a live one.
+
+## How the J2 motor is handled
+
+The J2 shoulder motor (`23HS22-2804D-YGS50-AR4`) is the part the agents search a replacement
+for. The parts list carries the same part number as the motor already researched for the AR4
+club project (`data/projects/ar4_club.json`), so the job reuses that research:
+
+- The joint requirement comes from the AR4 arm numbers in that file (1.9 kg payload, 629 mm
+  reach, 50:1 gearbox, 24 V), each with its source or marked as an assumption. The existing
+  arm checks run on it unchanged.
+- The before and after 3D models are the AR4 with the J2 motor mount, as in the AR4 club case.
+- Price ($152.52), origin (CN, company-level) and customs code of the J2 line come from that
+  research, not from the PDF. The line's note says so. All other lines keep `unknown`.
+
+## What to expect in the results
+
+Checked in replay with the recordings in this repo:
+
+- A risk row and a recommendation for all 60 parts.
+- The J2 motor ranks first (priority 7 of 9): it is made in China, the company sells to US
+  federal buyers, and a motor of this kind likely depends on rare-earth magnets (inferred, shown
+  as inferred). The action is "investigate", with Teknic CPM-SDSK-2331S-RLN (US) as the best
+  candidate so far and the open points listed.
+- The other 59 parts are "investigate" too, because their country of origin is unknown and a
+  federal buyer needs it. This is the honest result of a parts list with no origins: the engine
+  never treats unknown as safe. Filling in real origins and prices in the CSV is what moves
+  those lines to keep, dual-source or re-source.
+- Three alternatives for the J2 motor from the recorded TinyFish runs: two for review, one
+  rejected.
+
+For live TinyFish research on the J2 motor, open the site with `?live=1` and press "Run live".
+That spends TinyFish and Gemini credit and needs the live token.

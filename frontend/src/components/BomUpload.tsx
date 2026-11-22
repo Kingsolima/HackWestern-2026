@@ -111,7 +111,7 @@ export function BomUpload({ rows, sample, onChange }: Props) {
                   <td>{r.part}</td>
                   <td>{r.category}</td>
                   <td>{r.qty}</td>
-                  <td>${r.unit_cost_usd}</td>
+                  <td>{r.unit_cost_usd === null ? 'unknown' : `$${r.unit_cost_usd}`}</td>
                   <td>{r.origin}</td>
                 </tr>
               ))}

@@ -92,7 +92,7 @@ async def create_job(
             raise HTTPException(status_code=404, detail=f"no project {body.project_id}") from None
     robot = body.robot or load_demo_robot()
     if project is None and body.company is not None:
-        project = project_from_onboarding(body.company, robot)
+        project = project_from_onboarding(body.company, robot, list_projects())
     return status(runtime.start_job(robot, body.mode, project))
 
 

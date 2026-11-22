@@ -145,7 +145,7 @@ export default function App() {
         />
       )}
       {job.baseline && job.candidates[0] ? (
-        onboardedJob && job.project ? (
+        onboardedJob && job.project?.robot_kind === 'wheeled' ? (
           <BeforeAfterViewer
             before={job.baseline}
             after={job.candidates[0]}
