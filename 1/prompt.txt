@@ -1,0 +1,78 @@
+look at handoffv2 for what would be a good examples for the demo to get the cad design and update it.
+
+---
+
+add these demo examples to HANDOFF-v2
+
+---
+
+can you explain the docker files and compose files that we have in multiple folders? i want to understand docker. give me like a crash course and explain the purpose by using what we have so far as examples
+
+---
+
+what are the robots we are demoing for now?
+
+---
+
+what are spikes?
+
+---
+
+what is nema
+
+---
+
+explain again properly because ima beginener
+
+---
+
+just explain what is being built on the frontend and what we want on thbe demo. only  acouple senentece
+
+---
+
+what is tecnic?
+
+---
+
+what is agents tile
+
+---
+
+give the 5 things that this plan does: 
+
+<pasted_content id="c0d4">
+Plan: Live job view (tiles, compliance, claims), deploy fix, answers to Tygo
+Context
+Tygo's /api/jobs (draft PR #5, branch tygo/core-scaffold) runs a replay job and streams {id, type, job_id, ts, data} events over SSE. Event payloads are one Pydantic model per type in backend/app/orchestrator/events.py. The next step (BUILD-PLAN-v3 chunk 3, 11pm milestone) needs the website to show the job live: agent tiles, the compliance card and the claims list, all driven only by the event log. Plus a deploy fix for live mode on Vultr, and answers to Tygo's open asks (plan §6).
+
+Your decisions: CAD owns bracket thickness; switch the UI to the v3 motor and check shapes after the 11pm milestone; the frontend branch merges Tygo's branch so it runs today.
+
+What I found that the plan depends on:
+
+Events arrive on plain onmessage (no named SSE events). The server replays after Last-Event-ID, and the browser sends that header automatically on reconnect.
+The reconnect trap: when a job ends the server closes the stream, and EventSource auto-reconnects. The server then returns nothing and closes again, so the browser loops every ~3 s. The UI must close the EventSource itself on a terminal stage (DONE | DEGRADED | FAILED).
+run_started.live / run_finished.live say whether a run is live. A replayed run's streaming_url is dead.
+Settings: recordings_dir (env RECORDINGS_DIR), default data/recordings. Compose mounts ./data:/data:ro, so live recording fails on the server.
+BRACKET_T (cad robot.py) duplicates BRACKET_THICKNESS_MM (backend checks.py).
+Branches and commits
+A. frontend-demo (Trail #5): git merge origin/main, then git merge origin/tygo/core-scaffold.
+
+Event types: frontend/src/events.ts mirrors events.py. It has JobEvent as a discriminated union on type (stage, run_started, run_streaming_url, run_progress, run_finished, claim_verified, claim_rejected, compliance, error, plus a passthrough for check_result/design_ready/advocate/synthesis), Claim, Source, Stage, TERMINAL_STAGES, and JobStatus. A header comment names events.py as the source.
+Job state reducer + hook: frontend/src/job.ts has a pure applyEvent(state, ev) that dedupes by event id and returns {stage, mode, runs: Record<run_id, Run>, claims[], compliance, errors[]}, with Run = {worker, site, url, live, streamingUrl, steps[], outcome, reason}. useJob() does POST /api/jobs {mode}, opens EventSource(/api/jobs/{id}/events), feeds onmessage into the reducer, closes on a terminal stage, and closes on unmount (StrictMode-safe). Add vitest with job.test.ts: dedupe on resume, run lifecycle, REPLAY vs live, closes at DONE, error event. Add npm test to CI.
+UI components:
+JobBar.tsx: Find and Redesign button (replay mode), stage stepper (PLAN → … → DONE), and a LIVE/REPLAY badge for the job.
+AgentTiles.tsx (rewrite): one tile per run. If live with a streaming URL, show an iframe of it. Otherwise show a REPLAY badge and the recorded progress steps (Tygo's §6.3 proposal). Show the outcome as ✅ success / ⚠️ blocked / ❌ not found or error, with the reason.
+ClaimsList.tsx: verified ✅ / rejected ❌ (with reason), field, raw value and unit, the exact quote, and a source link (every number links to its source).
+ComplianceCard: shows the job's compliance event when present, and falls back to /api/compliance before a job runs.
+App.tsx: wire it together. The checks table and designs stay on the old endpoints until the v3 shape switch.
+Deploy: docker-compose.yml backend gets RECORDINGS_DIR=/recordings and a writable bind ./data/recordings:/recordings. Committed replay recordings stay available, and live runs can write. Keep ./data:/data:ro. Document in .env.example and README how live mode on Vultr needs RECORDINGS_DIR writable plus TINYFISH_API_KEY in the server's .env.
+B. cad-bracket (Trail #2): 5. Bracket thickness owned by CAD: measure() adds bracket.thickness_mm (BRACKET_T) and clearance_mm, exposed through the existing /designs/{id}/fit. Update the CAD tests. Add a TODO in the commit message for Owner 3 to read them in checks.py (I won't edit checks.py; that's Owner 3's).
+
+C. Reply to Tygo (after pushing): a short GitHub comment on PR #5 (comments from me are allowed there, but Entire Trail comments are people-only). The answers: (1) /api/jobs under /api is fine; (3) replay tiles are implemented as proposed, with a link to the frontend PR; (4) CAD owns bracket thickness, exposed via /fit, and checks will read it; (5) switch the shapes after the 11pm milestone in one coordinated PR. Also: his Teknic goal and recording replace my reverted client, so no restore is needed.
+
+No AI co-author lines or footers (AGENTS.md). Push each branch, run entire trail ready, and don't merge.
+</pasted_content id="c0d4">
+
+---
+
+how would you explain the current code setup and what each part does keep it short
