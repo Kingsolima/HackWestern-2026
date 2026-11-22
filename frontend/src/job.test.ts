@@ -99,15 +99,36 @@ describe('applyEvent', () => {
 
   it('passes through event types it does not render yet', () => {
     const before = fold([started(true)])
-    const designReady: JobEvent = {
+    const synthesis: JobEvent = {
       id: nextId++,
-      type: 'design_ready',
+      type: 'synthesis',
       job_id: 'j1',
       ts: '2026-11-21T00:00:00Z',
-      data: { design_id: 'd1' },
+      data: { text: 'later' },
     }
-    const after = applyEvent(before, designReady)
+    const after = applyEvent(before, synthesis)
     expect(after.runs).toEqual(before.runs)
+  })
+})
+
+describe('design_ready', () => {
+  const design = (role: 'baseline' | 'candidate', id: string, frame: string) =>
+    ev('design_ready', {
+      design_id: id,
+      role,
+      label: id,
+      motor: 'm',
+      frame,
+      glb_url: `/designs/${id}/glb`,
+      step_url: `/designs/${id}/step`,
+      fit: { bracket: { bolt_spacing_mm: frame === '17' ? 31 : 47.14 } },
+    })
+
+  it('keeps the baseline apart from the candidates', () => {
+    const s = fold([design('baseline', 'j1-before', '17'), design('candidate', 'j1-after', '23')])
+    expect(s.baseline?.design_id).toBe('j1-before')
+    expect(s.candidates.map((d) => d.design_id)).toEqual(['j1-after'])
+    expect(s.candidates[0].fit.bracket?.bolt_spacing_mm).toBe(47.14)
   })
 })
 
