@@ -14,6 +14,7 @@ from app.orchestrator.fleet import Fleet, JobBudget
 from app.orchestrator.workers import SwapWorker, claims_from_candidate
 from app.schemas import AgentMotorCandidate
 from app.tfclient.client import AGENT_SSE_URL, RUNS_URL, TFClient
+from app.tfclient.gemini import GeminiClient
 from app.tfclient.recorder import Recorder
 
 pytestmark = pytest.mark.anyio
@@ -98,6 +99,7 @@ def context(tmp_path, handler) -> tuple[JobContext, list[httpx.Request]]:
         budget=JobBudget(),
         board=MemoryBoard(),
         cad=CadClient(http, "http://cad.invalid"),
+        gemini=GeminiClient(Recorder(tmp_path, "replay"), http, "", "flash"),
     )
     return ctx, seen
 

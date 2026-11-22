@@ -89,3 +89,52 @@ def test_real_teknic_fetch_is_not_readable_even_if_the_model_says_so():
     fixture = Path(__file__).parent / "fixtures" / "teknic" / "fetch_tables.json"
     text = json.loads(fixture.read_text())["response"]["results"][0]["text"]
     assert route_page(page(text=text)) == "needs_interaction"
+
+
+@pytest.mark.anyio
+async def test_triage_end_to_end_with_fetch_and_decision_1(tmp_path):
+    import httpx
+
+    from app.agents.triage import Lead
+    from app.api.routes import load_demo_robot
+    from app.cad_client import CadClient
+    from app.orchestrator.board import MemoryBoard
+    from app.orchestrator.context import JobContext
+    from app.orchestrator.discovery import triage
+    from app.orchestrator.events import EventLog
+    from app.orchestrator.fleet import Fleet, JobBudget
+    from app.tfclient.client import TFClient
+    from app.tfclient.gemini import GeminiClient
+    from app.tfclient.recorder import Recorder
+
+    pages = {"https://a.com/m": SPECS_MD, "https://b.com/list": "Our servo family. Pick a model."}
+
+    def handler(request):
+        if request.url.host == "api.fetch.tinyfish.ai":
+            urls = json.loads(request.content)["urls"]
+            return httpx.Response(
+                200, json={"results": [{"url": u, "text": pages[u]} for u in urls]}
+            )
+        text = json.loads(request.content)["input"]
+        top = "readable_specs" if "oz-in" in text else "needs_interaction"
+        answer = {"choice": top, "confidence": 0.9, "probabilities": {top: 0.9}}
+        return httpx.Response(200, json={"answers": {"q": answer}})
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    rec = Recorder(tmp_path, "live")
+    ctx = JobContext(
+        job_id="j",
+        mode="live",
+        robot=load_demo_robot(),
+        log=EventLog("j"),
+        tf=TFClient(rec, http, api_key="k"),
+        fleet=Fleet({"fetch": 1, "gemini": 1}),
+        budget=JobBudget(),
+        board=MemoryBoard(),
+        cad=CadClient(http, "http://cad.invalid"),
+        gemini=GeminiClient(rec, http, "g", "flash"),
+    )
+    leads = [Lead(url=u, domain=u.split("/")[2]) for u in pages]
+    routed = await triage(ctx, leads)
+    assert [lead.route for lead in routed] == ["readable", "needs_interaction"]
+    assert routed[0].text == SPECS_MD

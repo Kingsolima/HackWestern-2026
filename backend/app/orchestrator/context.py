@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 
+from app.agents.triage import Lead
 from app.cad_client import CadBuild, CadClient
 from app.engineering.spec_checks import FitBadge, SpecCheck, Verdict
 from app.orchestrator.board import Board
@@ -7,6 +8,7 @@ from app.orchestrator.events import EventLog
 from app.orchestrator.fleet import Fleet, JobBudget
 from app.schemas import Candidate, Claim, JobMode, Objective, Robot
 from app.tfclient.client import TFClient
+from app.tfclient.gemini import GeminiClient
 
 
 @dataclass
@@ -36,6 +38,9 @@ class JobContext:
     budget: JobBudget
     board: Board
     cad: CadClient
+    gemini: GeminiClient
     candidates: list[Candidate] = field(default_factory=list)
     facts: list[Claim] = field(default_factory=list)
+    queries: list[str] = field(default_factory=list)
+    leads: list[Lead] = field(default_factory=list)
     designs: list[Design] = field(default_factory=list)

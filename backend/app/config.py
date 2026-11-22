@@ -18,6 +18,7 @@ class Settings(BaseSettings):
 
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-pro"
+    gemini_flash_model: str = "gemini-2.5-flash"
 
     tinyfish_api_key: str = ""
 

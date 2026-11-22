@@ -41,3 +41,13 @@ def route_page(page: TriageInput) -> Route:
       optional space or hyphen variants); otherwise needs_interaction.
     """
     raise NotImplementedError("Tygo: core of chunk 3 (triage)")
+
+
+class Lead(BaseModel):
+    """A page discovery found for the swap line, with its triage route once known."""
+
+    url: str
+    domain: str
+    title: str | None = None
+    route: Route | None = None
+    text: str | None = None

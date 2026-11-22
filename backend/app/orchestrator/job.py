@@ -20,6 +20,7 @@ from app.engineering.spec_checks import (
     verdict,
 )
 from app.orchestrator.context import Design, JobContext
+from app.orchestrator.discovery import discover, plan_queries, triage
 from app.orchestrator.events import (
     CheckResultPayload,
     ClaimRejected,
@@ -49,6 +50,18 @@ PIPELINE: tuple[Stage, ...] = (
 
 async def compliance_baseline(ctx: JobContext, workers: Sequence[Worker]) -> None:
     await ctx.log.emit(CompliancePayload(card=compliance_card(ctx.robot)))
+
+
+async def plan(ctx: JobContext, workers: Sequence[Worker]) -> None:
+    ctx.queries = plan_queries()
+
+
+async def discover_leads(ctx: JobContext, workers: Sequence[Worker]) -> None:
+    ctx.leads = await discover(ctx, ctx.queries)
+
+
+async def triage_leads(ctx: JobContext, workers: Sequence[Worker]) -> None:
+    ctx.leads = await triage(ctx, ctx.leads)
 
 
 async def extract(ctx: JobContext, workers: Sequence[Worker]) -> None:
@@ -232,6 +245,9 @@ async def build(ctx: JobContext, workers: Sequence[Worker]) -> None:
 StageFn = Callable[[JobContext, Sequence[Worker]], Awaitable[None]]
 HANDLERS: dict[Stage, StageFn] = {
     "COMPLIANCE_BASELINE": compliance_baseline,
+    "PLAN": plan,
+    "DISCOVER": discover_leads,
+    "TRIAGE": triage_leads,
     "EXTRACT": extract,
     "VERIFY": verify,
     "CHECK": check,
@@ -240,24 +256,42 @@ HANDLERS: dict[Stage, StageFn] = {
 }
 
 
+# Discovery only adds leads beyond the seed targets: when it fails the job continues with the
+# seeds and ends DEGRADED instead of FAILED (docs/design/04 section 3).
+OPTIONAL_STAGES: frozenset[Stage] = frozenset({"PLAN", "DISCOVER", "TRIAGE"})
+
+
 async def run_job(ctx: JobContext, workers: Sequence[Worker]) -> Stage:
-    """Run every stage in order. Any exception ends the job FAILED with an `error` event; the
-    log always closes, so SSE subscribers never wait on a dead job."""
+    """Run every stage in order. An exception in an optional stage is reported and the job ends
+    DEGRADED; anywhere else it ends the job FAILED. The log always closes, so SSE subscribers
+    never wait on a dead job."""
     final: Stage = "FAILED"
     current: Stage = "CREATED"
+    degraded = False
     try:
         for current in PIPELINE:
             await ctx.log.emit(StagePayload(stage=current))
             handler = HANDLERS.get(current)
-            if handler is not None:
+            if handler is None:
+                continue
+            try:
                 await handler(ctx, workers)
-        final = "DONE"
+            except Exception as exc:
+                if current not in OPTIONAL_STAGES:
+                    raise
+                degraded = True
+                await ctx.log.emit(ErrorPayload(message=_describe(exc), stage=current))
+        final = "DEGRADED" if degraded else "DONE"
     except Exception as exc:
-        await ctx.log.emit(ErrorPayload(message=f"{type(exc).__name__}: {exc}", stage=current))
+        await ctx.log.emit(ErrorPayload(message=_describe(exc), stage=current))
     finally:
         await ctx.log.emit(StagePayload(stage=final))
         await ctx.log.close()
     return final
+
+
+def _describe(exc: Exception) -> str:
+    return f"{type(exc).__name__}: {exc}"
 
 
 @dataclass

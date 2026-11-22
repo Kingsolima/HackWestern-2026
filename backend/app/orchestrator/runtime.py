@@ -15,6 +15,7 @@ from app.orchestrator.job import Job, run_job
 from app.orchestrator.workers import SwapWorker, Worker
 from app.schemas import JobMode, Robot
 from app.tfclient.client import TFClient
+from app.tfclient.gemini import GeminiClient
 from app.tfclient.recorder import Recorder
 
 
@@ -51,6 +52,9 @@ class Runtime:
             budget=JobBudget(max_agent_runs=self.settings.max_agent_runs_per_job),
             board=self.board,
             cad=self.cad,
+            gemini=GeminiClient(
+                recorder, self.http, self.settings.gemini_api_key, self.settings.gemini_flash_model
+            ),
         )
         job = Job(ctx=ctx)
         job.task = asyncio.create_task(run_job(ctx, self.workers(mode)))

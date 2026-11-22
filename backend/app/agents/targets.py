@@ -83,3 +83,37 @@ are missing, return status "incomplete" and list what is missing in reason. Othe
 )
 
 SWAP_TARGETS: tuple[SwapTarget, ...] = (TEKNIC,)
+
+
+# For pages found by discovery that need clicking. Same output contract as the Teknic goal.
+GENERIC_GOAL = """\
+You are a sourcing engineer collecting verifiable specs for ONE motor. Do not buy, log in, \
+fill forms or sign up for anything.
+
+1. Starting from this page, find ONE NEMA 23 servo, integrated servo or brushless DC motor \
+model sold by this manufacturer, for a robot with a {bus_v} VDC bus that needs at least \
+{cont_oz_in} oz-in continuous torque and {peak_oz_in} oz-in peak torque. Prefer the cheapest \
+model that meets both; if none clearly does, pick the one with the highest continuous torque. \
+Open that model's own specification page or datasheet.
+2. Fill `specs` with every one of these that is shown: continuous_torque, peak_torque, \
+rated_speed, max_speed, supply_voltage_min, supply_voltage_max, rated_voltage, rated_current, \
+body_length, shaft_diameter, price. For each spec:
+   - value = the number exactly as shown, unit = the unit exactly as shown; do not convert.
+   - quote = the label and the value exactly as they appear on the page, character for \
+character. Do not add colons, words or labels that are not on the page. When the label and the \
+value sit in separate table cells, join them with one space.
+   - source_url = the URL of the page where you read it.
+   - at_speed_value / at_speed_unit only if the page ties the torque to a speed, else null.
+3. Find where this model's country of origin or manufacturing location is stated: a "Country \
+of Origin" row first, otherwise a manufacturing statement on the company's site. Put the exact \
+text in origin_quote, its page URL in origin_source_url and the country in country_of_origin. \
+"Designed in" or a headquarters address is NOT a manufacturing statement: leave the origin \
+fields null in that case.
+4. manufacturer, part_number, motor_type, nema_frame, product_url (the model page) and \
+datasheet_url (a PDF link if shown, else null).
+
+Rules: never guess or fill placeholders; use null (or omit a spec) when not shown. If a \
+CAPTCHA, bot check or access-denied page blocks you, return status "blocked". If the site sells \
+no such motor, return status "not_found". If some fields are missing, return status \
+"incomplete" and list what is missing in reason. Otherwise status "success".
+"""
