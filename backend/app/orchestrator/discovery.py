@@ -39,7 +39,7 @@ FETCH_BATCH = 10
 TRIAGE_CHARS = 30_000
 
 TRIAGE_QUESTION = (
-    "This is the text of a web page found while searching for a NEMA 23 servo or brushless "
+    "This is the text of a web page found while searching for a NEMA {frame} servo or brushless "
     "motor to buy. Can the motor's specifications be read directly from this text?"
 )
 TRIAGE_OPTIONS: dict[TriageLabel, str] = {
@@ -131,7 +131,9 @@ async def classify(ctx: JobContext, run_id: str, text: str) -> dict[TriageLabel,
     try:
         async with ctx.fleet.slot("gemini", ctx.budget):
             answer = await ctx.gemini.choose(
-                text[:TRIAGE_CHARS], TRIAGE_QUESTION, dict(TRIAGE_OPTIONS)
+                text[:TRIAGE_CHARS],
+                TRIAGE_QUESTION.format(frame=ctx.project.deep_frame if ctx.project else "23"),
+                dict(TRIAGE_OPTIONS),
             )
     except (httpx.HTTPError, ReplayMiss) as exc:
         await ctx.log.emit(RunProgress(run_id=run_id, purpose=f"Decision 1 unavailable: {exc}"))

@@ -115,7 +115,7 @@ class FakeSwapWorker:
 MAX_AGENT_LEADS = 2
 
 EXTRACT_PROMPT = """\
-You read one web page and fill the JSON schema for ONE NEMA 23 motor described on it. Use only
+You read one web page and fill the JSON schema for ONE NEMA {frame} motor described on it. Use only
 this page's text. Rules: value = the number exactly as written, unit = the unit exactly as
 written, never convert; quote = the label and value exactly as they appear in the text,
 character for character, adding no colons or words; null (or omit a spec) when not stated;
@@ -180,7 +180,11 @@ class SwapWorker:
                 live=ctx.mode != "replay",
             )
         )
-        prompt = EXTRACT_PROMPT.format(url=lead.url, text=(lead.text or "")[:TRIAGE_CHARS])
+        prompt = EXTRACT_PROMPT.format(
+            frame=ctx.project.deep_frame if ctx.project else "23",
+            url=lead.url,
+            text=(lead.text or "")[:TRIAGE_CHARS],
+        )
         outcome: Outcome = "success"
         reason = ""
         output = None
