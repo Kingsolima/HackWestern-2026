@@ -60,7 +60,18 @@ describe('parseBomCsv', () => {
     expect(errors).toEqual([])
     expect(rows).toHaveLength(60)
     expect(rows.find((r) => r.part === 'J2 gear head motor')?.part_number).toBe('23HS22-2804D-YGS50-AR4')
-    expect(rows.every((r) => r.unit_cost_usd === null && r.origin === 'unknown')).toBe(true)
+    expect(rows.every((r) => r.unit_cost_usd !== null && r.origin !== 'unknown' && r.supplier)).toBe(true)
+    const j5 = rows.find((r) => r.part === 'J5 linear drive motor')
+    expect([j5?.availability, j5?.lead_time_days, j5?.hts_code]).toEqual(['lead_time', 45, '8501.31.40'])
+  })
+
+  it('reads stock and lead time, and names a bad value', () => {
+    const head = `${HEADER},availability,lead_time_days`
+    expect(parseBomCsv(`${head}\nBelt,transmission,1,9,US,In_Stock,\n`).rows[0].availability).toBe('in_stock')
+    expect(parseBomCsv(`${head}\nBelt,transmission,1,9,US,soon,two\n`).errors).toEqual([
+      'line 2: availability must be in_stock, lead_time, out_of_stock, unknown',
+      'line 2: lead_time_days is not a whole number',
+    ])
   })
 
   it('names the missing columns', () => {

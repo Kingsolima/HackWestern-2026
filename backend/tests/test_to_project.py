@@ -129,11 +129,14 @@ def ar4_project():
     return project_from_onboarding(COMPANY, robot, list_projects())
 
 
-def test_ar4_parts_list_states_no_price_or_origin_and_every_row_names_its_page():
+def test_ar4_parts_list_is_complete_and_says_which_values_are_illustrative():
     rows = ar4_rows()
     assert 40 <= len(rows) <= 60
-    assert all(r.unit_cost_usd is None and r.origin == "unknown" for r in rows)
-    assert all(r.source_page for r in rows)
+    assert all(r.unit_cost_usd is not None and len(r.origin) == 2 for r in rows)
+    assert all(r.source_page and r.supplier and r.availability != "unknown" for r in rows)
+    # The PDF gives no price, origin or stock: every line says its values are for the demo.
+    assert all("Illustrative demo values" in r.notes for r in rows)
+    assert sum(r.unit_cost_usd * r.qty for r in rows) < 2500  # inside the stated budget
     assert {r.category for r in rows} == {
         "actuation",
         "transmission",
@@ -152,11 +155,9 @@ def test_ar4_parts_list_runs_as_the_researched_arm_with_j2_as_the_deep_line():
     deep = next(line for line in project.bom if line.id == project.deep_line)
     assert deep.part == "J2 gear head motor"
     assert deep.part_number == "23HS22-2804D-YGS50-AR4" and deep.manufacturer == "Stepperonline"
-    # Price and origin are not in the PDF: they come from the research, and the note says so.
-    assert (deep.unit_price_usd, deep.origin_country, deep.origin_tier) == (152.52, "CN", "T3")
-    assert deep.sources and "not from your parts list" in deep.notes
-    others = [line for line in project.bom if line.id != project.deep_line]
-    assert all(line.unit_price_usd is None and line.origin_country is None for line in others)
+    assert (deep.unit_price_usd, deep.origin_country) == (152.52, "CN")
+    # The research adds the product pages behind that price and origin.
+    assert deep.sources and deep.availability == "in_stock"
 
 
 def test_ar4_subsystems_set_the_domain_so_a_motor_mount_is_not_a_motor():
@@ -199,9 +200,14 @@ def test_onboarded_ar4_job_scores_every_part_and_builds_the_ar4(client):
     assert project["cad_robot"] == "ar4"
     recs = [e["data"]["recommendation"] for e in events if e["type"] == "recommendation"]
     assert len(recs) == len(robot["bom"])
-    # No origin on the other parts and a federal buyer: unknown is investigated, never kept.
-    unknown = [rec for rec in recs if rec["line_id"] != project["deep_line"]]
-    assert {rec["action"] for rec in unknown} == {"investigate"}
+    by_part = {line["id"]: line["part"] for line in project["bom"]}
+    action = {by_part[rec["line_id"]]: rec for rec in recs}
+    # A federal buyer: US-made parts are kept, parts made elsewhere are a concern.
+    assert action["Teensy 4.1 microcontroller board (with pins)"]["action"] == "keep"
+    assert action["30204 taper roller bearing (20x47x15.25mm)"]["action"] == "investigate"
+    # 45 days against a 30 day need-by blocks the J5 motor, which puts it first.
+    assert recs[0]["line_id"] == next(k for k, v in by_part.items() if v == "J5 linear drive motor")
+    assert recs[0]["blocked"] is True
     assert [e for e in events if e["type"] == "alternative"]
 
 

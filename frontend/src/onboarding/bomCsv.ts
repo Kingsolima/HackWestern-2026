@@ -6,7 +6,8 @@ import type { BomRow } from '../types'
 export const BOM_COLUMNS = ['part', 'category', 'qty', 'unit_cost_usd', 'origin'] as const
 const OPTIONAL_COLUMN = 'supply_risk'
 // Copied through as text when the file has them.
-const EXTRA_COLUMNS = ['part_number', 'supplier', 'source_page', 'notes'] as const
+const EXTRA_COLUMNS = ['part_number', 'supplier', 'source_page', 'notes', 'hts_code'] as const
+const AVAILABILITY = ['in_stock', 'lead_time', 'out_of_stock', 'unknown'] as const
 
 /** Split CSV text into lines of cells. Handles quoted cells, "" escapes, CRLF and a leading BOM. */
 export function splitCsv(text: string): string[][] {
@@ -164,6 +165,17 @@ export function parseBomCsv(text: string): BomParse {
     for (const name of EXTRA_COLUMNS) {
       if (col(name) >= 0 && get(name)) extras[name] = get(name)
     }
+    // Stock and lead time, when the file has them. Blank = unknown.
+    const stock: Pick<BomRow, 'availability' | 'lead_time_days'> = {}
+    const availability = col('availability') >= 0 ? get('availability').toLowerCase() : ''
+    if ((AVAILABILITY as readonly string[]).includes(availability)) {
+      stock.availability = availability as (typeof AVAILABILITY)[number]
+    } else if (availability !== '') {
+      bad('lines', `line ${n}: availability must be ${AVAILABILITY.join(', ')}`)
+    }
+    const days = col('lead_time_days') >= 0 ? get('lead_time_days') : ''
+    if (/^\d+$/.test(days)) stock.lead_time_days = Number(days)
+    else if (days !== '') bad('lines', `line ${n}: lead_time_days is not a whole number`)
     rows.push({
       part,
       category,
@@ -172,6 +184,7 @@ export function parseBomCsv(text: string): BomParse {
       origin,
       ...(risk ? { supply_risk: risk } : {}),
       ...extras,
+      ...stock,
     })
   })
   if (rows.length === 0 && errors.length === 0) bad('lines', 'The file has a header but no parts.')
