@@ -69,7 +69,13 @@ export function AgentGraph({ job }: { job: JobState }) {
     measure()
     const ro = new ResizeObserver(measure)
     ro.observe(el)
-    return () => ro.disconnect()
+    for (const node of els.current.values()) ro.observe(node)
+    // Nodes rise into place: measure again once they land.
+    el.addEventListener('animationend', measure)
+    return () => {
+      ro.disconnect()
+      el.removeEventListener('animationend', measure)
+    }
   }, [edgeKey])
 
   const agents = nodes.filter((n) => n.runId && job.runs[n.runId]?.product === 'agent')
@@ -79,6 +85,50 @@ export function AgentGraph({ job }: { job: JobState }) {
   const ref = (id: string) => (el: HTMLElement | null) => {
     if (el) els.current.set(id, el)
     else els.current.delete(id)
+  }
+
+  const renderNode = (n: GraphNode) => {
+    const run = n.runId ? job.runs[n.runId] : undefined
+    if (run?.product === 'agent') {
+      return (
+        <div key={n.id} ref={ref(n.id)} className="node-bay" onMouseEnter={() => setHover(n.id)}>
+          <Bay n={bayNumber(run.runId)} run={run} onZoom={() => setZoom(run.runId)} />
+        </div>
+      )
+    }
+    const note = KIND_NOTE[n.kind] ?? (run?.product === 'gemini' ? 'text read' : null)
+    const body = (
+      <>
+        <span className="node-head">
+          <span className={`dot ${STATUS_DOT[n.status]}`} />
+          <span className="node-label" title={n.label}>
+            {n.label}
+          </span>
+        </span>
+        <span className="node-sub">
+          <span className="node-detail" title={n.detail}>
+            {n.detail}
+          </span>
+          {note && <span className="node-kind">{note}</span>}
+        </span>
+      </>
+    )
+    return run ? (
+      <button
+        key={n.id}
+        type="button"
+        ref={ref(n.id)}
+        className={`node ${n.kind} ${n.status}`}
+        onMouseEnter={() => setHover(n.id)}
+        onClick={() => setZoom(run.runId)}
+      >
+        {body}
+      </button>
+    ) : (
+      <div key={n.id} ref={ref(n.id)} className={`node ${n.kind} ${n.status}`} onMouseEnter={() => setHover(n.id)}>
+        {body}
+      </div>
+    )
   }
 
   const runs = job.runOrder.map((id) => job.runs[id])
@@ -119,51 +169,20 @@ export function AgentGraph({ job }: { job: JobState }) {
         </svg>
         {COLUMN_TITLES.map((title, col) => {
           const here = nodes.filter((n) => n.column === col)
+          const isBay = (n: GraphNode) => n.runId !== undefined && job.runs[n.runId]?.product === 'agent'
           return (
             <div key={title} className={`graph-col col-${col}`}>
               <div className="col-title">{title}</div>
               <div className="col-body">
                 {here.length === 0 && <div className="node ghost">waiting</div>}
-                {here.map((n) => {
-                  const run = n.runId ? job.runs[n.runId] : undefined
-                  if (run?.product === 'agent') {
-                    return (
-                      <div key={n.id} ref={ref(n.id)} className="node-bay" onMouseEnter={() => setHover(n.id)}>
-                        <Bay n={bayNumber(run.runId)} run={run} onZoom={() => setZoom(run.runId)} />
-                      </div>
-                    )
-                  }
-                  const body = (
-                    <>
-                      <span className="node-head">
-                        <span className={`dot ${STATUS_DOT[n.status]}`} />
-                        <span className="node-label">{n.label}</span>
-                        {(KIND_NOTE[n.kind] ?? (run?.product === 'gemini' ? 'text read' : null)) && (
-                          <span className="node-kind">{KIND_NOTE[n.kind] ?? 'text read'}</span>
-                        )}
-                      </span>
-                      <span className="node-detail" title={n.detail}>
-                        {n.detail}
-                      </span>
-                    </>
-                  )
-                  return run ? (
-                    <button
-                      key={n.id}
-                      type="button"
-                      ref={ref(n.id)}
-                      className={`node ${n.kind} ${n.status}`}
-                      onMouseEnter={() => setHover(n.id)}
-                      onClick={() => setZoom(run.runId)}
-                    >
-                      {body}
-                    </button>
-                  ) : (
-                    <div key={n.id} ref={ref(n.id)} className={`node ${n.kind} ${n.status}`} onMouseEnter={() => setHover(n.id)}>
-                      {body}
-                    </div>
-                  )
-                })}
+                {col === 3 ? (
+                  <>
+                    {here.some((n) => !isBay(n)) && <div className="site-reads">{here.filter((n) => !isBay(n)).map(renderNode)}</div>}
+                    {here.some(isBay) && <div className="site-bays">{here.filter(isBay).map(renderNode)}</div>}
+                  </>
+                ) : (
+                  here.map(renderNode)
+                )}
               </div>
             </div>
           )

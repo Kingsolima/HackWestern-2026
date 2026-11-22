@@ -1233,7 +1233,7 @@ details.item[open] .why {
   }
 }
 
-/* ---------- agent bays (the Agents tab; chunk B turns them into a graph) ---------- */
+/* ---------- agent bays (embedded in the Agents graph, and the zoomed view) ---------- */
 .bays {
   position: absolute;
   right: 18px;
@@ -1490,6 +1490,219 @@ button.bay-head:hover .site {
 .bay-foot.lo {
   color: var(--lo);
 }
+
+/* ---------- Agents tab: the job as a pipeline graph ---------- */
+.graph-wrap {
+  padding: 16px 22px 28px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-2) transparent;
+}
+.graph-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: center;
+  margin-bottom: 18px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-2);
+}
+.graph-legend > span:first-child {
+  color: var(--ink);
+  margin-right: auto;
+}
+.graph {
+  position: relative;
+  display: grid;
+  grid-template-columns: 160px 190px 150px minmax(520px, 1fr) 190px 170px;
+  column-gap: 36px;
+  min-width: 1560px;
+  min-height: calc(100vh - 54px - 90px);
+}
+.graph .edges {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 0;
+}
+.edge {
+  fill: none;
+  stroke: var(--line-2);
+  stroke-width: 1.4;
+  transition: opacity 0.2s, stroke-width 0.2s;
+}
+.edge.done {
+  stroke: rgba(111, 207, 142, 0.45);
+}
+.edge.failed {
+  stroke: rgba(239, 95, 82, 0.6);
+  stroke-dasharray: 3 5;
+}
+.edge.flowing {
+  stroke: var(--acc);
+  stroke-dasharray: 6 8;
+  animation: flow 0.7s linear infinite;
+}
+.edge.lit {
+  stroke-width: 2.4;
+}
+.edge.dim {
+  opacity: 0.18;
+}
+@keyframes flow {
+  to {
+    stroke-dashoffset: -14;
+  }
+}
+.graph-col {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.col-title {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mute);
+  padding-bottom: 8px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.col-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+}
+.col-3 .col-body {
+  gap: 12px;
+}
+.site-reads,
+.site-bays {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  align-items: start;
+  gap: 10px;
+}
+.site-bays {
+  gap: 12px;
+}
+.node {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  min-width: 0;
+  padding: 9px 11px;
+  text-align: left;
+  background: #0b0c0e;
+  border: 1px solid var(--line-2);
+  overflow: hidden;
+  animation: rise 0.25s ease both;
+  transition: border-color 0.3s;
+}
+button.node:hover {
+  border-color: var(--ink-2);
+}
+.node.running {
+  border-color: color-mix(in srgb, var(--acc) 55%, transparent);
+}
+.node.hi {
+  border-color: color-mix(in srgb, var(--hi) 35%, transparent);
+}
+.node.mid {
+  border-color: color-mix(in srgb, var(--mid) 35%, transparent);
+}
+.node.lo {
+  border-color: color-mix(in srgb, var(--lo) 40%, transparent);
+}
+.node.ghost {
+  border-style: dashed;
+  border-color: var(--line);
+  background: transparent;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mute);
+  animation: none;
+}
+.node-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+.node-head .dot {
+  margin-right: 0;
+  align-self: center;
+}
+.node-head .dot:first-child {
+  align-self: flex-start;
+  margin-top: 5px;
+}
+.node-label {
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.node-sub {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.node-sub .node-detail {
+  flex: 1;
+  min-width: 0;
+}
+.node-kind {
+  margin-left: auto;
+  flex: none;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+.node-detail {
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.node.finding .node-label,
+.node.design .node-label {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.node-bay {
+  min-width: 0;
+  animation: rise 0.25s ease both;
+}
+.agents-page .node-bay .bay {
+  height: 236px;
+  min-height: 0;
+}
+
 
 /* Live token dialog (liveToken.ts): replaces window.prompt, which embedded browsers block. */
 .token-dialog {
