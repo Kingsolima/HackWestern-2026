@@ -23,6 +23,8 @@ services:
     depends_on: !reset [cad] # no database in use yet (the board is in memory)
     environment:
       REQUIRE_LIVE_TOKEN: "true"
+      # Recorded agent runs replay 10x faster than they ran (a live Teknic run takes ~8 min).
+      REPLAY_SPEED: "0.1"
     restart: unless-stopped
 
   cad:

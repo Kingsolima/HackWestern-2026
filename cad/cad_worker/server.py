@@ -9,7 +9,7 @@ robot is "wheeled" (default, the v3 demo robot) or "ar4" (the arm's J2 drive, BU
 Every fit has generic `fit_checks` rows {name, value, limit, unit, ok} for the backend.
 
 Starter designs are built at startup, so the page has a robot to show before any job has run:
-"starter" (wheeled, NEMA 17 stepper baseline) and "starter_ar4" (AR4 arm, NEMA 23 J2 motor).
+"starter" (wheeled, NEMA 23 stepper baseline) and "starter_ar4" (AR4 arm, NEMA 23 J2 motor).
 
 Part names in the GLB (bracket_left, motor_right, hub_adapter_left, ...) let the viewer
 highlight what changed. TODO(owner 1): upload outputs to Vultr Object Storage.
@@ -36,8 +36,9 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 DESIGN_ID = r"^[A-Za-z0-9_-]{1,64}$"
 
 STARTERS: dict[str, RobotParams | ArmParams] = {
-    # Same robot as the orchestrator's BUILD baseline (backend/app/orchestrator/job.py).
-    "starter": RobotParams(frame="17", body_len=48.0, shaft_d=5.0, wheel_bore=5.0),
+    # Same robot as the orchestrator's BUILD baseline (backend/app/orchestrator/job.py): NEMA 23
+    # stepper, default body length, 6.35 mm shaft and wheel bore, 60 mm wheels.
+    "starter": RobotParams(),
     "starter_ar4": ArmParams(),
 }
 

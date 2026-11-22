@@ -73,7 +73,7 @@ def test_starter_robot_is_built_at_startup(tmp_path, monkeypatch):
     monkeypatch.setattr(server, "OUT_DIR", tmp_path)
     with TestClient(server.app) as c:  # entering runs the startup build
         assert c.get("/designs/starter/glb").content[:4] == b"glTF"
-        assert c.get("/designs/starter/fit").json()["params"]["frame"] == "17"
+        assert c.get("/designs/starter/fit").json()["params"]["frame"] == "23"
         assert c.get("/designs/starter_ar4/fit").json()["robot"] == "ar4"
 
 
