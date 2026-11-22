@@ -139,3 +139,8 @@ async def test_triage_end_to_end_with_fetch_and_decision_1(tmp_path):
     routed = await triage(ctx, leads)
     assert [lead.route for lead in routed] == ["readable", "needs_interaction"]
     assert routed[0].text == SPECS_MD
+
+
+def test_failed_fetch_is_not_trusted_even_with_text_and_a_confident_label():
+    # an error page can carry text, and a model can still call it readable
+    assert route_page(page(ok=False)) == "needs_interaction"
