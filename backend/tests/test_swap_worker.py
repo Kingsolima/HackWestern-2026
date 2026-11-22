@@ -27,8 +27,7 @@ def test_packaged_schema_is_the_contract():
     assert MOTOR_SCHEMA == json.loads(contract.read_text())
 
 
-def test_teknic_goal_is_the_one_omar_ran_live():
-    assert REAL_RUN["request"]["goal"] == TEKNIC.goal
+def test_omars_live_run_used_the_contract_schema():
     assert REAL_RUN["request"]["output_schema"] == MOTOR_SCHEMA
 
 

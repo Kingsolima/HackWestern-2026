@@ -22,8 +22,9 @@ class SwapTarget:
     max_duration_s: int = 240
 
 
-# Goal written by Omar for the first live Teknic run (commit 3e8f9a3). The family page has no
-# per-model specs; they sit on model pages, and the manufacturing claim is on another page.
+# Started from Omar's goal for the first live Teknic run (commit 3e8f9a3). The family page has
+# no per-model specs; they sit on model pages. Quote rules tightened after the first live job:
+# the agent added labels and colons that are not on the page, so the verifier rejected them.
 TEKNIC = SwapTarget(
     name="teknic-clearpath-sd",
     url="https://teknic.com/products/clearpath-brushless-dc-servo-motors/clearpath-sd/",
@@ -40,13 +41,17 @@ continuous_torque, peak_torque, max_speed, supply_voltage_min, supply_voltage_ma
 body_length, shaft_diameter, price. For each spec:
    - value = the number exactly as shown, unit = the unit exactly as shown (e.g. "oz-in", \
 "N-m", "RPM", "VDC", "in", "mm", "USD"); do not convert units.
-   - quote = the exact text copied from the page that contains that number (a short \
-label + value), character for character.
+   - quote = the row label and the value exactly as they appear on the page, character for \
+character. Do not add colons, words or labels that are not on the page. When the label and the \
+value sit in separate table cells, join them with one space (e.g. "Length 3.34 in (84.84 mm)"). \
+For price, quote the price text exactly as displayed (e.g. "$293").
    - source_url = the URL of the page where you read it.
    - at_speed_value / at_speed_unit only if the page ties the torque to a speed, else null.
-4. Find where Teknic states ClearPath motors are manufactured (try the model page, then the \
-About page). Put the exact sentence in origin_quote, its page URL in origin_source_url, and \
-the country it names in country_of_origin. "Designed in" or a headquarters address is NOT \
+4. Find where this model's country of origin or manufacturing location is stated. First look \
+for a "Country of Origin" row in the model page's spec table and quote that row (label + value, \
+as above); only if there is none, look for a manufacturing statement on the About page. Put the \
+exact text in origin_quote, its page URL in origin_source_url, and the country it names in \
+country_of_origin. "Designed in" or a headquarters address is NOT \
 a manufacturing statement: leave origin fields null in that case.
 5. manufacturer = "Teknic", part_number = the model's part number, motor_type = \
 "servo_integrated", nema_frame = "23", product_url = the model page URL, datasheet_url = a \

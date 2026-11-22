@@ -66,10 +66,19 @@ def test_unknown_job_is_404(client):
     assert client.get("/api/jobs/nope/events").status_code == 404
 
 
-@pytest.mark.parametrize(("mode", "worker"), [("replay", "FakeSwapWorker"), ("live", "SwapWorker")])
-def test_mode_picks_the_worker(client, mode, worker):
+@pytest.mark.parametrize("mode", ["replay", "live", "mixed"])
+def test_every_mode_runs_the_swap_worker(client, mode):
     workers = client.app.state.runtime.workers(mode)
-    assert [type(w).__name__ for w in workers] == [worker]
+    assert [type(w).__name__ for w in workers] == ["SwapWorker"]
+
+
+def test_recorded_teknic_job_replays_offline(client):
+    events = sse_events(client, start(client))
+    assert events[-1]["data"]["stage"] == "DONE"
+    finished = next(e for e in events if e["type"] == "run_finished")["data"]
+    assert finished["outcome"] == "success" and finished["live"] is False
+    verified = {e["data"]["claim"]["field"] for e in events if e["type"] == "claim_verified"}
+    assert {"body_length", "shaft_diameter", "price", "country_of_origin"} <= verified
 
 
 def test_claims_missing_from_main_content_are_found_in_the_tables_pass(

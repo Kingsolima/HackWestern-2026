@@ -66,8 +66,8 @@ def verify_claim(claim: Claim, text: str, method: VerifyMethod) -> Claim:
     - the normalized quote occurs in the normalized text, and
     - the normalized `raw_value` equals a number inside the normalized quote, compared as
       decimals ("0.5" == "0.50"; a decimal comma "0,50" reads as 0.50).
-    Normalization: html tags become spaces, unescape entities (incl. &nbsp;), remove thousands
-    separators ("1,200" -> "1200"), collapse whitespace, casefold.
+    Normalization: html tags and colons become spaces, unescape entities (incl. &nbsp;), remove
+    thousands separators ("1,200" -> "1200"), collapse whitespace, casefold.
     A non-numeric `raw_value` (e.g. country_of_origin "US") needs only the quote match; the
     origin rules read the quote itself.
     Verified -> `verified=True, verify_method=method`; else `verified=False, verify_method="none"`.
@@ -90,8 +90,9 @@ _NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
 
 
 def _normalize(text: str) -> str:
-    """Tags become spaces, so a tag inside a word fails the match instead of gluing words."""
-    text = html.unescape(_TAG.sub(" ", text))
+    """Tags become spaces, so a tag inside a word fails the match instead of gluing words.
+    Colons become spaces: agents write "Length: 3.34 in" where the page has two table cells."""
+    text = html.unescape(_TAG.sub(" ", text)).replace(":", " ")
     text = _THOUSANDS_COMMA.sub("", text)
     return " ".join(text.split()).casefold()
 
@@ -160,7 +161,9 @@ _RULES: list[tuple[OriginClass, re.Pattern[str]]] = [
     (
         "us_made_site_unstated",
         re.compile(
-            rf"{_MAKE}(?:\s+\w+){{0,3}}?\s+in\s+{_US}(?!\w)|\b(?:usa|american)-made\b", re.I
+            rf"{_MAKE}(?:\s+\w+){{0,3}}?\s+in\s+{_US}(?!\w)|\b(?:usa|american)-made\b"
+            rf"|\bcountry\s+of\s+origin\s*:?\s*{_US}(?!\w)",
+            re.I,
         ),
     ),
     ("assembled_in_us", re.compile(rf"\bassembled\s+in\s+{_US}(?!\w)", re.I)),

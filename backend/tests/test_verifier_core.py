@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from app.agents.verifier import classify_outcome, verify_claim
 from app.config import settings
 from app.main import app
+from app.orchestrator.workers import FakeSwapWorker
 from app.schemas import AgentRunResult, Claim, Source
 
 # --- classify_outcome ---------------------------------------------------------------------
@@ -178,6 +179,16 @@ def test_tags_do_not_glue_numbers_together():
     assert not verify_claim(claim("100.5", "max 100.5 N-m"), page, "html_quote").verified
 
 
+def test_label_colon_matches_separate_table_cells():
+    page = "<tr><td>Length</td><td>3.34 in (84.84 mm)</td></tr>"
+    assert verify_claim(claim("3.34", "Length: 3.34 in (84.84 mm)"), page, "html_quote").verified
+
+
+def test_times_keep_their_digits_apart():
+    page = "<p>Ships by 10:30 am</p>"
+    assert not verify_claim(claim("1030", "Ships by 10:30 am"), page, "html_quote").verified
+
+
 def test_input_claim_is_not_mutated():
     c = claim("0.50", "Continuous torque: 0.50 N-m")
     verify_claim(c, "<p>Continuous torque: 0.50 N-m</p>", "html_quote")
@@ -190,6 +201,7 @@ def test_input_claim_is_not_mutated():
 def test_fake_job_verifies_three_claims_and_rejects_the_promo_price(monkeypatch):
     monkeypatch.setattr(settings, "replay_speed", 0)
     with TestClient(app) as client:
+        client.app.state.runtime.workers = lambda mode: [FakeSwapWorker()]
         job_id = client.post("/api/jobs", json={"mode": "replay"}).json()["job_id"]
         with client.stream("GET", f"/api/jobs/{job_id}/events") as r:
             events = [json.loads(x[5:]) for x in r.iter_lines() if x.startswith("data:")]

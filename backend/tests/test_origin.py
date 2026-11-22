@@ -16,6 +16,8 @@ from app.agents.verifier import lower_tier, origin_class, origin_tier
         ("Designed and manufactured in the United States", "us_made_site_unstated"),
         ("Teknic designs and builds products in the USA.", "us_made_site_unstated"),
         ("We manufacture every motor in the United States", "us_made_site_unstated"),
+        ("Country of Origin USA", "us_made_site_unstated"),
+        ("Country of origin: United States", "us_made_site_unstated"),
         ("Assembled in USA", "assembled_in_us"),
         ("Designed in USA", "designed_in_us"),
         ("Engineered in America", "designed_in_us"),

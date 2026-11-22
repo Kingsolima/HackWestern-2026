@@ -11,7 +11,7 @@ from app.orchestrator.context import JobContext
 from app.orchestrator.events import EventLog
 from app.orchestrator.fleet import Fleet, JobBudget
 from app.orchestrator.job import Job, run_job
-from app.orchestrator.workers import FakeSwapWorker, SwapWorker, Worker
+from app.orchestrator.workers import SwapWorker, Worker
 from app.schemas import JobMode, Robot
 from app.tfclient.client import TFClient
 from app.tfclient.recorder import Recorder
@@ -34,8 +34,7 @@ class Runtime:
         self.jobs: dict[str, Job] = {}
 
     def workers(self, mode: JobMode) -> list[Worker]:
-        """Replay runs the fake page until a live Teknic job has been recorded."""
-        return [FakeSwapWorker()] if mode == "replay" else [SwapWorker()]
+        return [SwapWorker()]
 
     def start_job(self, robot: Robot, mode: JobMode) -> Job:
         job_id = uuid.uuid4().hex[:12]

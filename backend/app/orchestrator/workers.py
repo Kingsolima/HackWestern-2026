@@ -1,7 +1,7 @@
 """Part workers: code loops, one per BOM line (docs/design/07 section 2).
 
-SwapWorker runs TinyAgent on each swap target. FakeSwapWorker drives the pipeline and the UI
-end to end against a committed recording of a made-up page (data/recordings/fetch, `fake`).
+SwapWorker runs TinyAgent on each swap target. FakeSwapWorker is a test double: a made-up page
+whose fetches are committed under data/recordings/fetch with `fake: true`.
 """
 
 import asyncio
@@ -44,7 +44,7 @@ _FAKE_CLAIMS = [
 
 
 class FakeSwapWorker:
-    """Stands in for the swap worker until chunk 2; its run is labelled fake and not live."""
+    """Test double for the swap worker; its run is labelled fake and not live."""
 
     name = "swap:drive_motor"
 
