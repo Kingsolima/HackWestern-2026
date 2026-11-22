@@ -137,6 +137,130 @@ export interface Design {
   fit: DesignFit
 }
 export type DesignReadyEvent = Envelope<'design_ready', Design>
+// --- v4 supply-risk events (docs/BUILD-PLAN-v4.md §4). Additive: a job without them renders as
+// before. Envelopes follow the existing pattern ({claim}, {card}): one named object per event.
+
+export type Domain = 'actuation' | 'sensing' | 'compute' | 'power' | 'structure' | 'other'
+export type Level = 'low' | 'medium' | 'high' | 'unknown'
+export type FactBasis = 'verified' | 'stated'
+export type OriginTier = 'T1' | 'T2' | 'T3' | 'rejected' | 'none'
+export type Availability = 'in_stock' | 'lead_time' | 'out_of_stock' | 'unknown'
+export type Verdict = 'pass' | 'review' | 'rejected'
+
+export interface ProjectFacts {
+  sells_to_us_federal: boolean | null
+  deploy_countries: string[]
+  uptime_critical: boolean | null
+  budget_usd: number | null
+  need_by_days: number | null
+}
+
+export interface Fact {
+  field: string
+  value: string
+  basis: FactBasis
+  claim_id: string | null
+}
+
+export interface BomLine {
+  id: string
+  domain: Domain
+  qty: number
+  part: string
+  manufacturer: string | null
+  unit_price_usd: number | null
+  origin_country: string | null
+  origin_tier: OriginTier | null
+  availability: Availability
+  lead_time_days: number | null
+  illustrative: boolean
+  sources: Source[]
+}
+
+export interface Project {
+  id: string
+  kind: 'company' | 'club'
+  name: string
+  robot: string
+  use_case: string
+  robot_kind: 'wheeled' | 'arm'
+  robot_params: Record<string, unknown>
+  deep_line: string
+  bom: BomLine[]
+  facts: ProjectFacts
+  fact_basis: Fact[]
+}
+
+export interface CriterionReason {
+  rule_id: string
+  fact_field: string | null
+  text: string
+}
+
+export interface Criteria {
+  objectives: string[]
+  /** Fraction (0.65), set only when a rule switches the domestic objective on. */
+  domestic_threshold: number | null
+  max_lead_time_days: number | null
+  blocking_lists: string[]
+  reasons: CriterionReason[]
+}
+
+export type RiskFactorName = 'sources' | 'bottleneck' | 'trade' | 'restricted' | 'availability'
+export const RISK_FACTORS: readonly RiskFactorName[] = [
+  'sources',
+  'bottleneck',
+  'trade',
+  'restricted',
+  'availability',
+]
+
+export interface RiskFactor {
+  name: RiskFactorName
+  level: Level
+  value: string
+  reason: string
+  source_urls: string[]
+}
+
+export interface LineRisk {
+  line_id: string
+  factors: RiskFactor[]
+  overall: Level
+}
+
+export interface Alternative {
+  id: string
+  line_id: string
+  manufacturer: string
+  part_number: string
+  origin_country: string | null
+  origin_tier: OriginTier | null
+  unit_price_usd: number | null
+  availability: Availability
+  lead_time_days: number | null
+  /** Spec-check verdict; null for lines the agents did not go deep on. */
+  verdict: Verdict | null
+  risk: LineRisk
+  /** True when a live agent found it; false for a research row. */
+  live: boolean
+}
+
+export interface Recommendation {
+  line_id: string
+  action: 'keep' | 'dual_source' | 're_source'
+  alternative_id: string | null
+  cost_delta_usd: number | null
+  risk_before: Level
+  risk_after: Level
+  reason: string
+}
+
+export type ProjectEvent = Envelope<'project', { project: Project; criteria: Criteria }>
+export type RiskLineEvent = Envelope<'risk_line', { risk: LineRisk; line: BomLine }>
+export type AlternativeEvent = Envelope<'alternative', { alternative: Alternative }>
+export type RecommendationEvent = Envelope<'recommendation', { recommendation: Recommendation }>
+
 /** Declared in the catalog, payload models not written yet; kept so they don't break the UI. */
 export type PendingEvent = Envelope<
   'check_result' | 'advocate' | 'synthesis',
@@ -154,6 +278,10 @@ export type JobEvent =
   | ComplianceEvent
   | ErrorEvent
   | DesignReadyEvent
+  | ProjectEvent
+  | RiskLineEvent
+  | AlternativeEvent
+  | RecommendationEvent
   | PendingEvent
 
 /** GET/POST /api/jobs response (backend/app/api/jobs.py JobStatus). */

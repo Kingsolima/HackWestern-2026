@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import type { Claim, JobEvent } from './events'
-import { applyEvent, createJob, followJob, initialJobState, isTerminal, type JobState } from './job'
+import type { Alternative, BomLine, Claim, JobEvent, Level, LineRisk, Recommendation } from './events'
+import {
+  applyEvent,
+  createJob,
+  domesticShare,
+  followJob,
+  initialJobState,
+  isTerminal,
+  rankRecommendations,
+  type JobState,
+} from './job'
 
 let nextId = 1
 function ev<T extends JobEvent['type']>(type: T, data: Extract<JobEvent, { type: T }>['data']): JobEvent {
@@ -186,14 +195,169 @@ describe('createJob', () => {
 
   it('sends the live token only for live jobs', async () => {
     const { calls, fetchImpl } = capture()
-    await createJob('live', 'tok', fetchImpl)
-    await createJob('replay', 'tok', fetchImpl)
+    await createJob('live', { liveToken: 'tok' }, fetchImpl)
+    await createJob('replay', { liveToken: 'tok' }, fetchImpl)
     expect(header(calls[0])).toBe('tok')
     expect(header(calls[1])).toBeUndefined()
   })
 
   it('surfaces a refused live job as an error', async () => {
     const fetchImpl = (async () => new Response('{"detail":"live jobs need a valid X-Live-Token"}', { status: 403 })) as unknown as typeof fetch
-    await expect(createJob('live', 'bad', fetchImpl)).rejects.toThrow('403')
+    await expect(createJob('live', { liveToken: 'bad' }, fetchImpl)).rejects.toThrow('403')
+  })
+
+  it('sends project_id only when a project is picked', async () => {
+    const { calls, fetchImpl } = capture()
+    await createJob('replay', {}, fetchImpl)
+    await createJob('replay', { projectId: 'ar4_club' }, fetchImpl)
+    expect(JSON.parse(calls[0].body as string)).toEqual({ mode: 'replay' })
+    expect(JSON.parse(calls[1].body as string)).toEqual({ mode: 'replay', project_id: 'ar4_club' })
+  })
+})
+
+const line = (id: string, over: Partial<BomLine> = {}): BomLine => ({
+  id,
+  domain: 'actuation',
+  qty: 1,
+  part: `part ${id}`,
+  manufacturer: null,
+  unit_price_usd: 100,
+  origin_country: 'CN',
+  origin_tier: 'none',
+  availability: 'in_stock',
+  lead_time_days: null,
+  illustrative: false,
+  sources: [],
+  ...over,
+})
+const risk = (lineId: string, overall: Level): LineRisk => ({ line_id: lineId, factors: [], overall })
+const rec = (lineId: string, before: Level, after: Level, cost: number | null): Recommendation => ({
+  line_id: lineId,
+  action: 're_source',
+  alternative_id: `${lineId}-alt`,
+  cost_delta_usd: cost,
+  risk_before: before,
+  risk_after: after,
+  reason: '',
+})
+const alt = (id: string, lineId: string, price: number): Alternative => ({
+  id,
+  line_id: lineId,
+  manufacturer: 'Teknic',
+  part_number: id,
+  origin_country: 'US',
+  origin_tier: 'T1',
+  unit_price_usd: price,
+  availability: 'in_stock',
+  lead_time_days: null,
+  verdict: null,
+  risk: risk(lineId, 'low'),
+  live: true,
+})
+
+describe('v4 supply-risk events', () => {
+  it('stores the project and its criteria', () => {
+    const s = fold([
+      ev('project', {
+        project: {
+          id: 'ar4_club',
+          kind: 'club',
+          name: 'Western robotics club',
+          robot: 'AR4',
+          use_case: 'teaching arm',
+          robot_kind: 'arm',
+          robot_params: {},
+          deep_line: 'j2_motor',
+          bom: [],
+          facts: {
+            sells_to_us_federal: null,
+            deploy_countries: ['CA'],
+            uptime_critical: null,
+            budget_usd: 2000,
+            need_by_days: 30,
+          },
+          fact_basis: [{ field: 'budget_usd', value: '2000', basis: 'stated', claim_id: null }],
+        },
+        criteria: {
+          objectives: ['performance', 'cost'],
+          domestic_threshold: null,
+          max_lead_time_days: 30,
+          blocking_lists: [],
+          reasons: [],
+        },
+      }),
+    ])
+    expect(s.project?.id).toBe('ar4_club')
+    expect(s.criteria?.max_lead_time_days).toBe(30)
+  })
+
+  it('keeps one risk row per BOM line, in arrival order, the latest winning', () => {
+    const s = fold([
+      ev('risk_line', { line: line('a'), risk: risk('a', 'high') }),
+      ev('risk_line', { line: line('b'), risk: risk('b', 'low') }),
+      ev('risk_line', { line: line('a'), risk: risk('a', 'medium') }),
+    ])
+    expect(s.riskLines.map((r) => [r.line.id, r.risk.overall])).toEqual([
+      ['a', 'medium'],
+      ['b', 'low'],
+    ])
+  })
+
+  it('groups alternatives by line and drops repeats of the same id', () => {
+    const s = fold([
+      ev('alternative', { alternative: alt('x1', 'a', 10) }),
+      ev('alternative', { alternative: alt('x2', 'a', 20) }),
+      ev('alternative', { alternative: alt('x1', 'a', 15) }),
+      ev('alternative', { alternative: alt('y1', 'b', 5) }),
+    ])
+    expect(s.alternatives.a.map((a) => [a.id, a.unit_price_usd])).toEqual([
+      ['x2', 20],
+      ['x1', 15],
+    ])
+    expect(s.alternatives.b).toHaveLength(1)
+  })
+
+  it('ranks recommendations by levels dropped, then cheaper first', () => {
+    const s = fold([
+      ev('recommendation', { recommendation: rec('keep', 'low', 'low', 0) }),
+      ev('recommendation', { recommendation: rec('one', 'high', 'medium', 5) }),
+      ev('recommendation', { recommendation: rec('two', 'high', 'low', 50) }),
+      ev('recommendation', { recommendation: rec('one-cheap', 'medium', 'low', -10) }),
+    ])
+    expect(s.recommendations.map((r) => r.line_id)).toEqual(['two', 'one-cheap', 'one', 'keep'])
+  })
+
+  it('does not count unknown levels as a drop, and puts unknown cost last', () => {
+    const ranked = rankRecommendations([
+      rec('unknown', 'unknown', 'low', -100),
+      rec('nocost', 'medium', 'low', null),
+      rec('cost', 'medium', 'low', 30),
+    ])
+    expect(ranked.map((r) => r.line_id)).toEqual(['cost', 'nocost', 'unknown'])
+  })
+
+  it('replaces a line recommendation instead of listing it twice', () => {
+    const s = fold([
+      ev('recommendation', { recommendation: rec('a', 'high', 'high', 0) }),
+      ev('recommendation', { recommendation: rec('a', 'high', 'low', 0) }),
+    ])
+    expect(s.recommendations).toHaveLength(1)
+    expect(s.recommendations[0].risk_after).toBe('low')
+  })
+})
+
+describe('domesticShare', () => {
+  it('weighs by cost and counts only US lines at T1/T2', () => {
+    const share = domesticShare([
+      line('us', { origin_country: 'US', origin_tier: 'T1', unit_price_usd: 300 }),
+      line('us-t3', { origin_country: 'US', origin_tier: 'T3', unit_price_usd: 100 }),
+      line('cn', { qty: 2, unit_price_usd: 50 }),
+      line('unpriced', { unit_price_usd: null }),
+    ])
+    expect(share).toEqual({ pct: 60, unpriced: 1 })
+  })
+
+  it('is null when nothing has a price', () => {
+    expect(domesticShare([line('a', { unit_price_usd: null })])).toBeNull()
   })
 })
