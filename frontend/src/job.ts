@@ -2,7 +2,22 @@
 // into the state, and `useJob` feeds it from the SSE stream.
 
 import { useCallback, useEffect, useReducer, useRef } from 'react'
-import type { Claim, Design, JobEvent, JobMode, JobStatus, Outcome, Stage } from './events'
+import type {
+  Alternative,
+  BomLine,
+  Claim,
+  Criteria,
+  Design,
+  JobEvent,
+  JobMode,
+  JobStatus,
+  Level,
+  LineRisk,
+  Outcome,
+  Project,
+  Recommendation,
+  Stage,
+} from './events'
 import { TERMINAL_STAGES } from './events'
 import type { ComplianceCard } from './types'
 
@@ -41,6 +56,19 @@ export interface JobState {
   candidates: Design[]
   errors: string[]
   connection: 'idle' | 'starting' | 'streaming' | 'closed' | 'failed'
+  // v4 supply-risk view; empty for the wheeled demo job.
+  project: Project | null
+  criteria: Criteria | null
+  /** One entry per BOM line, in arrival order; a later risk_line for the same line replaces it. */
+  riskLines: RiskRow[]
+  alternatives: Record<string, Alternative[]>
+  /** Ranked: risk levels dropped (desc), then cost delta (asc). */
+  recommendations: Recommendation[]
+}
+
+export interface RiskRow {
+  line: BomLine
+  risk: LineRisk
 }
 
 export const initialJobState: JobState = {
@@ -56,6 +84,48 @@ export const initialJobState: JobState = {
   candidates: [],
   errors: [],
   connection: 'idle',
+  project: null,
+  criteria: null,
+  riskLines: [],
+  alternatives: {},
+  recommendations: [],
+}
+
+const LEVEL_RANK: Record<Level, number | null> = { low: 0, medium: 1, high: 2, unknown: null }
+
+/** Levels a recommendation drops the line's risk by. Unknown on either side counts as 0. */
+export function riskDrop(r: Pick<Recommendation, 'risk_before' | 'risk_after'>): number {
+  const before = LEVEL_RANK[r.risk_before]
+  const after = LEVEL_RANK[r.risk_after]
+  return before === null || after === null ? 0 : before - after
+}
+
+/** BUILD-PLAN-v4 §5: risk reduction descending, then cost delta ascending (unknown cost last). */
+export function rankRecommendations(recs: Recommendation[]): Recommendation[] {
+  const cost = (r: Recommendation) => r.cost_delta_usd ?? Number.POSITIVE_INFINITY
+  return [...recs].sort((a, b) => riskDrop(b) - riskDrop(a) || cost(a) - cost(b))
+}
+
+/**
+ * Cost-weighted domestic share of the BOM, counted like the compliance card: a line is domestic
+ * when its origin is US at tier T1/T2. Lines without a price can't be weighed and are left out
+ * (`unpriced` says how many). Null when no line has a price.
+ */
+export function domesticShare(lines: BomLine[]): { pct: number; unpriced: number } | null {
+  let total = 0
+  let domestic = 0
+  let unpriced = 0
+  for (const l of lines) {
+    if (l.unit_price_usd === null) {
+      unpriced++
+      continue
+    }
+    const cost = l.unit_price_usd * l.qty
+    total += cost
+    const tier = l.origin_tier
+    if (l.origin_country?.toUpperCase() === 'US' && (tier === 'T1' || tier === 'T2')) domestic += cost
+  }
+  return total > 0 ? { pct: Math.round((domestic / total) * 1000) / 10, unpriced } : null
 }
 
 export function isTerminal(state: JobState): boolean {
@@ -122,6 +192,25 @@ export function applyEvent(prev: JobState, ev: JobEvent): JobState {
       return ev.data.role === 'baseline'
         ? { ...state, baseline: ev.data }
         : { ...state, candidates: [...state.candidates, ev.data] }
+    case 'project':
+      return { ...state, project: ev.data.project, criteria: ev.data.criteria }
+    case 'risk_line': {
+      const row = { line: ev.data.line, risk: ev.data.risk }
+      const i = state.riskLines.findIndex((r) => r.risk.line_id === row.risk.line_id)
+      const riskLines =
+        i < 0 ? [...state.riskLines, row] : state.riskLines.map((r, j) => (j === i ? row : r))
+      return { ...state, riskLines }
+    }
+    case 'alternative': {
+      const alt = ev.data.alternative
+      const list = (state.alternatives[alt.line_id] ?? []).filter((a) => a.id !== alt.id)
+      return { ...state, alternatives: { ...state.alternatives, [alt.line_id]: [...list, alt] } }
+    }
+    case 'recommendation': {
+      const rec = ev.data.recommendation
+      const others = state.recommendations.filter((r) => r.line_id !== rec.line_id)
+      return { ...state, recommendations: rankRecommendations([...others, rec]) }
+    }
     default:
       return state // check_result, advocate, synthesis: not rendered yet
   }
@@ -176,12 +265,12 @@ export function useJob() {
   useEffect(() => stop, [stop]) // close on unmount
 
   const start = useCallback(
-    async (mode: JobMode = 'replay', liveToken?: string) => {
+    async (mode: JobMode = 'replay', opts: CreateJobOptions = {}) => {
       stop()
       dispatch({ kind: 'reset' })
       let status: JobStatus
       try {
-        status = await createJob(mode, liveToken)
+        status = await createJob(mode, opts)
       } catch (e) {
         dispatch({ kind: 'failed', message: `could not start job: ${String(e)}` })
         return
@@ -201,13 +290,20 @@ export function useJob() {
   return { state, start, stop }
 }
 
+export interface CreateJobOptions {
+  /** Sent as X-Live-Token, only for live/mixed jobs. */
+  liveToken?: string
+  /** v4 project (data/projects/<id>.json); left out for the wheeled demo robot. */
+  projectId?: string
+}
+
 /**
  * POST /api/jobs. On the public deploy, live/mixed jobs need the X-Live-Token header (they spend
  * TinyFish credit); replay jobs never send it. `fetchImpl` is injectable for tests.
  */
 export async function createJob(
   mode: JobMode,
-  liveToken?: string,
+  { liveToken, projectId }: CreateJobOptions = {},
   fetchImpl: typeof fetch = fetch,
 ): Promise<JobStatus> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -215,7 +311,7 @@ export async function createJob(
   const res = await fetchImpl(`${BASE}/api/jobs`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ mode }),
+    body: JSON.stringify(projectId ? { mode, project_id: projectId } : { mode }),
   })
   if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0, 200)}`)
   return (await res.json()) as JobStatus
