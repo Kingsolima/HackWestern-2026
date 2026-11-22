@@ -130,26 +130,53 @@ export default function App() {
   const projectLabel = PROJECTS.find((p) => p.id === project)?.label
 
   return (
-    <>
-      <CadViewer src={src} deep={deep} build={designs !== null && showAfter} lines={lines} shift={shift} onStatus={setModel} />
-
-      {welcome !== 'off' && (
-        <Welcome
-          sample={demo?.bom ?? null}
-          leaving={welcome === 'leaving'}
-          onContinue={(rows, c) => {
-            setBom(rows)
-            setCad(c)
-            setProject(null)
-            setOnboarded(null)
-            setMode('onboarding')
-            leaveWelcome()
-          }}
-          onProject={(id) => {
-            setProject(id)
-            setMode('ready')
-            leaveWelcome()
-          }}
+    <main>
+      <header>
+        <h1>AI Robot Redesign Engine</h1>
+        <span className="muted">
+          API: {health} ·{' '}
+          <button type="button" className="ob-link" onClick={() => setView('onboarding')}>
+            {onboarded ? 'Edit answers' : 'Describe your robot'}
+          </button>
+        </span>
+      </header>
+      <JobBar
+        state={job}
+        onStart={() => run(onboarded)}
+        onStartLive={LIVE_ENABLED ? () => void startWithToken('live', start, jobOptions(onboarded)) : undefined}
+        project={project}
+        onProjectChange={setProject}
+      />
+      {onboarded && !job.project && <CompanyCard company={onboarded.company} />}
+      {job.project && <ProjectCard project={job.project} criteria={job.criteria} claims={job.claims} />}
+      {job.riskLines.length > 0 && <RiskTable rows={job.riskLines} alternatives={job.alternatives} />}
+      {job.recommendations.length > 0 && (
+        <Recommendations
+          recommendations={job.recommendations}
+          rows={job.riskLines}
+          alternatives={job.alternatives}
+        />
+      )}
+      {job.baseline && job.candidates[0] ? (
+        onboardedJob && job.project?.robot_kind === 'wheeled' ? (
+          <BeforeAfterViewer
+            before={job.baseline}
+            after={job.candidates[0]}
+            title="Redesign · generic wheeled model"
+            notes={genericModelNotes(job.project)}
+          />
+        ) : (
+          <BeforeAfterViewer before={job.baseline} after={job.candidates[0]} />
+        )
+      ) : onboarded?.arm && !projectId ? (
+        <ModelViewer
+          src={`/cad/designs/starter_${onboarded.arm.cad_robot}/glb`}
+          title={`${onboarded.arm.robot}: your redesign appears here after the BUILD step`}
+        />
+      ) : onboarded && !projectId ? (
+        <ModelViewer
+          src={starterRobot('').src}
+          title="Example robot: your redesign appears here after the BUILD step"
         />
       )}
 

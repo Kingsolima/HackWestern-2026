@@ -352,3 +352,14 @@ async def test_the_example_answers_replay_offline_and_give_the_demo_robot():
 
 def test_example_endpoint_serves_the_shared_file(client):
     assert client.get("/api/intake/example").json() == load_example().model_dump()
+
+
+def test_intake_names_the_known_arm_so_the_page_can_skip_the_drivetrain_question(client):
+    from tests.test_to_project import ar4_rows
+
+    use_gemini(client)  # files only: no Gemini call
+    bom = [r.model_dump(mode="json") for r in ar4_rows()]
+    known = client.post("/api/intake", json={"bom": bom}).json()["known_arm"]
+    assert known["robot"] == "Annin Robotics AR4 MK5 arm"
+    assert (known["arm"]["joint"], known["arm"]["gear_ratio"]) == ("J2 shoulder", 50)
+    assert client.post("/api/intake", json=body()).json()["known_arm"] is None
