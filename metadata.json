@@ -3,9 +3,10 @@
   "checkpoint_id": "01M814HYV2ZSCVQQVD65FYKTVX",
   "strategy": "manual-commit",
   "branch": "e2e-onboarding",
-  "checkpoints_count": 4,
+  "checkpoints_count": 5,
   "files_touched": [
     "data/recordings/agent/00a415c9b7ef370dd5152d1a451dd967de230a8dee7dd77c1c16c4eee0abef7b.json.gz",
+    "data/recordings/fetch/d7e729bbb0abd0c6f4b772f417608b16ab1fc37387d07057012388ac270b763e.json.gz",
     "data/recordings/gemini/8eba0565aa6c8266f6a72cb9f3e5c1975cf342aa59536551dd32f94288030b55.json.gz",
     "data/recordings/gemini/a4b85fe81ebd612efb1ba4f7a2f46b4e224e682d92b1f3fd3989b5d0eb61753a.json.gz",
     "data/recordings/gemini/a8de891d0262983b84e0887f003d7453e98e9e8bc74055f46a2aa032560ed276.json.gz",
@@ -32,14 +33,21 @@
       "compact_transcript": "/2/transcript.jsonl",
       "content_hash": "/2/content_hash.txt",
       "prompt": "/2/prompt.txt"
+    },
+    {
+      "metadata": "/3/metadata.json",
+      "transcript": "/3/full.jsonl",
+      "compact_transcript": "/3/transcript.jsonl",
+      "content_hash": "/3/content_hash.txt",
+      "prompt": "/3/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 48,
-    "cache_creation_tokens": 27562,
-    "cache_read_tokens": 3296723,
-    "output_tokens": 11577,
-    "api_call_count": 20
+    "input_tokens": 60,
+    "cache_creation_tokens": 78686,
+    "cache_read_tokens": 3661333,
+    "output_tokens": 14753,
+    "api_call_count": 26
   },
   "redaction": {
     "replacements": 70,
