@@ -1,6 +1,8 @@
 // What each part of a CAD-worker model is: its role in the job, and what the hover label says.
 // Node names come from the CAD worker's assemblies (cad/cad_worker/robot.py, arm.py, stretch.py).
 
+import { isMotorLine } from './onboarding/bomCsv'
+
 export type PartRole = 'deep' | 'build'
 
 /** One BOM line, whichever shape it came in (onboarding BomRow or a project's BomLine). */
@@ -28,15 +30,33 @@ export function partRole(root: string, node: string, show: { deep: boolean; buil
   return null
 }
 
-/** The BOM line a node stands for: motors by category, anything else by a word of its name. */
-export function matchLine(node: string, lines: PartLine[]): PartLine | null {
+/**
+ * The BOM lines a node could stand for. Motors are the lines the backend reads as motors, other
+ * parts the lines naming a word of the node. A joint in the node (j2_motor) narrows to lines
+ * naming that joint, and a line that is exactly the word (Wheel, not Wheel encoder) wins. More
+ * than one result means the BOM does not say which line it is.
+ */
+export function matchLines(node: string, lines: PartLine[]): PartLine[] {
   const words = node.toLowerCase().split('_').filter((w) => w && !SIDES.has(w) && !/^\d+$/.test(w))
-  if (words.includes('shaft')) return null
-  if (words.includes('motor')) {
-    return lines.find((l) => l.category?.toLowerCase() === 'motor') ?? lines.find((l) => /motor/i.test(l.part)) ?? null
+  if (words.includes('shaft')) return []
+  const joint = words.find((w) => /^j\d$/.test(w))
+  const inJoint = (ls: PartLine[]) => {
+    const named = ls.filter((l) => joint && new RegExp(`\\b${joint}\\b`, 'i').test(l.part))
+    return named.length ? named : ls
   }
-  const hits = lines.filter((l) => words.some((w) => w.length > 3 && new RegExp(`\\b${w}`, 'i').test(l.part)))
-  return hits.sort((a, b) => a.part.length - b.part.length)[0] ?? null
+  if (words.includes('motor')) {
+    const motors = inJoint(lines.filter((l) => isMotorLine({ part: l.part, category: l.category ?? '' })))
+    return motors.slice(0, 1)
+  }
+  const hits = inJoint(lines.filter((l) => words.some((w) => w.length > 3 && new RegExp(`\\b${w}`, 'i').test(l.part))))
+  const exact = hits.filter((l) => words.includes(l.part.toLowerCase()))
+  return exact.length ? exact.slice(0, 1) : hits
+}
+
+/** The one BOM line a node stands for, or null when none or several match. */
+export function matchLine(node: string, lines: PartLine[]): PartLine | null {
+  const hits = matchLines(node, lines)
+  return hits.length === 1 ? hits[0] : null
 }
 
 const ROLE_TEXT: Record<PartRole, string> = {
@@ -44,12 +64,17 @@ const ROLE_TEXT: Record<PartRole, string> = {
   build: 'Regenerated to fit the new motor',
 }
 
-/** Hover text: the BOM name and its qty, price and origin, or the node name when no line matches. */
+/** Hover text: the BOM name and its qty, price and origin; the node name and the candidate lines
+ * when several match; or that the part is not in the BOM. */
 export function partInfo(node: string, lines: PartLine[], role: PartRole | null): { title: string; detail: string } {
-  const line = matchLine(node, lines)
+  const hits = matchLines(node, lines)
+  const line = hits.length === 1 ? hits[0] : null
   const title = line?.part ?? node.replaceAll('_', ' ').replace(/^\w/, (c) => c.toUpperCase())
+  const short = hits.slice(0, 3).map((l) => l.part.split(' (')[0])
   const facts = line
     ? [`x${line.qty}`, line.price === null ? 'price unknown' : `$${line.price}`, line.origin && line.origin !== 'unknown' ? line.origin : 'origin unknown'].join(' / ')
-    : 'Not in your BOM'
+    : hits.length > 1
+      ? `In ${hits.length} BOM lines: ${short.join(', ')}${hits.length > 3 ? ', ...' : ''}`
+      : 'Not in your BOM'
   return { title, detail: role ? ROLE_TEXT[role] : facts }
 }

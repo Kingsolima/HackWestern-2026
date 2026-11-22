@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import { api } from './api'
 import { AgentBays } from './components/AgentBays'
 import { Brief } from './components/Brief'
-import { CadViewer } from './components/CadViewer'
 import { JobConsole } from './components/JobConsole'
 import { Onboarding, type Progress } from './components/Onboarding'
 import { Welcome } from './components/Welcome'
@@ -15,11 +14,14 @@ import { loadSaved, matchesDemo, needsLiveAgents, saveOnboarded, toRobot, type O
 import type { CadMeasure } from './onboarding/intake'
 import { STEP_LABEL, stepsFor, type OpenAnswers } from './onboarding/questions'
 import { PROJECTS, PROJECT_ROBOT, cadUrl, starterModel, type ProjectId } from './projects'
+import { useFreeArea } from './stageArea'
 import type { BomRow, ComplianceCard as Card, Robot } from './types'
 
 // ?live=1 shows a "Run live" button. The token is asked once per tab and kept in sessionStorage.
 const LIVE_ENABLED = new URLSearchParams(window.location.search).get('live') === '1'
 const pad2 = (n: number) => String(n).padStart(2, '0')
+// three.js is most of the bundle: load it beside the welcome screen instead of before it.
+const CadViewer = lazy(() => import('./components/CadViewer').then((m) => ({ default: m.CadViewer })))
 
 /** Start a job that makes real calls ('mixed' replays what is recorded and runs the rest). */
 async function startWithToken(
@@ -115,8 +117,7 @@ export default function App() {
   const card = job.compliance ?? (demoPanels ? baselineCard : null)
 
   const review = mode === 'onboarding' && progress.steps[progress.index] === 'review'
-  const w = window.innerWidth
-  const shift = launched ? (done ? Math.min(240, w * 0.15) : 0) : review ? Math.min(340, w * 0.22) : Math.min(150, w * 0.1)
+  const area = useFreeArea([welcome, mode, review, done, designs !== null].join('|'))
 
   const stageIndex = job.stage ? STAGE_ORDER.indexOf(job.stage) : -1
   const timeline: [string, string][] = launched
@@ -139,7 +140,9 @@ export default function App() {
 
   return (
     <>
-      <CadViewer src={src} deep={deep} build={designs !== null && showAfter} lines={lines} shift={shift} onStatus={setModel} />
+      <Suspense fallback={null}>
+        <CadViewer src={src} deep={deep} build={designs !== null && showAfter} lines={lines} area={area} onStatus={setModel} />
+      </Suspense>
 
       {welcome !== 'off' && (
         <Welcome

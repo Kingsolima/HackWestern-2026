@@ -7,6 +7,7 @@ import {
   followJob,
   initialJobState,
   isTerminal,
+  mayHavePage,
   rankRecommendations,
   type JobState,
 } from './job'
@@ -407,5 +408,15 @@ describe('domesticShare', () => {
 
   it('is null when nothing has a price', () => {
     expect(domesticShare([line('a', { unit_price_usd: null })])).toBeNull()
+  })
+})
+
+describe('mayHavePage', () => {
+  it('asks for a recorded page only for agent runs, and for a live one only once it finished', () => {
+    expect(mayHavePage({ product: 'agent', live: false, outcome: null })).toBe(true)
+    expect(mayHavePage({ product: 'search', live: false, outcome: 'success' })).toBe(false)
+    expect(mayHavePage({ product: 'fetch', live: false, outcome: null })).toBe(false)
+    expect(mayHavePage({ product: 'agent', live: true, outcome: null })).toBe(false)
+    expect(mayHavePage({ product: 'agent', live: true, outcome: 'blocked' })).toBe(true)
   })
 })

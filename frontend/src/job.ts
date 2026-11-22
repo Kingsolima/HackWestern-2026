@@ -14,6 +14,7 @@ import type {
   Level,
   LineRisk,
   Outcome,
+  Product,
   Project,
   Recommendation,
   SpecCheck,
@@ -30,6 +31,8 @@ export interface Run {
   worker: string
   site: string
   url: string | null
+  /** Only an agent run has a browser, so only it can have a recorded page. */
+  product: Product
   /** False for a replayed run: its streaming URL points at a browser that no longer exists. */
   live: boolean
   streamingUrl: string | null
@@ -133,6 +136,11 @@ export function domesticShare(lines: BomLine[]): { pct: number; unpriced: number
   return total > 0 ? { pct: Math.round((domestic / total) * 1000) / 10, unpriced } : null
 }
 
+/** Whether a recorded page can exist yet: only agent runs have a browser, and a live run's page
+ * is only recorded once it has finished. */
+export const mayHavePage = (run: Pick<Run, 'product' | 'live' | 'outcome'>) =>
+  run.product === 'agent' && (!run.live || run.outcome !== null)
+
 export function isTerminal(state: JobState): boolean {
   return state.stage !== null && TERMINAL_STAGES.has(state.stage)
 }
@@ -158,6 +166,7 @@ export function applyEvent(prev: JobState, ev: JobEvent): JobState {
         worker: d.worker,
         site: d.site,
         url: d.url,
+        product: d.product,
         live: d.live,
         streamingUrl: null,
         steps: [],

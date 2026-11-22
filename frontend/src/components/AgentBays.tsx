@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { outcomeAccuracy } from '../accuracy'
 import type { Outcome } from '../events'
-import type { Run } from '../job'
+import { mayHavePage, type Run } from '../job'
 
 const BASE = import.meta.env.VITE_API_URL ?? ''
 const OUTCOME: Record<Outcome, string> = {
@@ -71,7 +71,7 @@ function PageView({ src, title }: { src: string; title: string }) {
 }
 
 function Bay({ n, run, zoomed, onZoom }: { n: number; run: Run | undefined; zoomed?: boolean; onZoom?: () => void }) {
-  const page = useRecordedPage(run?.runId)
+  const page = useRecordedPage(run && mayHavePage(run) ? run.runId : undefined)
   if (!run) {
     return (
       <article className="bay frame">
