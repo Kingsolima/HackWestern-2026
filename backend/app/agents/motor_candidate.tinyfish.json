@@ -1,0 +1,57 @@
+{
+  "type": "object",
+  "propertyOrdering": [
+    "status", "reason", "manufacturer", "part_number", "motor_type", "nema_frame",
+    "specs", "country_of_origin", "origin_quote", "origin_source_url", "product_url", "datasheet_url"
+  ],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["success", "blocked", "not_found", "auth_required", "incomplete"]
+    },
+    "reason": { "type": "string" },
+    "manufacturer": { "type": "string", "nullable": true },
+    "part_number": { "type": "string", "nullable": true },
+    "motor_type": {
+      "type": "string",
+      "enum": ["servo_integrated", "bldc", "stepper", "brushed_dc", "unknown"],
+      "nullable": true
+    },
+    "nema_frame": { "type": "string", "enum": ["17", "23", "34", "other"], "nullable": true },
+    "specs": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "propertyOrdering": ["name", "value", "unit", "at_speed_value", "at_speed_unit", "quote", "source_url"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "continuous_torque", "peak_torque", "holding_torque", "torque_at_speed",
+              "rated_speed", "max_speed",
+              "supply_voltage_min", "supply_voltage_max", "rated_voltage", "rated_current",
+              "body_length", "shaft_diameter", "price", "lead_time"
+            ]
+          },
+          "value": { "type": "number" },
+          "unit": { "type": "string" },
+          "at_speed_value": { "type": "number", "nullable": true },
+          "at_speed_unit": { "type": "string", "nullable": true },
+          "quote": { "type": "string" },
+          "source_url": { "type": "string" }
+        },
+        "required": ["name", "value", "unit", "at_speed_value", "at_speed_unit", "quote", "source_url"]
+      }
+    },
+    "country_of_origin": { "type": "string", "nullable": true },
+    "origin_quote": { "type": "string", "nullable": true },
+    "origin_source_url": { "type": "string", "nullable": true },
+    "product_url": { "type": "string", "nullable": true },
+    "datasheet_url": { "type": "string", "nullable": true }
+  },
+  "required": [
+    "status", "reason", "manufacturer", "part_number", "motor_type", "nema_frame",
+    "specs", "country_of_origin", "origin_quote", "origin_source_url", "product_url", "datasheet_url"
+  ]
+}
