@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from './api'
 import { AgentBays } from './components/AgentBays'
 import { Brief } from './components/Brief'
 import { CadViewer } from './components/CadViewer'
 import { JobConsole } from './components/JobConsole'
-import { Onboarding } from './components/Onboarding'
+import { Onboarding, type Progress } from './components/Onboarding'
 import { Welcome } from './components/Welcome'
 import { STAGE_ORDER, stageLabel } from './events'
 import { isTerminal, useJob, type CreateJobOptions } from './job'
@@ -12,8 +12,8 @@ import { askLiveToken } from './liveToken'
 import { genericModelNotes } from './modelNotes'
 import type { PartLine } from './modelParts'
 import { loadSaved, matchesDemo, needsLiveAgents, saveOnboarded, toRobot, type Onboarded } from './onboarding/answers'
-import type { CadMeasure, CompanyFact } from './onboarding/intake'
-import { STEPS, STEP_LABEL, type OpenAnswers } from './onboarding/questions'
+import type { CadMeasure } from './onboarding/intake'
+import { STEP_LABEL, stepsFor, type OpenAnswers } from './onboarding/questions'
 import { PROJECTS, PROJECT_ROBOT, cadUrl, starterModel, type ProjectId } from './projects'
 import type { BomRow, ComplianceCard as Card, Robot } from './types'
 
@@ -57,8 +57,12 @@ export default function App() {
   const [project, setProject] = useState<ProjectId | null>(null)
   const [bom, setBom] = useState<BomRow[]>(onboarded?.bom ?? [])
   const [cad, setCad] = useState<CadMeasure | null>(null)
-  const [step, setStep] = useState(0)
-  const [company, setCompany] = useState<CompanyFact[]>(onboarded?.company ?? [])
+  const [progress, setProgress] = useState<Progress>({
+    steps: stepsFor(Boolean(onboarded?.arm)),
+    index: 0,
+    company: onboarded?.company ?? [],
+    arm: onboarded?.arm ?? null,
+  })
   const [showAfter, setShowAfter] = useState(true)
   const [model, setModel] = useState<ModelStatus>(null)
 
@@ -67,11 +71,6 @@ export default function App() {
     api.robot().then(setDemo, console.error)
     api.example().then(setExample, console.error)
     api.compliance().then(setBaselineCard, console.error)
-  }, [])
-
-  const onProgress = useCallback((i: number, c: CompanyFact[]) => {
-    setStep(i)
-    setCompany(c)
   }, [])
 
   const leaveWelcome = () => {
@@ -99,7 +98,9 @@ export default function App() {
   const candidate = job.candidates[0]
   const designs = job.baseline && candidate ? { before: job.baseline, after: candidate } : null
   const shown = designs ? (showAfter ? designs.after : designs.before) : null
-  const starter = starterModel(job.project?.cad_robot ?? (project ? PROJECT_ROBOT[project] : 'wheeled'))
+  const starter = starterModel(
+    job.project?.cad_robot ?? (project ? PROJECT_ROBOT[project] : (progress.arm?.cad_robot ?? 'wheeled')),
+  )
   const src = welcome === 'on' ? null : shown ? cadUrl(shown.glb_url) : starter.src
   const deep = launched && job.stage !== null && job.stage !== 'CREATED'
 
@@ -113,7 +114,7 @@ export default function App() {
   const demoPanels = project === null && (!onboarded || (demo != null && matchesDemo(onboarded, demo)))
   const card = job.compliance ?? (demoPanels ? baselineCard : null)
 
-  const review = mode === 'onboarding' && STEPS[step] === 'review'
+  const review = mode === 'onboarding' && progress.steps[progress.index] === 'review'
   const w = window.innerWidth
   const shift = launched ? (done ? Math.min(240, w * 0.15) : 0) : review ? Math.min(340, w * 0.22) : Math.min(150, w * 0.1)
 
@@ -125,58 +126,38 @@ export default function App() {
           ['Project', 'done'],
           ['Launch', 'now'],
         ]
-      : [['BOM', 'done'], ...STEPS.map((s, i): [string, string] => [STEP_LABEL[s], i < step ? 'done' : i === step ? 'now' : '']), ['Launch', '']]
+      : [
+          ['BOM', 'done'],
+          ...progress.steps.map((s, i): [string, string] => [
+            STEP_LABEL[s],
+            i < progress.index ? 'done' : i === progress.index ? 'now' : '',
+          ]),
+          ['Launch', ''],
+        ]
   const running = job.connection === 'starting' || job.connection === 'streaming'
   const projectLabel = PROJECTS.find((p) => p.id === project)?.label
 
   return (
-    <main>
-      <header>
-        <h1>AI Robot Redesign Engine</h1>
-        <span className="muted">
-          API: {health} ·{' '}
-          <button type="button" className="ob-link" onClick={() => setView('onboarding')}>
-            {onboarded ? 'Edit answers' : 'Describe your robot'}
-          </button>
-        </span>
-      </header>
-      <JobBar
-        state={job}
-        onStart={() => run(onboarded)}
-        onStartLive={LIVE_ENABLED ? () => void startWithToken('live', start, jobOptions(onboarded)) : undefined}
-        project={project}
-        onProjectChange={setProject}
-      />
-      {onboarded && !job.project && <CompanyCard company={onboarded.company} />}
-      {job.project && <ProjectCard project={job.project} criteria={job.criteria} claims={job.claims} />}
-      {job.riskLines.length > 0 && <RiskTable rows={job.riskLines} alternatives={job.alternatives} />}
-      {job.recommendations.length > 0 && (
-        <Recommendations
-          recommendations={job.recommendations}
-          rows={job.riskLines}
-          alternatives={job.alternatives}
-        />
-      )}
-      {job.baseline && job.candidates[0] ? (
-        onboardedJob && job.project?.robot_kind === 'wheeled' ? (
-          <BeforeAfterViewer
-            before={job.baseline}
-            after={job.candidates[0]}
-            title="Redesign · generic wheeled model"
-            notes={genericModelNotes(job.project)}
-          />
-        ) : (
-          <BeforeAfterViewer before={job.baseline} after={job.candidates[0]} />
-        )
-      ) : onboarded?.arm && !projectId ? (
-        <ModelViewer
-          src={`/cad/designs/starter_${onboarded.arm.cad_robot}/glb`}
-          title={`${onboarded.arm.robot}: your redesign appears here after the BUILD step`}
-        />
-      ) : onboarded && !projectId ? (
-        <ModelViewer
-          src={starterRobot('').src}
-          title="Example robot: your redesign appears here after the BUILD step"
+    <>
+      <CadViewer src={src} deep={deep} build={designs !== null && showAfter} lines={lines} shift={shift} onStatus={setModel} />
+
+      {welcome !== 'off' && (
+        <Welcome
+          sample={demo?.bom ?? null}
+          leaving={welcome === 'leaving'}
+          onContinue={(rows, c) => {
+            setBom(rows)
+            setCad(c)
+            setProject(null)
+            setOnboarded(null)
+            setMode('onboarding')
+            leaveWelcome()
+          }}
+          onProject={(id) => {
+            setProject(id)
+            setMode('ready')
+            leaveWelcome()
+          }}
         />
       )}
 
@@ -276,7 +257,7 @@ export default function App() {
               bom={bom}
               cad={cad}
               initial={onboarded}
-              onProgress={onProgress}
+              onProgress={setProgress}
               onChangeBom={restart}
               onDone={(o) => {
                 saveOnboarded(o)
@@ -291,7 +272,7 @@ export default function App() {
 
         {mode === 'onboarding' && bom.length > 0 && (
           <aside className="dossier frame">
-            <Brief bom={bom} company={company} />
+            <Brief bom={bom} company={progress.company} />
           </aside>
         )}
 

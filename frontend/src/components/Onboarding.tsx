@@ -1,12 +1,6 @@
 import { useEffect, useState } from 'react'
 import { askLiveToken, forgetLiveToken, storedLiveToken } from '../liveToken'
-import {
-  applyDrafts,
-  needsLiveAgents,
-  stillMissing,
-  withDefaults,
-  type Onboarded,
-} from '../onboarding/answers'
+import { applyDrafts, needsLiveAgents, stillMissing, withDefaults, type Onboarded } from '../onboarding/answers'
 import {
   ApiError,
   intake,
@@ -16,7 +10,7 @@ import {
   type KnownArm,
   type SpecRow,
 } from '../onboarding/intake'
-import { EMPTY_ANSWERS, QUESTIONS, listOf, type OpenAnswers } from '../onboarding/questions'
+import { EMPTY_ANSWERS, QUESTIONS, listOf, stepsFor, type OpenAnswers, type Step } from '../onboarding/questions'
 import type { BomRow, Robot } from '../types'
 import { SpecsReview } from './SpecsReview'
 
@@ -32,12 +26,18 @@ interface Props {
   onDone: (onboarded: Onboarded) => void
   /** Back to the welcome screen for another BOM. */
   onChangeBom: () => void
-  /** The current step and the facts read so far, for the timeline and the brief. */
-  onProgress: (step: number, company: CompanyFact[]) => void
+  /** Where the user is, the facts read so far and the arm the parts list matched, for the
+   * timeline, the brief and the 3D view. */
+  onProgress: (progress: Progress) => void
 }
 
-const REVIEW = STEPS.indexOf('review')
-const FILES = STEPS.indexOf('files')
+export interface Progress {
+  steps: readonly Step[]
+  index: number
+  company: CompanyFact[]
+  arm: KnownArm | null
+}
+
 const TOKEN_MESSAGE = 'Reading new answers makes a real Gemini call. Enter the live token:'
 
 /** One open question at a time in the console, then every number the job will use for the user
@@ -50,30 +50,36 @@ export function Onboarding({ demo, example, bom, cad, initial, onDone, onChangeB
   const [specs, setSpecs] = useState<SpecRow[]>(initial?.specs ?? [])
   const [company, setCompany] = useState<CompanyFact[]>(initial?.company ?? [])
   const [dropped, setDropped] = useState<string[]>([])
-  // A parts list we recognise as a researched arm: no drivetrain question, no wheel numbers.
+  // A parts list holding a researched arm's motor: no drivetrain question, no wheel numbers.
   const [arm, setArm] = useState<KnownArm | null>(initial?.arm ?? null)
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const inputsKey = (a: OpenAnswers) => JSON.stringify([a, bom, cad])
   const [readKey, setReadKey] = useState(initial ? inputsKey(initial.answers) : '')
 
-  const [index, setIndex] = useState(initial ? REVIEW : 0)
+  // The step by name, so the list can lose the drivetrain question when the arm is found.
+  const [step, setStep] = useState<Step>(initial ? 'review' : 'who')
   const [back, setBack] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const step = STEPS[index]
+  const steps = stepsFor(arm !== null)
+  const index = steps.indexOf(step)
+  const reviewAt = steps.indexOf('review')
   const question = QUESTIONS.find((q) => q.id === step)
-  const go = (to: number) => {
-    setBack(to < index)
-    setIndex(to)
+  const go = (to: Step) => {
+    setBack(steps.indexOf(to) < index)
+    setStep(to)
     setError(null)
   }
 
   useEffect(() => {
-    intake({ bom, cad, answers: null }).then((r) => setFromFiles(r.specs), console.error)
+    intake({ bom, cad, answers: null }).then((r) => {
+      setFromFiles(r.specs)
+      setArm(r.known_arm ?? null)
+    }, console.error)
   }, [bom, cad])
 
-  useEffect(() => onProgress(index, company), [index, company, onProgress])
+  useEffect(() => onProgress({ steps, index, company, arm }), [steps, index, company, arm, onProgress])
 
   /** One Gemini reading of the answers. Asks for the live token only when the backend wants it. */
   const read = async (): Promise<IntakeResult | null> => {
@@ -117,36 +123,25 @@ export function Onboarding({ demo, example, bom, cad, initial, onDone, onChangeB
     onDone({ answers, bom, company: cleaned, specs: applied.specs, arm })
   }
 
-  /** Read the open answers (once per set of inputs) and open the review screen. */
-  const readAnswers = async () => {
-    if (readKey === inputsKey(answers, bom, cad)) return go(REVIEW) // nothing changed: keep edits
-    const result = await read()
-    if (!result) return setError('Reading new answers needs the live token.')
-    setSpecs(result.specs)
-    setCompany(withDefaults(result.company, demo))
-    setDropped(result.dropped)
-    setDrafts({})
-    setReadKey(inputsKey(answers, bom, cad))
-    go(REVIEW)
-  }
-
   /** Check the current step and move on. */
   const next = () => {
     if (busy) return
     if (step === 'review') return finish()
-    if (step === 'files') {
-      if (bom.length === 0) return setError('Upload a BOM CSV, or use the sample BOM.')
-      return void work('Reading your files…', async () => {
-        const fromBom = await intake({ bom, cad, answers: null })
-        setFromFiles(fromBom.specs)
-        setArm(fromBom.known_arm ?? null)
-        if (fromBom.known_arm) await readAnswers() // an arm has no drivetrain to ask about
-        else go(index + 1)
+    if (question?.required && !answers[question.id].trim()) return setError('Please type an answer.')
+    if (steps[index + 1] === 'review') {
+      if (readKey === inputsKey(answers)) return go('review') // nothing changed: keep edits
+      return void work('Reading your answers', async () => {
+        const result = await read()
+        if (!result) return setError('Reading new answers needs the live token.')
+        setSpecs(result.specs)
+        setCompany(withDefaults(result.company, demo))
+        setDropped(result.dropped)
+        setDrafts({})
+        setReadKey(inputsKey(answers))
+        go('review')
       })
     }
-    if (step === 'drivetrain') return void work('Reading your answers…', readAnswers)
-    if (question?.required && !answers[question.id].trim()) return setError('Please type an answer.')
-    go(index + 1)
+    go(steps[index + 1])
   }
 
   // Enter goes on (Shift+Enter is a new line in an answer). Re-bound every render so the handler
@@ -171,7 +166,7 @@ export function Onboarding({ demo, example, bom, cad, initial, onDone, onChangeB
 
   return (
     <div className={`q${back ? ' back' : ''}`} key={index}>
-      <div className="label">{step === 'review' ? 'Review' : `Question ${index + 1} of ${REVIEW}`}</div>
+      <div className="label">{step === 'review' ? 'Review' : `Question ${index + 1} of ${reviewAt}`}</div>
 
       {question && (
         <>
@@ -213,15 +208,49 @@ export function Onboarding({ demo, example, bom, cad, initial, onDone, onChangeB
       {step === 'review' && (
         <>
           <h1>Does this look right?</h1>
-          <p className="help">These are the numbers the job will use. Change any of them.</p>
-          <SpecsReview
-            rows={specs}
-            drafts={drafts}
-            onDraft={(field, text) => {
-              setDrafts({ ...drafts, [field]: text })
-              setError(null)
-            }}
-          />
+          {arm ? (
+            <>
+              <p className="help">
+                Your parts list matches the {arm.robot}, so we did not ask about a drivetrain. A replacement motor is
+                checked against these numbers, from our research on the {arm.robot}, not from your parts list.
+              </p>
+              <table className="specs">
+                <caption>{arm.arm.joint} joint</caption>
+                <tbody>
+                  {[
+                    ['Payload', `${arm.arm.payload_kg} kg`],
+                    ['Reach', `${Math.round(arm.arm.reach_m * 1000)} mm`],
+                    ['Gear ratio', `${arm.arm.gear_ratio} : 1`],
+                    ['Bus voltage', `${arm.arm.bus_voltage_v} V`],
+                    ['Safety factor', String(arm.arm.safety_factor)],
+                  ].map(([label, value]) => (
+                    <tr key={label}>
+                      <th scope="row">{label}</th>
+                      <td>{value}</td>
+                      <td>
+                        <span className="src">
+                          <span className="dot mid" />
+                          Our research
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          ) : (
+            <>
+              <p className="help">These are the numbers the job will use. Change any of them.</p>
+              <SpecsReview
+                rows={specs}
+                drafts={drafts}
+                onDraft={(field, text) => {
+                  setDrafts({ ...drafts, [field]: text })
+                  setError(null)
+                }}
+              />
+            </>
+          )}
           <table className="specs">
             <caption>About you</caption>
             <tbody>
@@ -265,7 +294,7 @@ export function Onboarding({ demo, example, bom, cad, initial, onDone, onChangeB
               </ul>
             </details>
           )}
-          {live && (
+          {live && !arm && (
             <p className="notice">
               Your drivetrain differs from the recorded demo, so agents will run live (up to 8 TinyFish agent runs,
               needs the live token).
@@ -285,137 +314,30 @@ export function Onboarding({ demo, example, bom, cad, initial, onDone, onChangeB
           <span className="busy">{busy}</span>
         ) : (
           <>
-            <h1 className="ob-prompt">Does this look right?</h1>
-            {arm ? (
-              <>
-                <p className="ob-help muted">
-                  Your parts list matches the {arm.robot}, so we did not ask about a drivetrain. Check what we read
-                  about you below.
-                </p>
-                <div className="ob-specs">
-                  <table>
-                    <caption>{arm.arm.joint} joint: what a replacement motor is checked against</caption>
-                    <tbody>
-                      {[
-                        ['Payload', `${arm.arm.payload_kg} kg`],
-                        ['Reach', `${Math.round(arm.arm.reach_m * 1000)} mm`],
-                        ['Gear ratio', `${arm.arm.gear_ratio} : 1`],
-                        ['Bus voltage', `${arm.arm.bus_voltage_v} V`],
-                        ['Safety factor', String(arm.arm.safety_factor)],
-                      ].map(([label, value]) => (
-                        <tr key={label}>
-                          <th scope="row">{label}</th>
-                          <td className="ob-spec-value">{value}</td>
-                          <td>
-                            <span className="badge source-default">from our research</span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <p className="ob-help muted">
-                  These come from our research on the {arm.robot}, not from your parts list.
-                </p>
-              </>
+            <button type="button" className="btn go" onClick={next}>
+              {step === 'review' ? 'Find and Redesign' : 'OK'}
+            </button>
+            <span className="label hint">
+              Press <kbd>Enter</kbd>
+            </span>
+            {index > 0 ? (
+              <button type="button" className="link" onClick={() => go(steps[index - 1])}>
+                Back
+              </button>
             ) : (
               <>
-                <p className="ob-help muted">
-                  These are the numbers the job will use. Change any of them; each one shows where it came from.
-                </p>
-                <SpecsReview
-                  rows={specs}
-                  drafts={drafts}
-                  onDraft={(field, text) => {
-                    setDrafts({ ...drafts, [field]: text })
-                    setError(null)
-                  }}
-                />
+                {example && (
+                  <button type="button" className="link" onClick={() => setAnswers(example)}>
+                    Use the example
+                  </button>
+                )}
+                <button type="button" className="link" onClick={onChangeBom}>
+                  Change BOM
+                </button>
               </>
-            )}
-            <div className="ob-specs">
-              <table>
-                <caption>About you</caption>
-                <tbody>
-                  {company.map((c) => (
-                    <tr key={c.field}>
-                      <th scope="row">
-                        <label htmlFor={`fact-${c.field}`}>{c.label}</label>
-                        {c.quote && <span className="muted ob-evidence">“{c.quote}”</span>}
-                      </th>
-                      <td className="ob-spec-value">
-                        <input
-                          id={`fact-${c.field}`}
-                          className="ob-input wide"
-                          value={c.value}
-                          onChange={(e) => {
-                            setCompany(company.map((x) => (x.field === c.field ? { ...x, value: e.target.value } : x)))
-                            setError(null)
-                          }}
-                        />
-                      </td>
-                      <td>
-                        <span className={`badge source-${c.quote ? 'answer' : 'default'}`}>
-                          {c.quote ? 'from your answer' : 'default'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {dropped.length > 0 && (
-              <details className="ob-advanced">
-                <summary>{dropped.length} things we read but could not confirm</summary>
-                <ul>
-                  {dropped.map((d) => (
-                    <li key={d}>{d}</li>
-                  ))}
-                </ul>
-              </details>
-            )}
-            {live && !arm && (
-              <p className="ob-live">
-                Your drivetrain differs from the recorded demo, so agents will run live (up to 8 TinyFish agent
-                runs, needs the live token).
-              </p>
             )}
           </>
         )}
-
-        {error && (
-          <p className="error" role="alert">
-            {error}
-          </p>
-        )}
-
-        <div className="ob-nav">
-          <button type="button" className="primary" onClick={next} disabled={busy != null}>
-            {busy ?? (step === 'review' ? 'Find and Redesign' : 'OK')}
-          </button>
-          {!busy && (
-            <span className="muted ob-hint">
-              press <kbd>Enter</kbd>
-            </span>
-          )}
-          {index > 0 && (
-            <button type="button" className="secondary" onClick={() => go(step === 'review' && arm ? FILES : index - 1)} disabled={busy != null}>
-              Back
-            </button>
-          )}
-          {index === 0 && (
-            <>
-              {example && (
-                <button type="button" className="ob-link" onClick={fillExample}>
-                  Use the example
-                </button>
-              )}
-              <button type="button" className="ob-link" onClick={onSkip}>
-                Skip to the demo robot
-              </button>
-            </>
-          )}
-        </div>
       </div>
     </div>
   )

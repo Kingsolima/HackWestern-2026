@@ -39,7 +39,12 @@ export const EMPTY_ANSWERS: OpenAnswers = { who: '', market: '', limits: '', dri
 
 /** The console's steps: the four questions, then the review screen. */
 export const STEPS = ['who', 'market', 'limits', 'drivetrain', 'review'] as const
-export const STEP_LABEL: Record<(typeof STEPS)[number], string> = {
+export type Step = (typeof STEPS)[number]
+const ARM_STEPS: readonly Step[] = STEPS.filter((s) => s !== 'drivetrain')
+/** An arm's parts list skips the drivetrain question: there are no wheels to ask about. The same
+ * array every call, since components pass it to effects as a dependency. */
+export const stepsFor = (arm: boolean): readonly Step[] => (arm ? ARM_STEPS : STEPS)
+export const STEP_LABEL: Record<Step, string> = {
   who: 'Team',
   market: 'Market',
   limits: 'Limits',
