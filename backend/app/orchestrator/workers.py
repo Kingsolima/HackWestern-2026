@@ -175,7 +175,11 @@ def claims_from_candidate(c: AgentMotorCandidate, run_id: str, live: bool) -> li
             raw_unit=spec.unit,
             quote=spec.quote,
             source=Source(
-                url=spec.source_url, kind=_kind(spec.source_url), fetched_at=now, via=via
+                url=spec.source_url,
+                kind=_kind(spec.source_url),
+                fetched_at=now,
+                via=via,
+                run_id=run_id,
             ),
             extracted_by="tinyagent",
         )
@@ -191,7 +195,7 @@ def claims_from_candidate(c: AgentMotorCandidate, run_id: str, live: bool) -> li
                 raw_value=c.country_of_origin,
                 raw_unit=None,
                 quote=c.origin_quote,
-                source=Source(url=url, kind=_kind(url), fetched_at=now, via=via),
+                source=Source(url=url, kind=_kind(url), fetched_at=now, via=via, run_id=run_id),
                 extracted_by="tinyagent",
             )
         )

@@ -10,6 +10,7 @@ import html
 import re
 from decimal import Decimal
 from typing import Literal
+from urllib.parse import urlsplit
 
 from app.schemas import AgentRunResult, Claim, OriginTier, Outcome, VerifyMethod
 
@@ -105,6 +106,28 @@ def _value_in_quote(value: str, quote: str) -> bool:
 
 def _decimal(number: str) -> Decimal:
     return Decimal(number.replace(",", "."))
+
+
+_CANONICAL = re.compile(
+    r"<link\b[^>]*\brel=[\"']?canonical[\"']?[^>]*\bhref=[\"']([^\"']+)[\"']"
+    r"|<link\b[^>]*\bhref=[\"']([^\"']+)[\"'][^>]*\brel=[\"']?canonical",
+    re.I,
+)
+
+
+def same_page(a: str, b: str) -> bool:
+    """Same host and path; query, fragment, scheme and a trailing slash are ignored."""
+
+    def key(url: str) -> tuple[str, str]:
+        parts = urlsplit(url.strip())
+        return (parts.hostname or "").removeprefix("www."), parts.path.rstrip("/")
+
+    return key(a) == key(b)
+
+
+def canonical_url(html_text: str) -> str | None:
+    match = _CANONICAL.search(html_text)
+    return html.unescape(match.group(1) or match.group(2)) if match else None
 
 
 OriginClass = Literal[

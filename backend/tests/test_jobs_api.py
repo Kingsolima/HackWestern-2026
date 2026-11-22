@@ -79,6 +79,12 @@ def test_recorded_teknic_job_replays_offline(client):
     assert finished["outcome"] == "success" and finished["live"] is False
     verified = {e["data"]["claim"]["field"] for e in events if e["type"] == "claim_verified"}
     assert {"body_length", "shaft_diameter", "price", "country_of_origin"} <= verified
+    by_dom = {
+        e["data"]["claim"]["field"]
+        for e in events
+        if e["type"] == "claim_verified" and e["data"]["claim"]["verify_method"] == "agent_dom"
+    }
+    assert by_dom == {"continuous_torque", "peak_torque", "max_speed"}
 
 
 def test_claims_missing_from_main_content_are_found_in_the_tables_pass(
@@ -138,15 +144,21 @@ def test_worker_crash_ends_job_failed_with_error_event(client):
 class ClaimWorker:
     name = "swap:claims"
 
-    def __init__(self, url, kind="page"):
-        self.url, self.kind = url, kind
+    def __init__(self, url, kind="page", run_id=None):
+        self.url, self.kind, self.run_id = url, kind, run_id
 
     async def run(self, ctx):
         from datetime import UTC, datetime
 
         from app.schemas import Claim, Source
 
-        source = Source(url=self.url, kind=self.kind, fetched_at=datetime.now(UTC), via="replay")
+        source = Source(
+            url=self.url,
+            kind=self.kind,
+            fetched_at=datetime.now(UTC),
+            via="replay",
+            run_id=self.run_id,
+        )
         return [
             Claim(
                 id="c1",
@@ -194,3 +206,67 @@ def test_unrecorded_page_in_replay_fails_the_job(client, monkeypatch, tmp_path):
     events = sse_events(client, start(client, ClaimWorker("https://never.invalid/")))
     error = next(e for e in events if e["type"] == "error")
     assert error["data"]["message"].startswith("ReplayMiss") and error["data"]["stage"] == "VERIFY"
+
+
+def record(tmp_path, product, request, response):
+    import asyncio
+
+    async def fn():
+        return response
+
+    asyncio.run(Recorder(tmp_path, "live").call(product, request, fn))
+
+
+def snapshot_job(client, monkeypatch, tmp_path, snapshots):
+    """A claim (quote 'q 1') on a JS-filled page: both fetch passes miss it; `snapshots` are
+    the run's step DOMs, oldest first (None = TinyFish has no snapshot for that step)."""
+    url = "https://maker.invalid/model/A1/?v=75"
+    for selectors in VERIFY_PASSES:
+        request = {"urls": [url], "format": "html", "ttl": 0}
+        if selectors:
+            request["include_selectors"] = selectors
+        record(tmp_path, "fetch", request, {"results": [{"url": url, "text": "<td></td>"}]})
+    steps = [{"id": f"s{i}", "action": "a"} for i in range(len(snapshots))]
+    record(tmp_path, "agent", {"op": "run_steps", "run_id": "r9"}, {"steps": steps})
+    for step, html in zip(steps, snapshots, strict=True):
+        request = {"op": "step_html", "run_id": "r9", "step_id": step["id"]}
+        record(tmp_path, "agent", request, {"html": html})
+    monkeypatch.setattr(settings, "recordings_dir", tmp_path)
+    events = sse_events(client, start(client, ClaimWorker(url, run_id="r9")))
+    assert events[-1]["data"]["stage"] == "DONE"
+    return [e for e in events if e["type"].startswith("claim_")]
+
+
+def page(canonical, body):
+    return f'<html><head><link rel="canonical" href="{canonical}"></head><body>{body}</body></html>'
+
+
+def test_js_filled_value_verifies_on_the_agents_snapshot_of_that_page(
+    client, monkeypatch, tmp_path
+):
+    snaps = [
+        page("https://maker.invalid/list/", "x"),
+        page("https://maker.invalid/model/A1", "q 1"),
+        None,
+    ]
+    [event] = snapshot_job(client, monkeypatch, tmp_path, snaps)
+    assert event["type"] == "claim_verified"
+    assert event["data"]["claim"]["verify_method"] == "agent_dom"
+
+
+def test_snapshot_of_another_page_does_not_count(client, monkeypatch, tmp_path):
+    snaps = [page("https://maker.invalid/model/B2/", "q 1")]
+    [event] = snapshot_job(client, monkeypatch, tmp_path, snaps)
+    assert event["type"] == "claim_rejected"
+
+
+def test_snapshot_without_canonical_does_not_count(client, monkeypatch, tmp_path):
+    [event] = snapshot_job(client, monkeypatch, tmp_path, ["<html><body>q 1</body></html>"])
+    assert event["type"] == "claim_rejected"
+
+
+def test_only_the_latest_snapshot_of_the_page_counts(client, monkeypatch, tmp_path):
+    canonical = "https://maker.invalid/model/A1/"
+    snaps = [page(canonical, "q 1"), page(canonical, "q 2")]
+    [event] = snapshot_job(client, monkeypatch, tmp_path, snaps)
+    assert event["type"] == "claim_rejected"

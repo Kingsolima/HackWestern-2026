@@ -76,6 +76,11 @@ class AgentEvent(_Loose):
     live: bool
 
 
+class RunStep(_Loose):
+    id: str
+    action: str
+
+
 class TFClient:
     def __init__(
         self, recorder: Recorder, http: httpx.AsyncClient, api_key: str, poll_s: float = 5.0
@@ -163,6 +168,38 @@ class TFClient:
 
         async for event, is_live in self.recorder.stream("agent", request, live):
             yield AgentEvent.model_validate(event | {"live": is_live})
+
+    async def run_steps(self, run_id: str) -> list[RunStep]:
+        """Steps of a finished run that captured a page snapshot (capture_config html)."""
+        request = {"op": "run_steps", "run_id": run_id}
+
+        async def live() -> dict[str, Any]:
+            r = await self._http.get(f"{RUNS_URL}/{run_id}", headers=self._headers)
+            r.raise_for_status()
+            steps = r.json().get("steps") or []
+            kept = [
+                {"id": s["id"], "action": s.get("action") or ""} for s in steps if s.get("html")
+            ]
+            return {"steps": kept}
+
+        body, _ = await self.recorder.call("agent", request, live)
+        return [RunStep.model_validate(s) for s in body["steps"]]
+
+    async def step_html(self, run_id: str, step_id: str) -> str | None:
+        """The page DOM as the agent's browser rendered it at that step; None if TinyFish has
+        no snapshot for it (404, seen on a run's final step)."""
+        request = {"op": "step_html", "run_id": run_id, "step_id": step_id}
+
+        async def live() -> dict[str, Any]:
+            url = f"{RUNS_URL}/{run_id}/steps/{step_id}/html"
+            r = await self._http.get(url, headers=self._headers, follow_redirects=True)
+            if r.status_code == 404:
+                return {"html": None}
+            r.raise_for_status()
+            return {"html": r.text}
+
+        body, _ = await self.recorder.call("agent", request, live)
+        return body["html"]
 
     async def _wait_for_run(self, run_id: str, deadline_s: float) -> dict[str, Any]:
         """The stream dropped after the run started: poll it to the end, never resubmit

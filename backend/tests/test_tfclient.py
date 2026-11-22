@@ -107,3 +107,18 @@ def test_run_result_folds_events():
 def test_run_result_needs_complete_event():
     with pytest.raises(ValueError):
         run_result([ev(type="STARTED", run_id="r1")])
+
+
+async def test_missing_step_snapshot_is_none_and_recorded(tmp_path):
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        return httpx.Response(404, json={"error": "not found"})
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    tf = TFClient(Recorder(tmp_path, "live"), http, api_key="k")
+    assert await tf.step_html("r1", "s9") is None
+    replay = TFClient(Recorder(tmp_path, "replay"), http, api_key="k")
+    assert await replay.step_html("r1", "s9") is None
+    assert len(seen) == 1

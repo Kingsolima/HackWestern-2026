@@ -7,7 +7,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-from app.agents.verifier import verify_claim
+from app.agents.verifier import canonical_url, same_page, verify_claim
 from app.engineering.compliance import compliance_card
 from app.orchestrator.context import JobContext
 from app.orchestrator.events import (
@@ -80,13 +80,38 @@ async def verify(ctx: JobContext, workers: Sequence[Worker]) -> None:
                 else:
                     still_pending.append(claim)
             pending = still_pending
+        pending = await verify_on_agent_snapshot(ctx, url, pending)
         reason = (
-            "quote or value not on the freshly fetched page"
+            "quote or value not on the freshly fetched page or the agent's page snapshot"
             if fetched_any
             else "fresh fetch failed"
         )
         for claim in pending:
             await ctx.log.emit(ClaimRejected(claim=claim, reason=reason))
+
+
+async def verify_on_agent_snapshot(ctx: JobContext, url: str, claims: list[Claim]) -> list[Claim]:
+    """Last pass, for values a page fills in with JavaScript (fresh fetches never run it): the
+    most recent DOM snapshot TinyFish captured of this page during the claim's own run. The
+    snapshot counts only if its canonical URL is the claim's page. Returns claims still open."""
+    pending = list(claims)
+    for run_id in {c.source.run_id for c in claims if c.source.run_id}:
+        from_run = [c for c in pending if c.source.run_id == run_id]
+        async with ctx.fleet.slot("fetch", ctx.budget):
+            steps = await ctx.tf.run_steps(run_id)
+        for step in reversed(steps):
+            async with ctx.fleet.slot("fetch", ctx.budget):
+                snapshot = await ctx.tf.step_html(run_id, step.id)
+            canonical = canonical_url(snapshot) if snapshot else None
+            if canonical is None or not same_page(canonical, url):
+                continue
+            for claim in from_run:
+                checked = verify_claim(claim, snapshot, "agent_dom")
+                if checked.verified:
+                    await promote(ctx, checked)
+                    pending.remove(claim)
+            break
+    return pending
 
 
 async def promote(ctx: JobContext, fact: Claim) -> None:

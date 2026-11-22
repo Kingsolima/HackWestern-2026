@@ -1,6 +1,6 @@
 import pytest
 
-from app.agents.verifier import lower_tier, origin_class, origin_tier
+from app.agents.verifier import canonical_url, lower_tier, origin_class, origin_tier, same_page
 
 
 @pytest.mark.parametrize(
@@ -68,3 +68,29 @@ def test_origin_tier(cls, model_specific, tier):
 )
 def test_model_can_only_lower_the_tier(a, b, low):
     assert lower_tier(a, b) == low
+
+
+@pytest.mark.parametrize(
+    ("a", "b", "same"),
+    [
+        (
+            "https://teknic.com/model-info/X/?model_voltage=75VDC",
+            "https://teknic.com/model-info/X",
+            True,
+        ),
+        ("http://www.teknic.com/model-info/X/", "https://teknic.com/model-info/X/#specs", True),
+        ("https://teknic.com/model-info/X/", "https://teknic.com/model-info/Y/", False),
+        ("https://teknic.com/model-info/X/", "https://other.com/model-info/X/", False),
+    ],
+)
+def test_same_page(a, b, same):
+    assert same_page(a, b) is same
+
+
+def test_canonical_url_in_either_attribute_order():
+    assert (
+        canonical_url('<link rel="canonical" href="https://a/x?b=1&amp;c=2">')
+        == "https://a/x?b=1&c=2"
+    )
+    assert canonical_url("<link href='https://a/y' rel=canonical>") == "https://a/y"
+    assert canonical_url("<link rel='stylesheet' href='https://a/s.css'>") is None
