@@ -1,0 +1,1 @@
+tygo pushed ui/design code changes into main, but i dont see the changes in the deployed frontend. Can you check it out? Can you find what the problem is and implement the solution.
