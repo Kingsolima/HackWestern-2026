@@ -5,6 +5,8 @@ import type { BomRow } from '../types'
 
 export const BOM_COLUMNS = ['part', 'category', 'qty', 'unit_cost_usd', 'origin'] as const
 const OPTIONAL_COLUMN = 'supply_risk'
+// Copied through as text when the file has them.
+const EXTRA_COLUMNS = ['part_number', 'supplier', 'source_page', 'notes'] as const
 
 /** Split CSV text into lines of cells. Handles quoted cells, "" escapes, CRLF and a leading BOM. */
 export function splitCsv(text: string): string[][] {
@@ -40,12 +42,44 @@ export function splitCsv(text: string): string[][] {
   return lines
 }
 
+// Mirrors classify() in backend/app/intake/to_project.py, which picks the line the agents
+// source. Change both together.
+const RULES: [string[], string, boolean][] = [
+  [['driver', 'inverter'], 'power', false],
+  [['encoder'], 'sensing', false],
+  [['lidar'], 'sensing', false],
+  [['camera', 'sensor', 'imu'], 'sensing', false],
+  [['battery'], 'power', false],
+  [['harmonic', 'strain wave', 'strain-wave'], 'actuation', false],
+  [['motor', 'servo', 'stepper', 'actuator'], 'actuation', true],
+  [['gearbox'], 'actuation', false],
+  [['computer', 'compute', 'sbc'], 'compute', false],
+  [['controller', 'mcu', 'microcontroller'], 'compute', false],
+  [['frame', 'bracket', 'plate', 'chassis', 'wheel', 'enclosure', 'fastener'], 'structure', false],
+]
+const SUBSYSTEMS = new Map([
+  ['actuation', 'actuation'],
+  ['transmission', 'actuation'],
+  ['structure', 'structure'],
+  ['power', 'power'],
+  ['sensors', 'sensing'],
+])
+
+/** True when the backend reads this line as a motor: the first keyword rule that matches
+ * "<category> <part>" is the motor rule, and a subsystem category does not name another domain. */
+export function isMotorLine(row: Pick<BomRow, 'part' | 'category'>): boolean {
+  const text = `${row.category} ${row.part}`.toLowerCase()
+  const stated = SUBSYSTEMS.get(row.category.trim().toLowerCase())
+  const rule = RULES.find(([words, domain]) => words.some((w) => text.includes(w)) && (stated ?? domain) === domain)
+  return rule?.[2] ?? false
+}
+
 export interface BomParse {
   rows: BomRow[]
   errors: string[]
   /** Which welcome-screen rules the file broke (see bomCriteria). */
   failed: CriterionId[]
-  /** True when some line has category motor, the part the agents look for. */
+  /** True when some line is a motor (see isMotorLine), the part the agents look for. */
   hasMotor: boolean
 }
 
@@ -72,9 +106,11 @@ export function bomCriteria(fileName: string | null, parse: BomParse | null): Re
 }
 
 /**
- * Header row required: part, category, qty, unit_cost_usd, origin (supply_risk optional, any
- * order, extra columns ignored). A blank origin becomes "unknown", which the backend counts as
- * foreign. Any error means the file is not usable: the caller should not keep `rows`.
+ * Header row required: part, category, qty, unit_cost_usd, origin (supply_risk, part_number,
+ * supplier, source_page and notes optional, any order, other columns ignored). A blank origin
+ * becomes "unknown", which the backend counts as foreign. A blank or "unknown" unit_cost_usd
+ * becomes null: no price, never 0. Any error means the file is not usable: the caller should
+ * not keep `rows`.
  */
 export function parseBomCsv(text: string): BomParse {
   const lines = splitCsv(text)
@@ -112,8 +148,9 @@ export function parseBomCsv(text: string): BomParse {
     const qty = get('qty')
     if (!/^[1-9]\d*$/.test(qty)) bad('lines', `line ${n}: qty is not a whole number above 0`)
 
-    const cost = get('unit_cost_usd').replace(/^\$/, '').replaceAll(',', '')
-    if (!/^\d+(\.\d+)?$/.test(cost)) bad('cost', `line ${n}: unit_cost_usd is not a number`)
+    const rawCost = get('unit_cost_usd').replace(/^\$/, '').replaceAll(',', '')
+    const cost = rawCost === '' || rawCost.toLowerCase() === 'unknown' ? null : rawCost
+    if (cost !== null && !/^\d+(\.\d+)?$/.test(cost)) bad('cost', `line ${n}: unit_cost_usd is not a number or "unknown"`)
 
     const rawOrigin = get('origin')
     let origin = 'unknown'
@@ -123,6 +160,10 @@ export function parseBomCsv(text: string): BomParse {
     }
 
     const risk = col(OPTIONAL_COLUMN) >= 0 ? get(OPTIONAL_COLUMN) : ''
+    const extras: Partial<Record<(typeof EXTRA_COLUMNS)[number], string>> = {}
+    for (const name of EXTRA_COLUMNS) {
+      if (col(name) >= 0 && get(name)) extras[name] = get(name)
+    }
     rows.push({
       part,
       category,
@@ -130,11 +171,21 @@ export function parseBomCsv(text: string): BomParse {
       unit_cost_usd: cost,
       origin,
       ...(risk ? { supply_risk: risk } : {}),
+      ...extras,
     })
   })
   if (rows.length === 0 && errors.length === 0) bad('lines', 'The file has a header but no parts.')
-  const hasMotor = rows.some((r) => r.category.toLowerCase() === 'motor')
+  const hasMotor = rows.some(isMotorLine)
   return { rows: errors.length > 0 ? [] : rows, errors, failed: [...failed], hasMotor }
+}
+
+/** What the parts cost per robot, saying how many lines have no price. */
+export function costPerRobot(rows: BomRow[]): string {
+  const priced = rows.filter((r) => r.unit_cost_usd !== null)
+  if (priced.length === 0) return 'no prices'
+  const total = priced.reduce((sum, r) => sum + r.qty * Number(r.unit_cost_usd), 0)
+  const unpriced = rows.length - priced.length
+  return `$${total.toFixed(0)} per robot${unpriced ? ` + ${unpriced} unpriced` : ''}`
 }
 
 const quote = (cell: string) => (/[",\r\n]/.test(cell) ? `"${cell.replaceAll('"', '""')}"` : cell)
@@ -143,7 +194,9 @@ export function bomToCsv(rows: BomRow[]): string {
   const out = [[...BOM_COLUMNS, OPTIONAL_COLUMN].join(',')]
   for (const r of rows) {
     out.push(
-      [r.part, r.category, String(r.qty), r.unit_cost_usd, r.origin, r.supply_risk ?? ''].map(quote).join(','),
+      [r.part, r.category, String(r.qty), r.unit_cost_usd ?? 'unknown', r.origin, r.supply_risk ?? '']
+        .map(quote)
+        .join(','),
     )
   }
   return out.join('\n') + '\n'

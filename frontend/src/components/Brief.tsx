@@ -1,3 +1,4 @@
+import { costPerRobot } from '../onboarding/bomCsv'
 import type { CompanyFact } from '../onboarding/intake'
 import type { BomRow } from '../types'
 
@@ -7,7 +8,6 @@ export function Brief({ bom, company }: { bom: BomRow[]; company: CompanyFact[] 
   const origins = new Map<string, number>()
   for (const r of bom) origins.set(r.origin, (origins.get(r.origin) ?? 0) + 1)
   const flags = bom.filter((r) => r.supply_risk)
-  const total = bom.reduce((sum, r) => sum + r.qty * Number(r.unit_cost_usd), 0)
   const stated = company.filter((c) => c.quote)
 
   return (
@@ -17,7 +17,7 @@ export function Brief({ bom, company }: { bom: BomRow[]; company: CompanyFact[] 
         <div className="fact">
           <span className="k">Lines</span>
           <span>
-            {bom.length} / ${total.toFixed(0)} per robot
+            {bom.length} / {costPerRobot(bom)}
           </span>
         </div>
         <div className="fact">

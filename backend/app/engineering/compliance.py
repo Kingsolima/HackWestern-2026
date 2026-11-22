@@ -22,9 +22,10 @@ class ComplianceCard(BaseModel):
 
 
 def compliance_card(robot: Robot) -> ComplianceCard:
-    total = sum((r.unit_cost_usd * r.qty for r in robot.bom), Decimal(0))
+    priced = [r for r in robot.bom if r.unit_cost_usd is not None]
+    total = sum((r.unit_cost_usd * r.qty for r in priced), Decimal(0))
     domestic = sum(
-        (r.unit_cost_usd * r.qty for r in robot.bom if r.origin.upper() == "US"), Decimal(0)
+        (r.unit_cost_usd * r.qty for r in priced if r.origin.upper() == "US"), Decimal(0)
     )
     pct = float(domestic / total * 100) if total else 0.0
     us_assembly = robot.final_assembly_country.upper() == "US"
@@ -32,6 +33,12 @@ def compliance_card(robot: Robot) -> ComplianceCard:
     notes = ["Not legal advice. COTS treatment: flag for counsel."]
     if not us_assembly:
         notes.append("Also needs US final assembly to be a domestic end product.")
+
+    if len(priced) < len(robot.bom):
+        notes.append(
+            f"{len(robot.bom) - len(priced)} of {len(robot.bom)} parts have no price and are "
+            "left out of the percentage."
+        )
 
     risks = sorted({f"{r.part}: {r.supply_risk}" for r in robot.bom if r.supply_risk})
     # TODO(owner 3): FCC coverage check.

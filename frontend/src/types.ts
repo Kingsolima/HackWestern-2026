@@ -9,9 +9,14 @@ export interface BomRow {
   part: string
   category: string
   qty: number
-  unit_cost_usd: string
+  /** null = the parts list gives no price. */
+  unit_cost_usd: string | null
   origin: string
   supply_risk?: string | null
+  part_number?: string
+  supplier?: string
+  source_page?: string
+  notes?: string
   origin_tier?: string
 }
 

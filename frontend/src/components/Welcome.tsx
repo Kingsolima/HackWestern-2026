@@ -1,5 +1,5 @@
 import { useEffect, useState, type DragEvent, type ReactNode } from 'react'
-import { bomCriteria, bomToCsv, parseBomCsv, type BomParse, type CriterionId } from '../onboarding/bomCsv'
+import { bomCriteria, bomToCsv, costPerRobot, parseBomCsv, type BomParse, type CriterionId } from '../onboarding/bomCsv'
 import type { CadMeasure } from '../onboarding/intake'
 import { PROJECTS, type ProjectId } from '../projects'
 import type { BomRow } from '../types'
@@ -20,7 +20,7 @@ const CRITERIA_TEXT: Record<CriterionId, ReactNode> = {
   ),
   cost: (
     <>
-      <code>unit_cost_usd</code> a number in US dollars
+      <code>unit_cost_usd</code> a number in US dollars, or <code>unknown</code>
     </>
   ),
   origin: (
@@ -30,7 +30,7 @@ const CRITERIA_TEXT: Record<CriterionId, ReactNode> = {
   ),
   motor: (
     <>
-      At least one line with category <code>motor</code>, the part we redesign
+      At least one motor, servo or stepper line, the part we redesign
     </>
   ),
 }
@@ -63,7 +63,6 @@ export function Welcome({ sample, leaving, onContinue, onProject }: Props) {
 
   const status = bomCriteria(file?.name ?? null, file?.parse ?? null)
   const ok = file !== null && Object.values(status).every((s) => s === 'pass')
-  const total = file?.parse.rows.reduce((sum, r) => sum + r.qty * Number(r.unit_cost_usd), 0) ?? 0
 
   const read = async (f: File | undefined) => {
     if (f) setFile({ name: f.name, parse: parseBomCsv(await f.text()) })
@@ -126,7 +125,7 @@ export function Welcome({ sample, leaving, onContinue, onProject }: Props) {
                 {!file
                   ? 'CSV, one part per line'
                   : ok
-                    ? `${file.parse.rows.length} lines / $${total.toFixed(0)} per robot`
+                    ? `${file.parse.rows.length} lines / ${costPerRobot(file.parse.rows)}`
                     : 'Fix the lines below and drop it again'}
               </div>
             </div>

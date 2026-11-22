@@ -105,8 +105,9 @@ export default function App() {
 
   const lines: PartLine[] = job.project
     ? job.project.bom.map((l) => ({ part: l.part, category: l.domain, qty: l.qty, price: l.unit_price_usd, origin: l.origin_country }))
-    : bom.map((r) => ({ part: r.part, category: r.category, qty: r.qty, price: Number(r.unit_cost_usd), origin: r.origin }))
-  const modelNotes = job.project?.id === 'onboarded' ? genericModelNotes(job.project) : []
+    : bom.map((r) => ({ part: r.part, category: r.category, qty: r.qty, price: r.unit_cost_usd === null ? null : Number(r.unit_cost_usd), origin: r.origin }))
+  const modelNotes =
+    job.project?.id === 'onboarded' && job.project.robot_kind === 'wheeled' ? genericModelNotes(job.project) : []
   // The baseline compliance card comes from an endpoint that always uses the demo robot, so it
   // is only right when the user's robot gives the same numbers.
   const demoPanels = project === null && (!onboarded || (demo != null && matchesDemo(onboarded, demo)))

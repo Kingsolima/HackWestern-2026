@@ -54,7 +54,7 @@ class BomRow(BaseModel):
     part: str
     category: str
     qty: int
-    unit_cost_usd: Decimal
+    unit_cost_usd: Decimal | None = Field(description="None = the parts list gives no price")
     origin: str = Field(description="ISO country code or 'unknown' (unknown counts as foreign)")
     supply_risk: str | None = Field(
         default=None, description="e.g. ndfeb_magnets. Shown separately; never changes domestic %"
@@ -65,6 +65,11 @@ class BomRow(BaseModel):
     freight_usd: Decimal | None = Field(default=None, description="None = not known yet")
     duty_usd: Decimal | None = Field(default=None, description="None = not known yet")
     hts_code: str | None = None
+    # Optional columns of a parts list. Copied to the BomLine as written, never checked.
+    part_number: str | None = None
+    supplier: str | None = None
+    source_page: str | None = Field(default=None, description="Page of the source document")
+    notes: str | None = None
 
 
 class Robot(BaseModel):
