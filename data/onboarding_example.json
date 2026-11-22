@@ -1,0 +1,6 @@
+{
+  "who": "We are Example Robotics, a small startup. We build Scout, a wheeled robot that carries parts bins between workstations in factories.",
+  "market": "We sell to US federal agencies and to US manufacturers. Final assembly is in Canada today, and the robots run in the US and Canada. A stopped robot stops our customer’s line.",
+  "limits": "We have about $600 of parts per robot and need them within 30 days. We want to avoid motors that depend on Chinese rare-earth magnets.",
+  "drivetrain": "It weighs 5 kg with payload, drives at up to 1 m/s, climbs a 5 degree ramp and accelerates at 0.5 m/s²."
+}

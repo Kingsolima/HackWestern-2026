@@ -1,3 +1,4 @@
+import type { OpenAnswers } from './onboarding/questions'
 import type { CheckResult, ComplianceCard, DesignVariant, MotorCandidate, Robot } from './types'
 
 const BASE = import.meta.env.VITE_API_URL ?? ''
@@ -14,6 +15,8 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   health: () => req<{ status: string }>('/health'),
   robot: () => req<Robot>('/api/robot'),
+  /** The recorded example answers behind onboarding's "Use the example". */
+  example: () => req<OpenAnswers>('/api/intake/example'),
   compliance: () => req<ComplianceCard>('/api/compliance'),
   seedCandidates: () => req<MotorCandidate[]>('/api/candidates/seed'),
   checks: (c: MotorCandidate) =>

@@ -12,11 +12,28 @@ export interface BomRow {
   unit_cost_usd: string
   origin: string
   supply_risk?: string | null
+  origin_tier?: string
+}
+
+export interface RobotRequirements {
+  mass_kg: number
+  wheel_radius_m: number
+  n_drive_motors: number
+  gear_ratio: number
+  efficiency: number
+  crr: number
+  max_slope_deg: number
+  accel_mps2: number
+  v_max_mps: number
+  bus_voltage_v: number
+  envelope_mm: number
+  safety_factor: number
 }
 
 export interface Robot {
   name: string
   final_assembly_country: string
+  requirements: RobotRequirements
   bom: BomRow[]
 }
 

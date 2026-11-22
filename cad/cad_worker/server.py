@@ -4,6 +4,7 @@
     GET  /designs/{id}/glb     model for the browser viewer
     GET  /designs/{id}/step    engineering export
     GET  /designs/{id}/fit     geometry numbers for the checks (05-checks-spec §4)
+    POST /measure              STEP bytes -> parts with bounding boxes and volumes (onboarding)
 
 robot is "wheeled" (default, the v3 demo robot) or "ar4" (the arm's J2 drive, BUILD-PLAN-v4 §7).
 Every fit has generic `fit_checks` rows {name, value, limit, unit, ok} for the backend.
@@ -18,17 +19,19 @@ highlight what changed. TODO(owner 1): upload outputs to Vultr Object Storage.
 import json
 import os
 import re
+import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from cad_worker.arm import ArmParams, arm, measure_arm
 from cad_worker.export import export
+from cad_worker.measure import measure_step
 from cad_worker.robot import RobotParams, measure, robot
 
 OUT_DIR = Path(os.environ.get("CAD_OUT_DIR", "out"))
@@ -110,6 +113,25 @@ def health() -> dict[str, str]:
 @app.post("/build")
 def build(req: BuildRequest) -> dict:
     return build_design(req.design_id, req.params())
+
+
+MAX_STEP_BYTES = 25 * 1024 * 1024
+
+
+@app.post("/measure")
+async def measure_upload(request: Request) -> dict:
+    """The request body is the STEP file itself. Nothing is kept: the file is measured from a
+    temporary copy."""
+    data = await request.body()
+    if not data or len(data) > MAX_STEP_BYTES:
+        raise HTTPException(400, "send a STEP file of at most 25 MB as the request body")
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "upload.step"
+        path.write_bytes(data)
+        try:
+            return measure_step(path)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
 
 
 def _design_file(design_id: str, suffix: str) -> Path:

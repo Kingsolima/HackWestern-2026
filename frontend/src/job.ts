@@ -19,7 +19,7 @@ import type {
   Stage,
 } from './events'
 import { TERMINAL_STAGES } from './events'
-import type { ComplianceCard } from './types'
+import type { ComplianceCard, Robot } from './types'
 
 const BASE = import.meta.env.VITE_API_URL ?? ''
 
@@ -295,6 +295,8 @@ export interface CreateJobOptions {
   liveToken?: string
   /** v4 project (data/projects/<id>.json); left out for the wheeled demo robot. */
   projectId?: string
+  /** The robot from onboarding; left out to run the backend's demo robot. */
+  robot?: Robot
 }
 
 /**
@@ -303,7 +305,7 @@ export interface CreateJobOptions {
  */
 export async function createJob(
   mode: JobMode,
-  { liveToken, projectId }: CreateJobOptions = {},
+  { liveToken, projectId, robot }: CreateJobOptions = {},
   fetchImpl: typeof fetch = fetch,
 ): Promise<JobStatus> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -311,7 +313,11 @@ export async function createJob(
   const res = await fetchImpl(`${BASE}/api/jobs`, {
     method: 'POST',
     headers,
-    body: JSON.stringify(projectId ? { mode, project_id: projectId } : { mode }),
+    body: JSON.stringify({
+      mode,
+      ...(projectId ? { project_id: projectId } : {}),
+      ...(robot ? { robot } : {}),
+    }),
   })
   if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0, 200)}`)
   return (await res.json()) as JobStatus

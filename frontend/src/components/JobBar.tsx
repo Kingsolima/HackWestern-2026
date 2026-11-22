@@ -33,9 +33,7 @@ export function JobBar({ state, onStart, onStartLive, project, onProjectChange }
           </button>
         )}
         {state.mode && (
-          <span className={`badge ${state.mode === 'live' ? 'badge-live' : 'badge-replay'}`}>
-            {state.mode === 'live' ? 'LIVE' : 'REPLAY'}
-          </span>
+          <span className={`badge badge-${state.mode}`}>{state.mode.toUpperCase()}</span>
         )}
         {state.jobId && <span className="muted">job {state.jobId}</span>}
         {failed && <span className="badge badge-bad">{state.stage}</span>}
