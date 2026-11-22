@@ -6,9 +6,13 @@
 
 import type { ComplianceCard } from './types'
 
+// Mirrors Stage in backend/app/orchestrator/events.py.
 export type Stage =
   | 'CREATED'
+  | 'INTAKE'
+  | 'CRITERIA'
   | 'COMPLIANCE_BASELINE'
+  | 'RISK_BASELINE'
   | 'PLAN'
   | 'DISCOVER'
   | 'TRIAGE'
@@ -16,6 +20,8 @@ export type Stage =
   | 'VERIFY'
   | 'CHECK'
   | 'RANK'
+  | 'ALTERNATIVES'
+  | 'RECOMMEND'
   | 'BUILD'
   | 'REPORT'
   | 'DONE'
@@ -26,7 +32,10 @@ export const TERMINAL_STAGES: ReadonlySet<Stage> = new Set(['DONE', 'DEGRADED', 
 
 /** The happy-path order, for the stage stepper. */
 export const STAGE_ORDER: readonly Stage[] = [
+  'INTAKE',
+  'CRITERIA',
   'COMPLIANCE_BASELINE',
+  'RISK_BASELINE',
   'PLAN',
   'DISCOVER',
   'TRIAGE',
@@ -34,13 +43,16 @@ export const STAGE_ORDER: readonly Stage[] = [
   'VERIFY',
   'CHECK',
   'RANK',
+  'ALTERNATIVES',
+  'RECOMMEND',
   'BUILD',
   'REPORT',
   'DONE',
 ]
 
 /** Short name for the stage timeline. */
-export const stageLabel = (s: Stage) => (s === 'COMPLIANCE_BASELINE' ? 'Baseline' : s)
+const STAGE_LABEL: Partial<Record<Stage, string>> = { COMPLIANCE_BASELINE: 'Compliance', RISK_BASELINE: 'Risk map' }
+export const stageLabel = (s: Stage) => STAGE_LABEL[s] ?? s
 
 export type JobMode = 'live' | 'replay' | 'mixed'
 export type CadRobot = 'wheeled' | 'ar4' | 'stretch'
@@ -59,6 +71,8 @@ export interface Source {
   fetched_at: string
   html_key: string | null
   via: 'tinyfetch' | 'tinyagent' | 'replay'
+  /** The TinyAgent run that read this page; absent for fetched pages. */
+  run_id?: string | null
 }
 
 export interface Claim {
@@ -186,6 +200,13 @@ export interface BomLine {
   illustrative: boolean
   /** URLs behind the price and origin (backend BomLine.sources is a list of strings). */
   sources: string[]
+  part_number?: string | null
+  hts_code?: string | null
+  /** The class the risk rules read (motor, battery_cells, ...), from the part's words. */
+  component_class?: string | null
+  stated_risk?: string | null
+  /** Where the line came from and what was filled in for it. */
+  notes?: string | null
 }
 
 export interface Project {
@@ -260,6 +281,8 @@ export interface LineRisk {
   line_id: string
   factors: RiskFactor[]
   overall: Level
+  /** True when a factor alone rules the part out (a restricted list, a lead time past need-by). */
+  blocked?: boolean
   priority?: Priority | null
 }
 
@@ -291,6 +314,8 @@ export interface Recommendation {
   priority_hi?: number | null
   /** The backend's rank (1 = act on this first), from the event. */
   rank?: number
+  /** True when the part cannot stay as it is (see LineRisk.blocked). */
+  blocked?: boolean
   reason: string
 }
 

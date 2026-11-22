@@ -14,6 +14,7 @@ import type {
   Level,
   LineRisk,
   Outcome,
+  Product,
   Project,
   Recommendation,
   SpecCheck,
@@ -30,12 +31,17 @@ export interface Run {
   worker: string
   site: string
   url: string | null
+  /** What the run was sent to do: a search query, "Read 8 pages", the site to work. */
+  goal: string | null
+  /** Only an agent run has a browser, so only it can have a recorded page. */
+  product: Product
   /** False for a replayed run: its streaming URL points at a browser that no longer exists. */
   live: boolean
   streamingUrl: string | null
   steps: string[]
   outcome: Outcome | null
   reason: string | null
+  durationS: number | null
 }
 
 export interface ClaimRow {
@@ -133,6 +139,15 @@ export function domesticShare(lines: BomLine[]): { pct: number; unpriced: number
   return total > 0 ? { pct: Math.round((domestic / total) * 1000) / 10, unpriced } : null
 }
 
+/** Which check a result is, for replacing an earlier result: the CAD worker's generic fit rows
+ * all arrive as fit_cad and are told apart by their name, which the backend puts in `note`. */
+export const checkKey = (c: Pick<SpecCheck, 'check' | 'note'>) => (c.check === 'fit_cad' ? `fit_cad:${c.note}` : c.check)
+
+/** Whether a recorded page can exist yet: only agent runs have a browser, and a live run's page
+ * is only recorded once it has finished. */
+export const mayHavePage = (run: Pick<Run, 'product' | 'live' | 'outcome'>) =>
+  run.product === 'agent' && (!run.live || run.outcome !== null)
+
 export function isTerminal(state: JobState): boolean {
   return state.stage !== null && TERMINAL_STAGES.has(state.stage)
 }
@@ -158,11 +173,14 @@ export function applyEvent(prev: JobState, ev: JobEvent): JobState {
         worker: d.worker,
         site: d.site,
         url: d.url,
+        goal: d.goal,
+        product: d.product,
         live: d.live,
         streamingUrl: null,
         steps: [],
         outcome: null,
         reason: null,
+        durationS: null,
       }
       return {
         ...state,
@@ -180,6 +198,7 @@ export function applyEvent(prev: JobState, ev: JobEvent): JobState {
       return updateRun(state, ev.data.run_id, {
         outcome: ev.data.outcome,
         reason: ev.data.reason,
+        durationS: ev.data.duration_s,
         live: ev.data.live,
       })
     case 'claim_verified':
@@ -222,7 +241,7 @@ export function applyEvent(prev: JobState, ev: JobEvent): JobState {
     }
     case 'check_result': {
       const c = ev.data.check
-      const rows = (state.checks[c.candidate_id] ?? []).filter((r) => r.check !== c.check)
+      const rows = (state.checks[c.candidate_id] ?? []).filter((r) => checkKey(r) !== checkKey(c))
       return { ...state, checks: { ...state.checks, [c.candidate_id]: [...rows, c] } }
     }
     default:

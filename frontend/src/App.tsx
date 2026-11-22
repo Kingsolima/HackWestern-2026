@@ -1,25 +1,29 @@
-import { useEffect, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from './api'
-import { AgentBays } from './components/AgentBays'
+import { AgentGraph } from './components/AgentGraph'
 import { Brief } from './components/Brief'
-import { CadViewer } from './components/CadViewer'
 import { JobConsole } from './components/JobConsole'
 import { Onboarding, type Progress } from './components/Onboarding'
+import { PartCard } from './components/PartCard'
+import { Report } from './components/Report'
 import { Welcome } from './components/Welcome'
 import { STAGE_ORDER, stageLabel } from './events'
 import { isTerminal, useJob, type CreateJobOptions } from './job'
 import { askLiveToken } from './liveToken'
 import { genericModelNotes } from './modelNotes'
-import type { PartLine } from './modelParts'
+import { partRole, type PartLine, type PartRole } from './modelParts'
 import { loadSaved, matchesDemo, needsLiveAgents, saveOnboarded, toRobot, type Onboarded } from './onboarding/answers'
 import type { CadMeasure } from './onboarding/intake'
-import { STEP_LABEL, stepsFor, type OpenAnswers } from './onboarding/questions'
+import { stepsFor, type OpenAnswers } from './onboarding/questions'
+import { partDetail } from './partDetail'
 import { PROJECTS, PROJECT_ROBOT, cadUrl, starterModel, type ProjectId } from './projects'
+import { useFreeArea } from './stageArea'
 import type { BomRow, ComplianceCard as Card, Robot } from './types'
 
 // ?live=1 shows a "Run live" button. The token is asked once per tab and kept in sessionStorage.
 const LIVE_ENABLED = new URLSearchParams(window.location.search).get('live') === '1'
-const pad2 = (n: number) => String(n).padStart(2, '0')
+// three.js is most of the bundle: load it beside the welcome screen instead of before it.
+const CadViewer = lazy(() => import('./components/CadViewer').then((m) => ({ default: m.CadViewer })))
 
 /** Start a job that makes real calls ('mixed' replays what is recorded and runs the rest). */
 async function startWithToken(
@@ -42,6 +46,8 @@ function Clock() {
 
 /** Console content: the onboarding questions, a demo project waiting to launch, or the job. */
 type Mode = 'onboarding' | 'ready' | 'job'
+/** The top-level tab. */
+type View = 'model' | 'agents' | 'report'
 type ModelStatus = { parts: number; size_mm: [number, number, number] } | 'error' | null
 
 export default function App() {
@@ -65,6 +71,11 @@ export default function App() {
   })
   const [showAfter, setShowAfter] = useState(true)
   const [model, setModel] = useState<ModelStatus>(null)
+  const [view, setView] = useState<View>('model')
+  const [pinned, setPinned] = useState<string | null>(null)
+  const [heat, setHeat] = useState(false)
+  /** The BOM line "See in report" jumps to. */
+  const [focus, setFocus] = useState<string | null>(null)
 
   useEffect(() => {
     api.health().then(() => setHealth('ok'), () => setHealth('down'))
@@ -94,19 +105,30 @@ export default function App() {
 
   const launched = mode === 'job'
   const done = isTerminal(job)
-  const runs = job.runOrder.map((id) => job.runs[id])
   const candidate = job.candidates[0]
   const designs = job.baseline && candidate ? { before: job.baseline, after: candidate } : null
   const shown = designs ? (showAfter ? designs.after : designs.before) : null
-  const starter = starterModel(
-    job.project?.cad_robot ?? (project ? PROJECT_ROBOT[project] : (progress.arm?.cad_robot ?? 'wheeled')),
-  )
+  const robot = job.project?.cad_robot ?? (project ? PROJECT_ROBOT[project] : (progress.arm?.cad_robot ?? 'wheeled'))
+  const starter = starterModel(robot)
   const src = welcome === 'on' ? null : shown ? cadUrl(shown.glb_url) : starter.src
   const deep = launched && job.stage !== null && job.stage !== 'CREATED'
 
-  const lines: PartLine[] = job.project
-    ? job.project.bom.map((l) => ({ part: l.part, category: l.domain, qty: l.qty, price: l.unit_price_usd, origin: l.origin_country }))
-    : bom.map((r) => ({ part: r.part, category: r.category, qty: r.qty, price: r.unit_cost_usd === null ? null : Number(r.unit_cost_usd), origin: r.origin }))
+  const lines: PartLine[] = useMemo(
+    () =>
+      job.project
+        ? job.project.bom.map((l) => ({ id: l.id, part: l.part, category: l.domain, qty: l.qty, price: l.unit_price_usd, origin: l.origin_country }))
+        : bom.map((r) => ({ part: r.part, category: r.category, qty: r.qty, price: r.unit_cost_usd === null ? null : Number(r.unit_cost_usd), origin: r.origin })),
+    [job.project, bom],
+  )
+  // What the 3D view says about a part. Its identity changes only when the answer can, so the
+  // viewer re-colours the heat view then and not on every render.
+  const { project: jobProject, riskLines, recommendations, alternatives } = job
+  const detail = useCallback(
+    (node: string, role: PartRole | null) =>
+      partDetail(node, lines, { project: jobProject, riskLines, recommendations, alternatives }, role),
+    [lines, jobProject, riskLines, recommendations, alternatives],
+  )
+  const hasRisk = riskLines.length > 0
   const modelNotes =
     job.project?.id === 'onboarded' && job.project.robot_kind === 'wheeled' ? genericModelNotes(job.project) : []
   // The baseline compliance card comes from an endpoint that always uses the demo robot, so it
@@ -115,31 +137,54 @@ export default function App() {
   const card = job.compliance ?? (demoPanels ? baselineCard : null)
 
   const review = mode === 'onboarding' && progress.steps[progress.index] === 'review'
-  const w = window.innerWidth
-  const shift = launched ? (done ? Math.min(240, w * 0.15) : 0) : review ? Math.min(340, w * 0.22) : Math.min(150, w * 0.1)
+  const area = useFreeArea([welcome, mode, review, done, designs !== null, view, pinned !== null].join('|'))
+
+  // The demo flow: the agents take over the screen when a job starts, the report when it ends.
+  // Each switch happens once per job; after that the tabs are the user's.
+  const switched = useRef({ job: null as string | null, done: false })
+  useEffect(() => {
+    if (!job.jobId || job.jobId === switched.current.job) return
+    switched.current = { job: job.jobId, done: false }
+    setView('agents')
+  }, [job.jobId])
+  useEffect(() => {
+    if (!done || switched.current.done) return
+    switched.current.done = true
+    setView('report')
+  }, [done])
 
   const stageIndex = job.stage ? STAGE_ORDER.indexOf(job.stage) : -1
-  const timeline: [string, string][] = launched
-    ? STAGE_ORDER.map((s, i) => [stageLabel(s), done || i < stageIndex ? 'done' : i === stageIndex ? 'now' : ''])
-    : project
-      ? [
-          ['Project', 'done'],
-          ['Launch', 'now'],
-        ]
-      : [
-          ['BOM', 'done'],
-          ...progress.steps.map((s, i): [string, string] => [
-            STEP_LABEL[s],
-            i < progress.index ? 'done' : i === progress.index ? 'now' : '',
-          ]),
-          ['Launch', ''],
-        ]
+  const fraction = launched
+    ? done
+      ? 1
+      : (stageIndex + 1) / STAGE_ORDER.length
+    : mode === 'onboarding'
+      ? (progress.index + 1) / (progress.steps.length + 1)
+      : 0
   const running = job.connection === 'starting' || job.connection === 'streaming'
+  const tabs: { id: View; title: string; on: boolean; badge?: string }[] = [
+    { id: 'model', title: '3D model', on: true },
+    { id: 'agents', title: 'Agents', on: launched, badge: running && job.stage ? stageLabel(job.stage) : undefined },
+    { id: 'report', title: 'Report', on: done },
+  ]
   const projectLabel = PROJECTS.find((p) => p.id === project)?.label
 
   return (
     <>
-      <CadViewer src={src} deep={deep} build={designs !== null && showAfter} lines={lines} shift={shift} onStatus={setModel} />
+      <Suspense fallback={null}>
+        <CadViewer
+          src={src}
+          robot={robot}
+          deep={deep}
+          build={designs !== null && showAfter}
+          detail={detail}
+          heat={heat && hasRisk && view === 'model'}
+          pinned={view === 'model' ? pinned : null}
+          onPick={setPinned}
+          area={area}
+          onStatus={setModel}
+        />
+      </Suspense>
 
       {welcome !== 'off' && (
         <Welcome
@@ -164,14 +209,30 @@ export default function App() {
       <div className={`shell${welcome === 'on' ? '' : ' on'}${launched ? ' launched' : ''}`}>
         <header className="topbar">
           <div className="brand">BOMbot</div>
-          <ol className="timeline">
-            {timeline.map(([t, c], i) => (
-              <li key={t} className={c} title={t}>
-                <b>{pad2(i + 1)}</b>
-                <span>{t}</span>
-              </li>
+          <nav className="views" role="tablist" aria-label="Views">
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={view === t.id}
+                className={view === t.id ? 'on' : ''}
+                disabled={!t.on}
+                onClick={() => {
+                  setFocus(null)
+                  setView(t.id)
+                }}
+              >
+                {t.title}
+                {t.badge && (
+                  <span className="badge-run">
+                    <span className="dot acc blink" />
+                    {t.badge}
+                  </span>
+                )}
+              </button>
             ))}
-          </ol>
+          </nav>
           <div className="status">
             <span className="label">
               <span className={`dot ${health === 'ok' ? 'hi' : health === 'down' ? 'lo' : ''}`} />
@@ -194,8 +255,13 @@ export default function App() {
               Restart
             </button>
           </div>
+          <div className="progress" aria-hidden="true">
+            <i style={{ width: `${fraction * 100}%` }} />
+          </div>
         </header>
 
+        {view === 'model' && (
+          <>
         <div className="hud">
           <div>
             Model <b>{shown?.label ?? starter.title}</b>
@@ -209,7 +275,25 @@ export default function App() {
               </div>
             )
           )}
-          <div>Hover a part / drag to orbit</div>
+          <div>Hover a part / click to pin / drag to orbit</div>
+          {hasRisk && (
+            <div className="toggle" role="radiogroup" aria-label="Colour parts by supply risk">
+              <button type="button" role="radio" aria-checked={!heat} className={heat ? '' : 'on'} onClick={() => setHeat(false)}>
+                Plain
+              </button>
+              <button type="button" role="radio" aria-checked={heat} className={heat ? 'on' : ''} onClick={() => setHeat(true)}>
+                Risk heat
+              </button>
+            </div>
+          )}
+          {heat && hasRisk && (
+            <div className="heat-legend">
+              <span><span className="dot lo" />high</span>
+              <span><span className="dot mid" />medium</span>
+              <span><span className="dot hi" />low</span>
+              <span><span className="dot" />unknown / not in BOM</span>
+            </div>
+          )}
           {designs && (
             <div className="toggle" role="radiogroup" aria-label="Before or after the redesign">
               <button type="button" role="radio" aria-checked={!showAfter} className={showAfter ? '' : 'on'} onClick={() => setShowAfter(false)}>
@@ -226,11 +310,9 @@ export default function App() {
           {mode === 'job' ? (
             <JobConsole
               job={job}
-              onboarded={project ? null : onboarded}
-              card={card}
-              modelNotes={modelNotes}
               onRunAgain={() => run(onboarded)}
               onRunLive={LIVE_ENABLED ? () => void startWithToken('live', start, jobOptions(onboarded)) : undefined}
+              onOpenReport={() => setView('report')}
             />
           ) : mode === 'ready' ? (
             <div className="q">
@@ -270,13 +352,38 @@ export default function App() {
           )}
         </aside>
 
-        {mode === 'onboarding' && bom.length > 0 && (
+        {pinned && (
+          <PartCard
+            d={detail(pinned, partRole(robot, pinned, { deep, build: designs !== null && showAfter }))}
+            onClose={() => setPinned(null)}
+            onReport={
+              done && job.riskLines.length > 0
+                ? () => {
+                    const id = detail(pinned, null).line?.id
+                    if (id) setFocus(id)
+                    setView('report')
+                  }
+                : undefined
+            }
+          />
+        )}
+
+        {mode === 'onboarding' && bom.length > 0 && !pinned && (
           <aside className="dossier frame">
             <Brief bom={bom} company={progress.company} />
           </aside>
         )}
+          </>
+        )}
 
-        <AgentBays runs={runs} />
+        {view === 'agents' && (
+          <div className="page agents-page">
+            <AgentGraph job={job} />
+          </div>
+        )}
+        {view === 'report' && done && (
+          <Report job={job} onboarded={project ? null : onboarded} card={card} modelNotes={modelNotes} focus={focus} />
+        )}
       </div>
     </>
   )
