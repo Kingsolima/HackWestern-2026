@@ -1,0 +1,655 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BOMbot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg: #07080a;
+  --panel: rgba(11, 12, 14, 0.9);
+  --line: rgba(236, 236, 236, 0.09);
+  --line-2: rgba(236, 236, 236, 0.2);
+  --ink: #ececec;
+  --ink-2: #a8a8a8;
+  --mute: #6a6a6a;
+  --acc: #f2a93b;
+  /* accuracy scale: high / mid / low (also success / partial / failed) */
+  --hi: #6fcf8e;
+  --mid: #e4cf5a;
+  --lo: #ef5f52;
+  --sans: 'Archivo', ui-sans-serif, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: var(--sans); }
+body { overflow: hidden; -webkit-font-smoothing: antialiased; }
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 1px solid var(--acc); outline-offset: 2px; }
+.label { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); }
+.frame { border: 1px solid var(--line); background: var(--panel); }
+
+/* accuracy mark: small square + text */
+.dot { display: inline-block; width: 6px; height: 6px; margin-right: 7px; vertical-align: 1px; background: var(--mute); flex: none; }
+.dot.hi { background: var(--hi); } .dot.mid { background: var(--mid); } .dot.lo { background: var(--lo); }
+.dot.acc { background: var(--acc); } .dot.blink { animation: blink 1.2s steps(2, jump-none) infinite; }
+@keyframes blink { 50% { opacity: .25; } }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } }
+@keyframes drop { from { opacity: 0; transform: translateY(-14px); } }
+@keyframes fade { from { opacity: 0; } }
+
+/* ---------- stage (always behind) ---------- */
+#viewport { position: fixed; inset: 0; }
+#viewport canvas { display: block; width: 100%; height: 100%; }
+.tip { position: fixed; z-index: 6; pointer-events: none; padding: 6px 9px; background: rgba(7, 8, 10, .92); border: 1px solid var(--line-2);
+  font-family: var(--mono); font-size: 11px; line-height: 1.45; white-space: nowrap; opacity: 0; transform: translate(14px, 14px); transition: opacity .12s; }
+.tip.show { opacity: 1; }
+.tip .t { color: var(--ink); text-transform: uppercase; letter-spacing: .06em; }
+.tip .s { color: var(--ink-2); }
+
+/* ---------- intro ---------- */
+#intro { position: fixed; inset: 0; z-index: 10; background: rgba(7, 8, 10, .94); display: flex; align-items: center; padding: 0 0 0 11vw;
+  transition: opacity .9s ease, transform .9s ease; }
+#intro.out { opacity: 0; transform: scale(1.02); pointer-events: none; }
+.intro { width: min(620px, 80vw); display: flex; flex-direction: column; gap: 22px; }
+.intro h1 { margin: 0; font-weight: 500; font-size: clamp(40px, 5.4vw, 72px); line-height: 1; letter-spacing: -0.02em; }
+.intro h1 span { display: inline-block; opacity: 0; animation: word .9s ease forwards; }
+@keyframes word { from { opacity: 0; transform: translateY(10px); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
+.intro h1 b { font-weight: 650; font-stretch: 112%; }
+.later { opacity: 0; animation: appear .7s ease forwards; }
+@keyframes appear { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.intro .lead { margin: 0; font-size: 18px; color: var(--ink-2); line-height: 1.45; max-width: 46ch; }
+.dropzone { border: 1px dashed var(--line-2); padding: 18px; display: flex; align-items: center; gap: 16px; transition: border-color .2s, background .2s; }
+.dropzone.over { border-color: var(--acc); background: rgba(242, 169, 59, .04); }
+.dropzone.ok { border-style: solid; border-color: color-mix(in srgb, var(--hi) 50%, transparent); }
+.dropzone.bad { border-style: solid; border-color: color-mix(in srgb, var(--lo) 50%, transparent); }
+.dropzone .what { flex: 1; min-width: 0; }
+.dropzone .name { font-family: var(--mono); font-size: 13px; }
+.dropzone .meta { font-size: 13px; color: var(--ink-2); margin-top: 3px; }
+.criteria { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; font-size: 13.5px; color: var(--ink-2); }
+.criteria li { display: flex; align-items: baseline; }
+.criteria code { font-family: var(--mono); font-size: 12px; color: var(--ink); }
+.errors { margin: 0; padding: 0; list-style: none; font-family: var(--mono); font-size: 12px; color: var(--lo); max-height: 96px; overflow-y: auto; }
+
+/* ---------- shell ---------- */
+#app { position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity .9s ease .3s; }
+#app.on { opacity: 1; }
+#app > * { pointer-events: auto; }
+.topbar { position: absolute; inset: 0 0 auto 0; height: 52px; display: flex; align-items: center; gap: 24px; padding: 0 18px;
+  background: linear-gradient(rgba(7,8,10,.92), rgba(7,8,10,.5)); }
+.brand { font-weight: 650; font-stretch: 112%; font-size: 15px; letter-spacing: .01em; white-space: nowrap; }
+.timeline { display: flex; gap: 2px; flex: 1; min-width: 0; justify-content: center; margin: 0; padding: 0; }
+.timeline li { list-style: none; font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--mute);
+  padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; transition: color .3s, border-color .3s; }
+.timeline li b { font-weight: 500; margin-right: 6px; }
+.timeline li.done { color: var(--ink-2); border-color: var(--line-2); }
+.timeline li.now { color: var(--ink); border-color: var(--acc); }
+.timeline li.now b { color: var(--acc); }
+.status { display: flex; gap: 16px; align-items: center; white-space: nowrap; }
+.linkbtn { background: none; border: 0; padding: 0; font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
+.linkbtn:hover { color: var(--ink); }
+.hud { position: absolute; top: 66px; left: 18px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); pointer-events: none; }
+.hud b { color: var(--ink-2); font-weight: 500; }
+.hud div + div { margin-top: 4px; }
+
+/* console */
+.console { position: absolute; left: 18px; bottom: 18px; width: min(540px, calc(100vw - 36px)); max-height: calc(100vh - 100px); padding: 22px 24px 18px;
+  display: flex; flex-direction: column; overflow-y: auto; }
+.console.wide { width: min(740px, calc(100vw - 420px)); }
+.launched .console { width: 340px; }
+.q { display: flex; flex-direction: column; gap: 14px; animation: rise .35s ease both; }
+.q.back { animation-name: drop; }
+.q h1 { margin: 0; font-weight: 500; font-size: 26px; line-height: 1.16; letter-spacing: -0.01em; text-wrap: balance; }
+.q .help { margin: 0; color: var(--ink-2); font-size: 14px; line-height: 1.5; max-width: 52ch; }
+.answer { width: 100%; resize: none; background: transparent; border: 0; border-bottom: 1px solid var(--line-2); padding: 8px 0 10px; font-size: 17px; line-height: 1.45; min-height: 84px; }
+.answer:focus { outline: none; border-bottom-color: var(--ink-2); }
+.answer::placeholder { color: var(--mute); }
+.nav { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 4px; }
+.btn { background: transparent; border: 1px solid var(--line-2); padding: 10px 16px; font-family: var(--mono); font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase; min-height: 40px; white-space: nowrap; }
+.btn:hover { border-color: var(--ink-2); }
+.btn.go { background: var(--acc); color: #120b02; border-color: var(--acc); font-weight: 500; }
+.btn.go:hover { filter: brightness(1.07); }
+.btn[disabled] { opacity: .4; cursor: default; filter: none; }
+.link { background: none; border: 0; padding: 4px 0; color: var(--ink-2); font-size: 13px; text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 4px; }
+.link:hover { color: var(--ink); }
+kbd { font-family: var(--mono); font-size: 10.5px; border: 1px solid var(--line-2); padding: 1px 5px; color: var(--ink-2); }
+.err { color: var(--lo); font-size: 13px; margin: 0; font-family: var(--mono); }
+.busy { font-family: var(--mono); font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2); }
+.busy::after { content: '▌'; color: var(--acc); animation: blink .8s steps(2, jump-none) infinite; margin-left: 4px; }
+
+/* dossier */
+.dossier { position: absolute; top: 66px; right: 18px; width: 320px; padding: 14px 16px; max-height: calc(100vh - 160px); overflow-y: auto; transition: opacity .4s, transform .4s; }
+.launched .dossier { opacity: 0; transform: translateX(20px); pointer-events: none; }
+.brief { display: flex; flex-direction: column; gap: 16px; }
+.brief section { display: flex; flex-direction: column; gap: 7px; }
+.fact { display: grid; grid-template-columns: 116px 1fr; gap: 10px; font-size: 13px; align-items: baseline; animation: rise .3s ease both; }
+.fact .k { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
+.fact .qt { display: block; color: var(--mute); font-size: 11.5px; font-family: var(--mono); margin-top: 2px; }
+.chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.chip { font-family: var(--mono); font-size: 10.5px; padding: 2px 6px; border: 1px solid var(--line-2); color: var(--ink-2); display: inline-flex; align-items: center; }
+
+/* review table */
+.legend { display: flex; gap: 16px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
+table.specs { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.specs td, table.specs th { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--line); text-align: left; vertical-align: baseline; font-weight: 400; }
+table.specs th { color: var(--ink-2); }
+table.specs th .ev { display: block; font-family: var(--mono); font-size: 11px; color: var(--mute); margin-top: 2px; }
+table.specs input { width: 76px; background: transparent; border: 0; border-bottom: 1px solid var(--line-2); padding: 2px 0; font-family: var(--mono); font-size: 13px; text-align: right; }
+table.specs input:focus { outline: none; border-color: var(--ink-2); }
+table.specs .u { font-family: var(--mono); color: var(--mute); font-size: 12px; padding-left: 4px; }
+.src { font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); white-space: nowrap; }
+
+/* job stages */
+.stages { list-style: none; margin: 0; padding: 0; }
+.stages li { display: grid; grid-template-columns: 24px 1fr auto; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 12px; color: var(--mute); letter-spacing: .06em; }
+.stages li.done { color: var(--ink-2); }
+.stages li.now { color: var(--ink); }
+.stages li.done .r { color: var(--hi); }
+
+/* agent bays: dock, then a rail at launch */
+.bays { position: absolute; right: 18px; bottom: 18px; width: 320px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.bay { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; height: 38px; transition: border-color .3s; }
+.bay-head { display: flex; align-items: center; gap: 6px; padding: 0 10px; height: 36px; flex: none; font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); white-space: nowrap; }
+.bay-head .site { color: var(--ink); letter-spacing: .02em; text-transform: none; font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+.bay-head .mode { margin-left: auto; }
+.bay-url, .bay-body, .bay-foot, .bay-head .site, .bay-head .mode { display: none; }
+.launched .bays { top: 66px; width: 380px; grid-template-columns: 1fr; grid-auto-rows: 1fr; }
+.launched .bay { height: auto; }
+.launched .bay-url, .launched .bay-foot { display: block; }
+.launched .bay-body { display: flex; }
+.launched .bay-head { border-bottom: 1px solid var(--line); }
+.launched .bay-head .site, .launched .bay-head .mode { display: inline; }
+.bay-url { padding: 5px 10px; font-family: var(--mono); font-size: 10.5px; color: var(--mute); border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bay-body { flex: 1; min-height: 0; overflow: hidden; padding: 8px 10px; font-family: var(--mono); font-size: 11.5px; line-height: 1.5; color: var(--ink-2); flex-direction: column; justify-content: flex-end; }
+.bay-body .st { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: rise .25s ease both; }
+.bay-body .st::before { content: '› '; color: var(--mute); }
+.bay-body .st.cur { color: var(--ink); }
+.bay-body .st.cur::after { content: '▌'; color: var(--acc); animation: blink .8s steps(2, jump-none) infinite; }
+.bay-foot { padding: 6px 10px; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bay.hi { border-color: color-mix(in srgb, var(--hi) 35%, transparent); } .bay-foot.hi { color: var(--hi); }
+.bay.mid { border-color: color-mix(in srgb, var(--mid) 35%, transparent); } .bay-foot.mid { color: var(--mid); }
+.bay.lo { border-color: color-mix(in srgb, var(--lo) 40%, transparent); } .bay-foot.lo { color: var(--lo); }
+
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } .intro h1 span, .later { opacity: 1; } }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="viewport"></div>
+<div class="tip" id="tip"></div>
+
+<section id="intro">
+  <div class="intro">
+    <h1 aria-label="Welcome to BOMbot"><span>Welcome</span> <span style="animation-delay:.25s">to</span> <span style="animation-delay:.5s"><b>BOMbot</b></span></h1>
+    <p class="lead later" style="animation-delay:1.3s">Start with your robot's bill of materials. We map where every part comes from, then send agents to find better sources for the part that matters most.</p>
+    <div class="later" style="animation-delay:1.9s; display:flex; flex-direction:column; gap:18px">
+      <label class="dropzone" id="dropzone">
+        <input type="file" id="file" accept=".csv,text/csv" hidden />
+        <div class="what" id="drop-what"><div class="name">Drop your BOM here</div><div class="meta">CSV, one part per line</div></div>
+        <span class="btn">Choose file</span>
+      </label>
+      <ul class="criteria" id="criteria"></ul>
+      <ul class="errors" id="errors"></ul>
+      <div class="nav">
+        <button class="btn go" id="continue" disabled>Continue</button>
+        <button class="link" id="sample">Use the sample BOM</button>
+        <a class="link" id="template" download="bom_template.csv">Download template</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div id="app">
+  <header class="topbar">
+    <div class="brand">BOMbot</div>
+    <ol class="timeline" id="timeline"></ol>
+    <div class="status">
+      <span class="label"><span class="dot hi"></span>API online</span>
+      <span class="label" id="mode"><span class="dot"></span>Replay</span>
+      <span class="label" id="clock">--:--:--</span>
+      <button class="linkbtn" id="restart">Restart</button>
+    </div>
+  </header>
+  <div class="hud"><div>Model <b id="hud-model">-</b></div><div id="hud-parts"></div><div>Hover a part / drag to orbit</div></div>
+  <aside class="console frame" id="console"></aside>
+  <aside class="dossier frame" id="dossier"></aside>
+  <section class="bays" id="bays"></section>
+</div>
+
+<script>
+// ---------- real content (frontend/src/onboarding, data/onboarding_example.json, data/demo_robot.json) ----------
+const QUESTIONS = {
+  who: { prompt: 'Who are you, and what are you building?', help: 'Your company or team, the robot and what it does.', required: true },
+  market: { prompt: 'Who buys it, where is it assembled and where will it run?', help: 'Customers (any government buyers?), final assembly country, countries it is deployed in, and how much downtime hurts.' },
+  limits: { prompt: 'What limits matter: budget, deadline, anything to avoid?', help: 'Parts budget per robot, when you need parts, and suppliers, countries or materials you want to stay away from.' },
+  drivetrain: { prompt: 'What else should we know about the drivetrain?', help: 'Plain words and any units are fine.' },
+}
+const EXAMPLE = {
+  who: 'We are Example Robotics, a small startup. We build Scout, a wheeled robot that carries parts bins between workstations in factories.',
+  market: 'We sell to US federal agencies and to US manufacturers. Final assembly is in Canada today, and the robots run in the US and Canada. A stopped robot stops our customer’s line.',
+  limits: 'We have about $600 of parts per robot and need them within 30 days. We want to avoid motors that depend on Chinese rare-earth magnets.',
+  drivetrain: 'It weighs 5 kg with payload, drives at up to 1 m/s, climbs a 5 degree ramp and accelerates at 0.5 m/s².',
+}
+const SAMPLE_CSV = `part,category,qty,unit_cost_usd,origin,supply_risk
+Drive motor (NEMA 23),motor,2,45.00,CN,ndfeb_magnets
+Motor driver,electronics,2,30.00,CN,
+Aluminum base plate,frame,1,120.00,US,
+Wheel,frame,2,15.00,CN,
+24V battery pack,battery,1,80.00,unknown,
+Single-board computer,compute,1,70.00,GB,
+Wheel encoder,encoder,2,30.00,US,
+Electronics enclosure,frame,1,25.00,CA,
+Wiring harness,electronics,1,25.00,US,
+Fasteners,frame,1,12.00,US,
+`
+const COLUMNS = ['part', 'category', 'qty', 'unit_cost_usd', 'origin']
+// Same rules as frontend/src/onboarding/bomCsv.ts, plus the motor line the deep loop needs.
+const CRITERIA = [
+  ['csv', 'A CSV file with a header row'],
+  ['cols', 'Columns <code>part</code>, <code>category</code>, <code>qty</code>, <code>unit_cost_usd</code>, <code>origin</code> (<code>supply_risk</code> optional)'],
+  ['qty', 'One part per line, <code>qty</code> a whole number above 0'],
+  ['cost', '<code>unit_cost_usd</code> a number in US dollars'],
+  ['origin', '<code>origin</code> a 2-letter country code, or <code>unknown</code>'],
+  ['motor', 'At least one line with category <code>motor</code>, the part we redesign'],
+]
+const FACTS = {
+  who: [['Name', 'Example Robotics', 'We are Example Robotics'], ['Robot', 'Scout', 'We build Scout'], ['Use', 'carries parts bins between workstations', 'carries parts bins between workstations in factories']],
+  market: [['Sells to US federal', 'yes', 'We sell to US federal agencies'], ['Final assembly', 'CA', 'Final assembly is in Canada today'], ['Deployed in', 'US, CA', 'the robots run in the US and Canada'], ['Uptime critical', 'yes', 'A stopped robot stops our customer’s line']],
+  limits: [['Parts budget', '$600 / robot', 'about $600 of parts per robot'], ['Needs parts in', '30 days', 'need them within 30 days'], ['Wants to avoid', 'Chinese rare-earth magnet motors', 'avoid motors that depend on Chinese rare-earth magnets']],
+}
+// [field, label, value, unit, accuracy, evidence]; accuracy: hi = from your words or BOM, mid = estimate, lo = default
+const SPECS = [
+  ['n_drive_motors', 'Drive motors', 2, '', 'hi', 'BOM: Drive motor (NEMA 23) x2'],
+  ['mass_kg', 'Mass with payload', 5, 'kg', 'hi', '“It weighs 5 kg with payload”'],
+  ['v_max_mps', 'Top speed', 1, 'm/s', 'hi', '“drives at up to 1 m/s”'],
+  ['max_slope_deg', 'Steepest slope', 5, 'deg', 'hi', '“climbs a 5 degree ramp”'],
+  ['accel_mps2', 'Acceleration', 0.5, 'm/s²', 'hi', '“accelerates at 0.5 m/s²”'],
+  ['wheel_radius_mm', 'Wheel radius', 60, 'mm', 'mid', 'estimate: generic wheeled model'],
+  ['envelope_mm', 'Space for motor and bracket', 90, 'mm', 'mid', 'estimate: generic wheeled model'],
+  ['gear_ratio', 'Gear ratio', 1, ': 1', 'lo', 'default'],
+  ['bus_voltage_v', 'Bus voltage', 24, 'V', 'lo', 'default'],
+  ['efficiency', 'Drivetrain efficiency', 0.9, '', 'lo', 'default'],
+  ['crr', 'Rolling resistance', 0.02, '', 'lo', 'default'],
+  ['safety_factor', 'Safety factor', 1.5, '', 'lo', 'default'],
+]
+const ACC_TEXT = { hi: 'Your words / BOM', mid: 'Estimate', lo: 'Default' }
+// Steps are PROGRESS purposes replayed from data/recordings/agent; outcomes other than scribd are illustrative.
+const AGENTS = [
+  { site: 'teknic.com', url: 'teknic.com/products/clearpath-brushless-dc-servo-motors/clearpath-sd/', worker: 'swap', steps: ['Navigate to ClearPath-SD product page', 'Go to SDSK models list page', 'Filter for NEMA 23 SDSK models', 'Check CPM-SDSK-2310S-RLN 24VDC specs', 'Extract full specs for CPM-SDSK-2310S-RLN at 24VDC', 'Submit final results for CPM-SDSK-2310S-RLN'], end: ['hi', 'Verified / CPM-SDSK-2310S-RLN'] },
+  { site: 'automationtechnologiesinc.com', url: 'automationtechnologiesinc.com/products-page/servo-products/', worker: 'swap', steps: ['Visit the integrated servo motor products page', 'Get product details and specs overview', 'Open dropdown to see all motor variants', 'Select ISV-T Series 130W variant to see its specs and price', 'Download ISV Integrated Servo Motor Datasheet PDF'], end: ['hi', 'Verified / ISV-T 130W'] },
+  { site: 'scribd.com', url: 'scribd.com/document/1008535641/datasheet-nema-23-30kgf', worker: 'datasheet', steps: ['Visit the motor datasheet page', 'Check for CAPTCHA or access denial', 'Report blocked due to CAPTCHA'], end: ['lo', 'Blocked / bot challenge'] },
+  { site: 'trutechmotors.com', url: 'trutechmotors.com', worker: 'discover', steps: ['Visit Trutech Motors homepage to find motor products', 'Navigate to products page to find servo motors', 'Check Solutions dropdown for servo motor links', 'Use search to find servo motors on the site', 'Search for NEMA 23 servo motors'], end: ['mid', 'Partial / specs need review'] },
+]
+const JOB_STAGES = ['PLAN', 'DISCOVER', 'TRIAGE', 'EXTRACT', 'VERIFY', 'CHECK', 'RANK', 'BUILD', 'DONE']
+const STEPS = ['who', 'market', 'limits', 'drivetrain', 'review']
+const STEP_CODE = { who: 'Team', market: 'Market', limits: 'Limits', drivetrain: 'Drivetrain', review: 'Confirm' }
+// The 3D model comes from the project: onboarded companies get the generic wheeled model.
+window.PROJECT_MODEL = {
+  title: 'Generic wheeled',
+  deep: ['motor_left', 'motor_right'],
+  build: ['bracket_left', 'bracket_right'],
+  parts: {
+    motor_left: 'Drive motor (NEMA 23)', motor_right: 'Drive motor (NEMA 23)', wheel_left: 'Wheel', wheel_right: 'Wheel',
+    base_plate: 'Aluminum base plate', electronics_box: 'Electronics enclosure',
+    bracket_left: 'Motor bracket', bracket_right: 'Motor bracket', shaft_left: 'Motor shaft', shaft_right: 'Motor shaft', caster: 'Caster',
+  },
+}
+
+// ---------- state ----------
+const S = window.S = { bom: null, bomName: '', i: 0, back: false, answers: { who: '', market: '', limits: '', drivetrain: '' }, facts: [], specs: null, busy: null, err: null, launched: false, built: false, jobStage: -1, agents: [] }
+const $ = (s) => document.querySelector(s)
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+const V = (fn, ...a) => { const v = window.viewer; if (v && v[fn]) return v[fn](...a); (window.viewerQueue ||= []).push([fn, a]) }
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+const pad2 = (n) => String(n).padStart(2, '0')
+
+// ---------- BOM parsing + criteria ----------
+function splitCsv(text) {
+  const lines = []; let row = [], cell = '', q = false
+  const src = text.replace(/^\uFEFF/, '')
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i]
+    if (q) { if (ch === '"' && src[i + 1] === '"') { cell += '"'; i++ } else if (ch === '"') q = false; else cell += ch }
+    else if (ch === '"') q = true
+    else if (ch === ',') { row.push(cell); cell = '' }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && src[i + 1] === '\n') i++; row.push(cell); lines.push(row); row = []; cell = '' }
+    else cell += ch
+  }
+  if (cell !== '' || row.length) { row.push(cell); lines.push(row) }
+  return lines.filter((l) => l.some((c) => c.trim() !== ''))
+}
+
+function checkBom(text, name) {
+  const pass = {}, errors = []
+  pass.csv = /\.csv$/i.test(name) || name === 'sample_bom.csv'
+  const lines = splitCsv(text)
+  if (!lines.length) { errors.push('The file is empty.'); return { pass, errors, rows: [] } }
+  const header = lines[0].map((h) => h.trim().toLowerCase())
+  const missing = COLUMNS.filter((c) => !header.includes(c))
+  pass.cols = missing.length === 0
+  if (!pass.cols) { errors.push(`line 1: missing ${missing.join(', ')}`); return { pass, errors, rows: [] } }
+  const col = (n) => header.indexOf(n)
+  const rows = []
+  pass.qty = pass.cost = pass.origin = true
+  lines.slice(1).forEach((cells, i) => {
+    const n = i + 2, get = (c) => (cells[col(c)] ?? '').trim()
+    const qty = get('qty'), cost = get('unit_cost_usd').replace(/^\$/, '').replaceAll(',', ''), origin = get('origin')
+    if (!get('part') || !/^[1-9]\d*$/.test(qty)) { pass.qty = false; errors.push(`line ${n}: ${!get('part') ? 'part is empty' : 'qty is not a whole number above 0'}`) }
+    if (!/^\d+(\.\d+)?$/.test(cost)) { pass.cost = false; errors.push(`line ${n}: unit_cost_usd is not a number`) }
+    if (origin && !/^[A-Za-z]{2}$/.test(origin) && origin.toLowerCase() !== 'unknown') { pass.origin = false; errors.push(`line ${n}: origin must be a 2-letter code or "unknown"`) }
+    rows.push({ part: get('part'), category: get('category').toLowerCase(), qty: +qty, cost: +cost, origin: /^[A-Za-z]{2}$/.test(origin) ? origin.toUpperCase() : 'unknown', risk: col('supply_risk') >= 0 ? get('supply_risk') : '' })
+  })
+  pass.motor = rows.some((r) => r.category === 'motor')
+  if (!pass.motor) errors.push('no line with category motor')
+  if (rows.length === 0) { pass.qty = false; errors.push('no part lines under the header') }
+  return { pass, errors, rows }
+}
+
+function renderCriteria(result) {
+  $('#criteria').innerHTML = CRITERIA.map(([k, t]) => {
+    const st = !result ? '' : result.pass[k] ? 'hi' : result.pass[k] === false ? 'lo' : ''
+    return `<li><span class="dot ${st}"></span><span>${t}</span></li>`
+  }).join('')
+  $('#errors').innerHTML = result ? result.errors.slice(0, 6).map((e) => `<li>${esc(e)}</li>`).join('') : ''
+}
+
+function acceptFile(text, name) {
+  const r = checkBom(text, name)
+  renderCriteria(r)
+  const ok = r.errors.length === 0 && Object.values(r.pass).every(Boolean)
+  const dz = $('#dropzone')
+  dz.classList.toggle('ok', ok); dz.classList.toggle('bad', !ok)
+  const total = r.rows.reduce((a, x) => a + x.qty * x.cost, 0)
+  $('#drop-what').innerHTML = `<div class="name">${esc(name)}</div><div class="meta">${r.rows.length} lines${ok ? ` / $${total.toFixed(0)} per robot` : ' / fix the lines below and drop it again'}</div>`
+  $('#continue').disabled = !ok
+  if (ok) { S.bom = r.rows; S.bomName = name; $('#continue').focus() }
+}
+
+// ---------- rendering ----------
+function renderTimeline() {
+  const items = S.launched
+    ? JOB_STAGES.map((s, i) => [s, S.built && i === JOB_STAGES.length - 1 ? 'done' : i < S.jobStage ? 'done' : i === S.jobStage ? 'now' : ''])
+    : [['BOM', 'done'], ...STEPS.map((s, i) => [STEP_CODE[s], i < S.i ? 'done' : i === S.i ? 'now' : '']), ['Launch', '']]
+  $('#timeline').innerHTML = items.map(([t, c], i) => `<li class="${c}"><b>${pad2(i + 1)}</b>${t}</li>`).join('')
+}
+
+function briefHTML() {
+  const b = S.bom
+  const count = {}; b.forEach((r) => (count[r.origin] = (count[r.origin] || 0) + 1))
+  const chips = Object.entries(count).sort((x, y) => y[1] - x[1]).map(([c, n]) => `<span class="chip"><span class="dot ${c === 'unknown' ? 'lo' : 'hi'}"></span>${c === 'unknown' ? 'Unknown' : c} ${n}</span>`).join('')
+  const flags = b.filter((r) => r.risk).map((r) => `<span class="chip">${esc(r.part)} / ${esc(r.risk.replace('_', ' '))}</span>`).join('')
+  const total = b.reduce((a, r) => a + r.qty * r.cost, 0)
+  let h = `<div class="brief"><section><div class="label">Bill of materials</div>
+    <div class="fact"><span class="k">File</span><span>${esc(S.bomName)}</span></div>
+    <div class="fact"><span class="k">Lines</span><span>${b.length} / $${total.toFixed(0)} per robot</span></div>
+    <div class="fact"><span class="k">Origins</span><span class="chips">${chips}</span></div>
+    ${flags ? `<div class="fact"><span class="k">Flags</span><span class="chips">${flags}</span></div>` : ''}</section>`
+  if (S.facts.length) h += `<section><div class="label">From your words</div>${S.facts.map(([k, v, q]) => `<div class="fact"><span class="k">${esc(k)}</span><span>${esc(v)}<span class="qt">“${esc(q)}”</span></span></div>`).join('')}</section>`
+  return h + '</div>'
+}
+
+function specsHTML() {
+  return `<div class="legend"><span><span class="dot hi"></span>Your words / BOM</span><span><span class="dot mid"></span>Estimate</span><span><span class="dot lo"></span>Default</span></div>
+  <table class="specs"><tbody>${S.specs.map(([f, label, v, u, a, ev]) => `<tr><th>${esc(label)}<span class="ev">${esc(ev)}</span></th>
+    <td style="white-space:nowrap"><input value="${v}" aria-label="${esc(label)}" data-f="${f}" /><span class="u">${esc(u)}</span></td>
+    <td><span class="src"><span class="dot ${a}"></span>${ACC_TEXT[a]}</span></td></tr>`).join('')}</tbody></table>`
+}
+
+function renderConsole() {
+  const c = $('#console'), step = STEPS[S.i]
+  c.classList.toggle('wide', step === 'review' && !S.launched)
+  if (S.launched) {
+    c.innerHTML = `<div class="label" style="margin-bottom:6px">Job / replay</div><ul class="stages">${JOB_STAGES.map((s, i) => {
+      const done = i < S.jobStage || (S.built && i === JOB_STAGES.length - 1)
+      return `<li class="${done ? 'done' : i === S.jobStage ? 'now' : ''}"><span>${pad2(i + 1)}</span><span>${s}</span><span class="r">${done ? 'OK' : i === S.jobStage ? '…' : ''}</span></li>`
+    }).join('')}</ul>`
+    return
+  }
+  const q = QUESTIONS[step]
+  let body = ''
+  if (q) {
+    const help = step === 'drivetrain' ? 'From your BOM: 2 drive motors. We still need its total mass with payload, its top speed, the steepest slope it climbs and how fast it accelerates.' : q.help
+    body = `<h1>${esc(q.prompt)}</h1><p class="help">${esc(help)}</p><textarea class="answer" id="answer" rows="3" placeholder="Type your answer here…" aria-label="${esc(q.prompt)}">${esc(S.answers[step])}</textarea>`
+  } else body = `<h1>Does this look right?</h1><p class="help">These are the numbers the job will use. Change any of them.</p>${specsHTML()}`
+  const nav = S.busy ? `<span class="busy">${esc(S.busy)}</span>`
+    : `<button class="btn go" data-act="next">${step === 'review' ? 'Find and Redesign' : 'OK'}</button><span class="label">Press <kbd>Enter</kbd></span>
+       ${S.i > 0 ? '<button class="link" data-act="back">Back</button>' : '<button class="link" data-act="example">Use the example</button>'}`
+  c.innerHTML = `<div class="q ${S.back ? 'back' : ''}"><div class="label">${step === 'review' ? 'Review' : `Question ${S.i + 1} of ${STEPS.length - 1}`}</div>${body}
+    ${S.err ? `<p class="err" role="alert">${esc(S.err)}</p>` : ''}<div class="nav">${nav}</div></div>`
+  const a = $('#answer'); if (a) { a.focus(); a.setSelectionRange(a.value.length, a.value.length) }
+}
+
+function renderBays() {
+  $('#bays').innerHTML = [0, 1, 2, 3].map((i) => {
+    const a = S.agents[i], n = `Bay ${pad2(i + 1)}`
+    if (!a) return `<article class="bay frame"><div class="bay-head"><span class="dot"></span>${n}</div><div class="bay-url">about:blank</div><div class="bay-body"></div><div class="bay-foot">Standby</div></article>`
+    const end = a.end?.[0] ?? '', shown = a.steps.slice(-6)
+    return `<article class="bay frame ${end}"><div class="bay-head"><span class="dot ${end || 'acc blink'}"></span>${n} <span class="site">${esc(a.site)}</span><span class="mode">Replay / ${a.worker}</span></div>
+      <div class="bay-url">https://${esc(a.url)}</div>
+      <div class="bay-body">${shown.map((s, j) => `<div class="st ${!a.end && j === shown.length - 1 ? 'cur' : ''}">${esc(s)}</div>`).join('')}</div>
+      <div class="bay-foot ${end}">${a.end ? esc(a.end[1]) : `Step ${a.steps.length} / running`}</div></article>`
+  }).join('')
+}
+
+function render() {
+  document.body.classList.toggle('launched', S.launched)
+  $('#mode').innerHTML = S.launched && !S.built ? '<span class="dot acc blink"></span>Replay / running' : '<span class="dot"></span>Replay'
+  renderTimeline(); renderConsole(); $('#dossier').innerHTML = S.bom ? briefHTML() : ''; renderBays()
+  V('frameShift', S.launched ? 0 : STEPS[S.i] === 'review' ? Math.min(340, innerWidth * 0.22) : Math.min(150, innerWidth * 0.1))
+}
+
+// ---------- flow ----------
+function openApp() {
+  $('#intro').classList.add('out')
+  $('#app').classList.add('on')
+  V('load'); V('dolly')
+  S.i = 0; render()
+}
+function capture() {
+  const a = $('#answer'), step = STEPS[S.i]
+  if (a && QUESTIONS[step]) S.answers[step] = a.value
+  document.querySelectorAll('table.specs input').forEach((inp) => { const r = S.specs.find((x) => x[0] === inp.dataset.f); if (r) r[2] = inp.value })
+}
+function go(to) { S.back = to < S.i; S.i = to; S.err = null; render() }
+
+async function next() {
+  if (S.busy || S.launched || !$('#app').classList.contains('on')) return
+  capture()
+  const step = STEPS[S.i]
+  if (step === 'review') return launch()
+  const ans = S.answers[step].trim()
+  if (QUESTIONS[step].required && !ans) { S.err = 'Please type an answer.'; return render() }
+  S.busy = step === 'drivetrain' ? 'Reading your answers' : 'Reading'; render()
+  await sleep(step === 'drivetrain' ? 1200 : 650); S.busy = null
+  const mine = FACTS[step] || []
+  S.facts = S.facts.filter((f) => !mine.includes(f)).concat(mine.filter((f) => ans.includes(f[2])))
+  if (step === 'drivetrain') S.specs = SPECS.map((r) => (r[4] === 'hi' && r[5].startsWith('“') && !S.answers.drivetrain.includes(r[5].slice(1, -1)) ? [r[0], r[1], r[2], r[3], 'lo', 'default'] : r.slice()))
+  go(S.i + 1)
+}
+
+async function launch() {
+  S.launched = true; S.jobStage = 0; S.agents = []
+  V('deep'); render()
+  const tick = async (s, ms) => { S.jobStage = s; render(); await sleep(ms) }
+  await tick(0, 1000); await tick(1, 300)
+  for (let i = 0; i < AGENTS.length; i++) { S.agents[i] = { ...AGENTS[i], steps: [], end: null }; renderBays(); await sleep(250) }
+  for (let more = true; more;) {
+    more = false
+    AGENTS.forEach((src, i) => { const a = S.agents[i]; if (a.end) return; if (a.steps.length < src.steps.length) { a.steps.push(src.steps[a.steps.length]); more = true } else a.end = src.end })
+    renderBays(); await sleep(650)
+  }
+  for (const s of [2, 3, 4, 5, 6]) await tick(s, 650)
+  await tick(7, 500); V('build'); await sleep(1300)
+  S.built = true; await tick(8, 0)
+}
+
+function restart() { location.reload() }
+
+// ---------- events ----------
+$('#template').href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(SAMPLE_CSV.split('\n').slice(0, 3).join('\n') + '\n')
+$('#file').addEventListener('change', (e) => { const f = e.target.files[0]; if (f) f.text().then((t) => acceptFile(t, f.name)) })
+const dz = $('#dropzone')
+dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('over') })
+dz.addEventListener('dragleave', () => dz.classList.remove('over'))
+dz.addEventListener('drop', (e) => { e.preventDefault(); dz.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) f.text().then((t) => acceptFile(t, f.name)) })
+$('#sample').onclick = () => acceptFile(SAMPLE_CSV, 'sample_bom.csv')
+$('#continue').onclick = openApp
+$('#restart').onclick = restart
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-act]'); if (!t) return
+  const act = t.dataset.act
+  if (act === 'next') next()
+  else if (act === 'back') { capture(); go(S.i - 1) }
+  else if (act === 'example') { Object.assign(S.answers, EXAMPLE); render() }
+})
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' || e.shiftKey || ['BUTTON', 'A'].includes(e.target.tagName)) return
+  e.preventDefault()
+  if (!$('#app').classList.contains('on')) { if (!$('#continue').disabled) openApp(); return }
+  next()
+})
+setInterval(() => { $('#clock').textContent = new Date().toLocaleTimeString('en-CA', { hour12: false, timeZone: 'America/Toronto' }) + ' EST' }, 1000)
+renderCriteria(null)
+</script>
+
+<script type="module">
+// Viewer: monochrome solids with hairline edges; hover names a part; the deep line and the regenerated part go orange.
+import * as THREE from 'three'
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+
+const GLB = '__GLB_WHEELED__'
+const host = document.getElementById('viewport'), tip = document.getElementById('tip')
+const P = window.PROJECT_MODEL
+const ORANGE = new THREE.Color('#f2a93b'), EDGE = new THREE.Color('#cfcfcf'), FILL = new THREE.Color('#151617')
+
+let renderer
+try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }) } catch (e) { console.warn('WebGL unavailable') }
+if (renderer) init()
+
+function init() {
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
+  renderer.localClippingEnabled = true
+  host.appendChild(renderer.domElement)
+  const scene = new THREE.Scene()
+  scene.fog = new THREE.Fog(0x07080a, 6, 14)
+  const camera = new THREE.PerspectiveCamera(32, 1, 0.01, 100)
+  camera.position.set(5.2, 3.4, 6.2)
+  const controls = new OrbitControls(camera, renderer.domElement)
+  controls.enableDamping = true; controls.dampingFactor = 0.08
+  controls.autoRotate = true; controls.autoRotateSpeed = 0.3
+  controls.minDistance = 1.5; controls.maxDistance = 9
+  controls.target.set(0, 0.4, 0)
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x0a0a0a, 1.1))
+  const key = new THREE.DirectionalLight(0xffffff, 1.5); key.position.set(3, 5, 2); scene.add(key)
+  scene.add(new THREE.GridHelper(12, 48, 0x2a2a2a, 0x161616))
+
+  const clip = new THREE.Plane(new THREE.Vector3(0, -1, 0), -1)
+  let model = null, groups = {}, box = new THREE.Box3(), anim = null, hover = null, tw = null
+  const role = {} // part name -> 'deep' | 'build'
+
+  function paint(name) {
+    const g = groups[name]; if (!g) return
+    const r = role[name], h = hover === name
+    g.traverse((o) => {
+      if (o.isMesh) o.material.color.copy(r === 'build' ? ORANGE.clone().multiplyScalar(h ? 0.45 : 0.32) : FILL.clone().multiplyScalar(h ? 1.8 : 1))
+      if (o.isLineSegments) { o.material.color.copy(r ? ORANGE : EDGE); o.material.opacity = r || h ? 1 : 0.5 }
+    })
+  }
+
+  function load() {
+    const bin = Uint8Array.from(atob(GLB), (c) => c.charCodeAt(0)).buffer
+    new GLTFLoader().parse(bin, '', (gltf) => {
+      model = gltf.scene
+      const root = model.children[0]
+      for (const child of root.children) groups[child.name] = child
+      model.traverse((o) => {
+        if (!o.isMesh) return
+        o.material = new THREE.MeshStandardMaterial({ color: FILL, metalness: 0.3, roughness: 0.7, clippingPlanes: [clip], polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 })
+        o.add(new THREE.LineSegments(new THREE.EdgesGeometry(o.geometry, 28), new THREE.LineBasicMaterial({ color: EDGE, transparent: true, opacity: 0.5, clippingPlanes: [clip] })))
+      })
+      box.setFromObject(model)
+      const size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3())
+      const s = 2.1 / Math.max(size.x, size.y, size.z)
+      model.scale.setScalar(s); model.position.set(-c.x * s, -box.min.y * s, -c.z * s)
+      scene.add(model); box.setFromObject(model)
+      controls.target.set(0, box.max.y * 0.42, 0)
+      document.getElementById('hud-model').textContent = P.title
+      document.getElementById('hud-parts').innerHTML = `<b>${root.children.length}</b> parts / ${size.x.toFixed(0)} x ${size.z.toFixed(0)} x ${size.y.toFixed(0)} mm`
+      anim = { t0: performance.now(), dur: 1800, h: box.max.y }
+    }, (err) => console.error(err))
+  }
+
+  function dolly() { tween(controls.target.clone(), new THREE.Vector3(0, 0.4, 0), camera.position.clone(), new THREE.Vector3(3.2, 2.1, 3.7), 2200) }
+  function deep() {
+    P.deep.forEach((n) => { role[n] = 'deep'; paint(n) })
+    controls.autoRotate = false
+    const g = groups[P.deep[0]]; if (!g) return
+    const c = new THREE.Box3().setFromObject(g).getCenter(new THREE.Vector3()).lerp(box.getCenter(new THREE.Vector3()), 0.5)
+    const dir = camera.position.clone().sub(controls.target).normalize()
+    tween(controls.target.clone(), c, camera.position.clone(), c.clone().add(dir.multiplyScalar(4.4)), 1400)
+  }
+  function build() { P.build.forEach((n) => { role[n] = 'build'; paint(n) }) }
+
+  function tween(t0, t1, p0, p1, dur) { tw = { t0, t1, p0, p1, s: performance.now(), dur } }
+  const ease = (x) => 1 - Math.pow(1 - x, 3)
+
+  let shift = 0, shiftGoal = 0
+  function applyView() {
+    const r = host.getBoundingClientRect(); if (!r.width) return
+    camera.aspect = r.width / r.height
+    if (Math.abs(shift) > 0.5) camera.setViewOffset(r.width, r.height, -shift, 0, r.width, r.height); else camera.clearViewOffset()
+    camera.updateProjectionMatrix()
+  }
+  function resize() { const r = host.getBoundingClientRect(); if (!r.width) return; renderer.setSize(r.width, r.height, false); applyView() }
+  new ResizeObserver(resize).observe(host)
+
+  // hover: name the top-level part under the pointer
+  const ray = new THREE.Raycaster(), ptr = new THREE.Vector2()
+  renderer.domElement.addEventListener('pointermove', (e) => {
+    if (!model) return
+    const r = renderer.domElement.getBoundingClientRect()
+    ptr.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1)
+    ray.setFromCamera(ptr, camera)
+    const hit = ray.intersectObject(model, true).find((h) => h.object.isMesh)
+    let name = null
+    if (hit) { let o = hit.object; while (o && !groups[o.name]) o = o.parent; name = o?.name ?? null }
+    if (name !== hover) { const old = hover; hover = name; if (old) paint(old); if (name) paint(name) }
+    if (name) {
+      const label = P.parts[name] ?? name.replace(/_/g, ' ')
+      const line = (window.S?.bom || []).find((b) => b.part === label)
+      const note = role[name] === 'build' ? 'Regenerated in BUILD' : role[name] === 'deep' ? 'Deep line / agents searching' : line ? `x${line.qty} / $${line.cost} / ${line.origin === 'unknown' ? 'origin unknown' : line.origin}` : 'Not in your BOM'
+      tip.innerHTML = `<div class="t">${label}</div><div class="s">${note}</div>`
+      tip.style.left = `${e.clientX}px`; tip.style.top = `${e.clientY}px`
+      tip.classList.add('show'); renderer.domElement.style.cursor = 'default'
+    } else tip.classList.remove('show')
+  })
+  renderer.domElement.addEventListener('pointerleave', () => { tip.classList.remove('show'); if (hover) { const o = hover; hover = null; paint(o) } })
+
+  function frame(now) {
+    requestAnimationFrame(frame)
+    if (tw) { const k = ease(Math.min(1, (now - tw.s) / tw.dur)); controls.target.lerpVectors(tw.t0, tw.t1, k); camera.position.lerpVectors(tw.p0, tw.p1, k); if (k >= 1) tw = null }
+    if (anim) { const k = Math.min(1, (now - anim.t0) / anim.dur); clip.constant = -0.02 + (anim.h + 0.04) * ease(k); if (k >= 1) { anim = null; clip.constant = 10 } }
+    if (Math.abs(shiftGoal - shift) > 0.5) { shift += (shiftGoal - shift) * 0.08; applyView() }
+    controls.update()
+    renderer.render(scene, camera)
+  }
+  requestAnimationFrame(frame)
+
+  window.viewer = { load, dolly, deep, build, frameShift: (px) => (shiftGoal = px) }
+  for (const [fn, a] of window.viewerQueue || []) window.viewer[fn](...a)
+  window.viewerQueue = []
+}
+</script>
+</body>
+</html>
