@@ -1,0 +1,37 @@
+# Production overrides for the Vultr VM:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build web backend cad
+# Caddy (web) is the only public service; backend and CAD are reachable only inside Docker.
+# SITE_ADDRESS (and the API keys, LIVE_JOBS_TOKEN) come from the server's .env.
+services:
+  web:
+    build:
+      context: .
+      dockerfile: deploy/web.Dockerfile
+    ports:
+      - "${WEB_HTTP_PORT:-80}:80"
+      - "${WEB_HTTPS_PORT:-443}:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [backend, cad]
+    restart: unless-stopped
+
+  backend:
+    ports: !reset []
+    depends_on: !reset [cad] # no database in use yet (the board is in memory)
+    environment:
+      REQUIRE_LIVE_TOKEN: "true"
+    restart: unless-stopped
+
+  cad:
+    ports: !reset []
+    restart: unless-stopped
+
+  db:
+    ports: !reset []
+
+volumes:
+  caddy_data:
+  caddy_config:

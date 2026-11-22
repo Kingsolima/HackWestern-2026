@@ -1,0 +1,26 @@
+# Public entry point. SITE_ADDRESS is ":80" (plain HTTP on the server IP) until the domain
+# points at the VM; set it to "example.com, www.example.com" and Caddy gets HTTPS itself.
+{$SITE_ADDRESS::80} {
+	# API + live job events. flush_interval -1 streams SSE immediately (no buffering).
+	handle /api/* {
+		reverse_proxy backend:8000 {
+			flush_interval -1
+		}
+	}
+	handle /health {
+		reverse_proxy backend:8000
+	}
+
+	# CAD worker: /cad/designs/{id}/glb -> cad:8001/designs/{id}/glb (same as the Vite proxy).
+	handle_path /cad/* {
+		reverse_proxy cad:8001
+	}
+
+	# The built website. Unknown paths fall back to index.html.
+	handle {
+		root * /srv
+		encode gzip
+		try_files {path} /index.html
+		file_server
+	}
+}
