@@ -39,6 +39,8 @@ class RobotParams:
     frame: str = "23"
     body_len: float = 56.0
     shaft_d: float | None = None  # None = common shaft for the frame (NEMA table)
+    pilot_d: float | None = None  # None = NEMA table
+    bolt_spacing: float | None = None  # None = NEMA table
     clearance: float = 5.0  # gap between motor flange and bracket foot
     deck_l: float = 300.0
     deck_w: float = 220.0
@@ -65,9 +67,19 @@ def _shaft_d(p: RobotParams) -> float:
     return p.shaft_d if p.shaft_d is not None else SHAFT_MM[p.frame]
 
 
+def _frame(p: RobotParams) -> tuple[float, float, float]:
+    """(bolt_spacing, pilot, flange): the NEMA table, unless the request gives its own."""
+    spacing, pilot, flange = NEMA[p.frame]
+    return (
+        p.bolt_spacing if p.bolt_spacing is not None else spacing,
+        p.pilot_d if p.pilot_d is not None else pilot,
+        flange,
+    )
+
+
 def measure(p: RobotParams) -> dict:
     """Geometry numbers the engineering checks need (05 §4). Pure arithmetic, no CAD."""
-    spacing, pilot, flange = NEMA[p.frame]
+    spacing, pilot, flange = _frame(p)
     deck_top = p.wheel_r - flange / 2 - p.clearance - BRACKET_T
     ground = deck_top - p.deck_t
     inboard_room = p.deck_w / 2 - EDGE_INSET - CENTER_GAP
@@ -75,6 +87,7 @@ def measure(p: RobotParams) -> dict:
     shaft_d = _shaft_d(p)
     axis_above_deck = p.wheel_r - deck_top
     return {
+        "robot": "wheeled",
         "params": asdict(p),
         "flange_mm": flange,
         "axle_height_mm": p.wheel_r,
@@ -97,12 +110,30 @@ def measure(p: RobotParams) -> dict:
             "pilot_hole_mm": pilot + 1.0,
             "bolt_hole_mm": BOLT_HOLE_MM[p.frame],
         },
+        # Generic rows (BUILD-PLAN-v4 §7): the backend turns each into a check.
+        "fit_checks": [
+            {
+                "name": "ground_clearance",
+                "value": round(ground, 2),
+                "limit": p.min_ground_clearance,
+                "unit": "mm",
+                "ok": ground >= p.min_ground_clearance,
+            },
+            {
+                "name": "inboard_envelope",
+                "value": round(envelope_used, 2),
+                "limit": inboard_room,
+                "unit": "mm",
+                "ok": envelope_used <= inboard_room,
+            },
+        ],
     }
 
 
-def motor(frame: str, body_len: float) -> cq.Workplane:
+def motor(frame: str, body_len: float, pilot: float | None = None) -> cq.Workplane:
     """NEMA motor body in the local frame: face at y=0, body towards -Y, pilot boss to +Y."""
-    _, pilot, face = NEMA[frame]
+    _, table_pilot, face = NEMA[frame]
+    pilot = pilot if pilot is not None else table_pilot
     body = _box(face, body_len, face, (0, -body_len / 2, 0))
     boss = _cylinder(pilot / 2, 2.0, (0, 0, 0))
     return body.union(boss)
@@ -113,16 +144,23 @@ def shaft(diameter: float, length: float) -> cq.Workplane:
 
 
 def bracket(
-    frame: str, body_len: float, clearance: float, axis_height: float | None = None
+    frame: str,
+    body_len: float,
+    clearance: float,
+    axis_height: float | None = None,
+    spacing: float | None = None,
+    pilot: float | None = None,
 ) -> cq.Workplane:
     """L-bracket in the local frame.
 
     The upright (y in [0, T]) carries the NEMA bolt square and pilot hole on the motor
     axis, `axis_height` above the deck's top surface. The foot lies flat on the deck and
     runs inboard under the motor body; its depth follows `body_len`.
-    Bolt spacing and pilot diameter come from the NEMA table, never from a datasheet.
+    Bolt spacing and pilot diameter come from the NEMA table unless given.
     """
-    spacing, pilot, face = NEMA[frame]
+    table_spacing, table_pilot, face = NEMA[frame]
+    spacing = spacing if spacing is not None else table_spacing
+    pilot = pilot if pilot is not None else table_pilot
     if axis_height is None:
         axis_height = face / 2 + clearance + BRACKET_T
     width = face + 2 * BRACKET_MARGIN
@@ -182,15 +220,22 @@ def robot(p: RobotParams) -> cq.Assembly:
             cq.Vector(0, 0, 0), cq.Vector(0, 0, 1), angle
         )
         assy.add(
-            bracket(p.frame, p.body_len, p.clearance, axle_z - deck_top).translate(
-                (0, motor_face_y, 0)
-            ),
+            bracket(
+                p.frame,
+                p.body_len,
+                p.clearance,
+                axle_z - deck_top,
+                m["bracket"]["bolt_spacing_mm"],
+                m["bracket"]["pilot_hole_mm"] - 1.0,
+            ).translate((0, motor_face_y, 0)),
             name=f"bracket_{side}",
             loc=loc,
             color=HIGHLIGHT_COLOR if p.highlight else BRACKET_COLOR,
         )
         assy.add(
-            motor(p.frame, p.body_len).translate((0, motor_face_y, 0)),
+            motor(p.frame, p.body_len, m["bracket"]["pilot_hole_mm"] - 1.0).translate(
+                (0, motor_face_y, 0)
+            ),
             name=f"motor_{side}",
             loc=loc,
             color=cq.Color("blue"),
