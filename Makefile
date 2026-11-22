@@ -1,7 +1,7 @@
 # Keep a sourced ROS (or other) PYTHONPATH from leaking into the uv envs.
 unexport PYTHONPATH
 
-.PHONY: help install dev-backend dev-cad dev-frontend up down db test test-cad lint
+.PHONY: help install dev-backend dev-cad dev-frontend up down db test test-cad lint prod-up prod-down deploy
 
 help:
 	@echo "install       install backend + frontend deps"
@@ -13,6 +13,9 @@ help:
 	@echo "test          backend tests"
 	@echo "test-cad      CAD worker tests (inside the CadQuery image)"
 	@echo "lint          ruff + frontend lint"
+	@echo "prod-up       run the production stack locally on http://localhost:8080"
+	@echo "prod-down     stop it"
+	@echo "deploy        pull main on the Vultr VM and rebuild (DEPLOY_HOST=vultr-hw)"
 
 install:
 	cd backend && uv sync
@@ -47,3 +50,17 @@ test-cad:
 lint:
 	cd backend && uv run ruff check . && uv run ruff format --check .
 	cd frontend && npm run lint
+
+# Production stack (Caddy + backend + CAD). Separate project name so it never replaces the
+# dev containers.
+PROD = docker compose -p hackwestern-prod -f docker-compose.yml -f docker-compose.prod.yml
+DEPLOY_HOST ?= vultr-hw
+
+prod-up:
+	WEB_HTTP_PORT=8080 WEB_HTTPS_PORT=8443 $(PROD) up -d --build web backend cad
+
+prod-down:
+	WEB_HTTP_PORT=8080 WEB_HTTPS_PORT=8443 $(PROD) down
+
+deploy:
+	ssh $(DEPLOY_HOST) 'cd /opt/hackwestern && git pull --ff-only && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build web backend cad'
