@@ -1,9 +1,10 @@
-import { Suspense, lazy, useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { api } from './api'
 import { AgentBays } from './components/AgentBays'
 import { Brief } from './components/Brief'
 import { JobConsole } from './components/JobConsole'
 import { Onboarding, type Progress } from './components/Onboarding'
+import { Report } from './components/Report'
 import { Welcome } from './components/Welcome'
 import { STAGE_ORDER, stageLabel } from './events'
 import { isTerminal, useJob, type CreateJobOptions } from './job'
@@ -12,14 +13,13 @@ import { genericModelNotes } from './modelNotes'
 import type { PartLine } from './modelParts'
 import { loadSaved, matchesDemo, needsLiveAgents, saveOnboarded, toRobot, type Onboarded } from './onboarding/answers'
 import type { CadMeasure } from './onboarding/intake'
-import { STEP_LABEL, stepsFor, type OpenAnswers } from './onboarding/questions'
+import { stepsFor, type OpenAnswers } from './onboarding/questions'
 import { PROJECTS, PROJECT_ROBOT, cadUrl, starterModel, type ProjectId } from './projects'
 import { useFreeArea } from './stageArea'
 import type { BomRow, ComplianceCard as Card, Robot } from './types'
 
 // ?live=1 shows a "Run live" button. The token is asked once per tab and kept in sessionStorage.
 const LIVE_ENABLED = new URLSearchParams(window.location.search).get('live') === '1'
-const pad2 = (n: number) => String(n).padStart(2, '0')
 // three.js is most of the bundle: load it beside the welcome screen instead of before it.
 const CadViewer = lazy(() => import('./components/CadViewer').then((m) => ({ default: m.CadViewer })))
 
@@ -44,6 +44,8 @@ function Clock() {
 
 /** Console content: the onboarding questions, a demo project waiting to launch, or the job. */
 type Mode = 'onboarding' | 'ready' | 'job'
+/** The top-level tab. */
+type View = 'model' | 'agents' | 'report'
 type ModelStatus = { parts: number; size_mm: [number, number, number] } | 'error' | null
 
 export default function App() {
@@ -67,6 +69,7 @@ export default function App() {
   })
   const [showAfter, setShowAfter] = useState(true)
   const [model, setModel] = useState<ModelStatus>(null)
+  const [view, setView] = useState<View>('model')
 
   useEffect(() => {
     api.health().then(() => setHealth('ok'), () => setHealth('down'))
@@ -116,25 +119,36 @@ export default function App() {
   const card = job.compliance ?? (demoPanels ? baselineCard : null)
 
   const review = mode === 'onboarding' && progress.steps[progress.index] === 'review'
-  const area = useFreeArea([welcome, mode, review, done, designs !== null].join('|'))
+  const area = useFreeArea([welcome, mode, review, done, designs !== null, view].join('|'))
+
+  // The demo flow: the agents take over the screen when a job starts, the report when it ends.
+  // Each switch happens once per job; after that the tabs are the user's.
+  const switched = useRef({ job: null as string | null, done: false })
+  useEffect(() => {
+    if (!job.jobId || job.jobId === switched.current.job) return
+    switched.current = { job: job.jobId, done: false }
+    setView('agents')
+  }, [job.jobId])
+  useEffect(() => {
+    if (!done || switched.current.done) return
+    switched.current.done = true
+    setView('report')
+  }, [done])
 
   const stageIndex = job.stage ? STAGE_ORDER.indexOf(job.stage) : -1
-  const timeline: [string, string][] = launched
-    ? STAGE_ORDER.map((s, i) => [stageLabel(s), done || i < stageIndex ? 'done' : i === stageIndex ? 'now' : ''])
-    : project
-      ? [
-          ['Project', 'done'],
-          ['Launch', 'now'],
-        ]
-      : [
-          ['BOM', 'done'],
-          ...progress.steps.map((s, i): [string, string] => [
-            STEP_LABEL[s],
-            i < progress.index ? 'done' : i === progress.index ? 'now' : '',
-          ]),
-          ['Launch', ''],
-        ]
+  const fraction = launched
+    ? done
+      ? 1
+      : (stageIndex + 1) / STAGE_ORDER.length
+    : mode === 'onboarding'
+      ? (progress.index + 1) / (progress.steps.length + 1)
+      : 0
   const running = job.connection === 'starting' || job.connection === 'streaming'
+  const tabs: { id: View; title: string; on: boolean; badge?: string }[] = [
+    { id: 'model', title: '3D model', on: true },
+    { id: 'agents', title: 'Agents', on: launched, badge: running && job.stage ? stageLabel(job.stage) : undefined },
+    { id: 'report', title: 'Report', on: done },
+  ]
   const projectLabel = PROJECTS.find((p) => p.id === project)?.label
 
   return (
@@ -166,14 +180,27 @@ export default function App() {
       <div className={`shell${welcome === 'on' ? '' : ' on'}${launched ? ' launched' : ''}`}>
         <header className="topbar">
           <div className="brand">BOMbot</div>
-          <ol className="timeline">
-            {timeline.map(([t, c], i) => (
-              <li key={t} className={c} title={t}>
-                <b>{pad2(i + 1)}</b>
-                <span>{t}</span>
-              </li>
+          <nav className="views" role="tablist" aria-label="Views">
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={view === t.id}
+                className={view === t.id ? 'on' : ''}
+                disabled={!t.on}
+                onClick={() => setView(t.id)}
+              >
+                {t.title}
+                {t.badge && (
+                  <span className="badge-run">
+                    <span className="dot acc blink" />
+                    {t.badge}
+                  </span>
+                )}
+              </button>
             ))}
-          </ol>
+          </nav>
           <div className="status">
             <span className="label">
               <span className={`dot ${health === 'ok' ? 'hi' : health === 'down' ? 'lo' : ''}`} />
@@ -196,8 +223,13 @@ export default function App() {
               Restart
             </button>
           </div>
+          <div className="progress" aria-hidden="true">
+            <i style={{ width: `${fraction * 100}%` }} />
+          </div>
         </header>
 
+        {view === 'model' && (
+          <>
         <div className="hud">
           <div>
             Model <b>{shown?.label ?? starter.title}</b>
@@ -228,11 +260,9 @@ export default function App() {
           {mode === 'job' ? (
             <JobConsole
               job={job}
-              onboarded={project ? null : onboarded}
-              card={card}
-              modelNotes={modelNotes}
               onRunAgain={() => run(onboarded)}
               onRunLive={LIVE_ENABLED ? () => void startWithToken('live', start, jobOptions(onboarded)) : undefined}
+              onOpenReport={() => setView('report')}
             />
           ) : mode === 'ready' ? (
             <div className="q">
@@ -277,8 +307,17 @@ export default function App() {
             <Brief bom={bom} company={progress.company} />
           </aside>
         )}
+          </>
+        )}
 
-        <AgentBays runs={runs} />
+        {view === 'agents' && (
+          <div className="page agents-page">
+            <AgentBays runs={runs} />
+          </div>
+        )}
+        {view === 'report' && done && (
+          <Report job={job} onboarded={project ? null : onboarded} card={card} modelNotes={modelNotes} />
+        )}
       </div>
     </>
   )
