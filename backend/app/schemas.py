@@ -396,3 +396,52 @@ class Criteria(BaseModel):
     duty_countries: list[str] = Field(default_factory=list, description="Whose import duty counts")
     blocking_lists: list[Literal["fcc_covered", "dod_1260h", "uflpa"]] = Field(default_factory=list)
     reasons: list[CriterionReason] = Field(default_factory=list)
+
+
+RiskFactorName = Literal["sources", "bottleneck", "trade", "restricted", "availability"]
+
+
+class RiskFactor(BaseModel):
+    name: RiskFactorName
+    level: Level
+    value: str = Field(description="What the level was read from, e.g. '25% US duty'")
+    reason: str
+    source_urls: list[str] = Field(default_factory=list)
+
+
+class LineRisk(BaseModel):
+    line_id: str
+    factors: list[RiskFactor]
+    overall: Level = Field(description="Worst known factor; unknown only if every factor is")
+    blocked: bool = Field(description="A blocking-list hit, out of stock, or over the need-by")
+
+
+class Alternative(BaseModel):
+    id: str
+    line_id: str
+    manufacturer: str
+    part_number: str
+    product_url: str | None = None
+    origin_country: str | None = None
+    origin_tier: OriginTier = "none"
+    unit_price_usd: float | None = None
+    availability: Availability = "unknown"
+    lead_time_days: int | None = None
+    verdict: Literal["pass", "review", "rejected"] | None = Field(
+        default=None, description="Spec-check verdict on the deep line; None = no checks run"
+    )
+    risk: LineRisk
+    live: bool = Field(description="Found by a live agent this job, else a sourced research row")
+
+
+class Recommendation(BaseModel):
+    line_id: str
+    action: Literal["keep", "dual_source", "re_source"]
+    alternative_id: str | None = None
+    cost_delta_usd: float | None = Field(
+        default=None, description="(alternative - current) unit price x qty; None if unknown"
+    )
+    risk_before: Level
+    risk_after: Level
+    blocked: bool = Field(default=False, description="Current part is blocked")
+    reason: str
