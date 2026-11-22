@@ -1,0 +1,57 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M81H5GQN1A3HZ42K1QJ3S10M",
+  "session_id": "27a024c1-4fe6-4861-9f68-1f831908ebdd",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-22T11:44:55.937994659Z",
+  "branch": "demo-bom-illustrative-data",
+  "checkpoints_count": 3,
+  "save_step_count": 4,
+  "files_touched": [
+    "backend/app/engineering/priority.py",
+    "backend/app/intake/to_project.py",
+    "backend/app/schemas.py",
+    "backend/tests/test_priority.py",
+    "backend/tests/test_to_project.py",
+    "docs/DEMO-COMPANY.md",
+    "docs/demo-company-bom.csv",
+    "frontend/src/onboarding/bomCsv.test.ts",
+    "frontend/src/onboarding/bomCsv.ts",
+    "frontend/src/types.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5-5",
+  "turn_id": "5d6718d9e7e2",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 54,
+    "cache_creation_tokens": 356539,
+    "cache_read_tokens": 8290877,
+    "output_tokens": 22067,
+    "api_call_count": 24
+  },
+  "session_token_usage": {
+    "input_tokens": 206,
+    "cache_creation_tokens": 1117133,
+    "cache_read_tokens": 24642017,
+    "output_tokens": 101273,
+    "api_call_count": 95
+  },
+  "redaction": {
+    "replacements": 19,
+    "layers": {
+      "betterleaks": 6,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 6,
+      "credentialed_uri": 2,
+      "entropy": 0,
+      "key_context": 11,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "session_metrics": {
+    "turn_count": 10
+  }
+}

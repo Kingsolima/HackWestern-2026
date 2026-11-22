@@ -1,0 +1,49 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M81H5GQN1A3HZ42K1QJ3S10M",
+  "strategy": "manual-commit",
+  "branch": "demo-bom-illustrative-data",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "backend/app/engineering/priority.py",
+    "backend/app/intake/to_project.py",
+    "backend/app/schemas.py",
+    "backend/tests/test_priority.py",
+    "backend/tests/test_to_project.py",
+    "docs/DEMO-COMPANY.md",
+    "docs/demo-company-bom.csv",
+    "frontend/src/onboarding/bomCsv.test.ts",
+    "frontend/src/onboarding/bomCsv.ts",
+    "frontend/src/types.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 54,
+    "cache_creation_tokens": 356539,
+    "cache_read_tokens": 8290877,
+    "output_tokens": 22067,
+    "api_call_count": 24
+  },
+  "redaction": {
+    "replacements": 19,
+    "layers": {
+      "betterleaks": 6,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 6,
+      "credentialed_uri": 2,
+      "entropy": 0,
+      "key_context": 11,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

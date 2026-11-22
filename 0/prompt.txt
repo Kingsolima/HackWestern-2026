@@ -1,0 +1,78 @@
+We have a real 37-page AR4 robotic arm BOM PDF. Integrate it into our existing supply-risk redesign engine without changing the architecture. Use it to replace our current demo company bom.csv and remake the info for the questions in demo-company.md. the geeneral product info is --> 
+
+<pasted_content id="176e">
+Annin Robotics AR4
+
+The BOM comes from the AR4, a six-axis robotic arm developed by Annin Robotics.
+- Product: AR4 Robotic Arm
+- Manufacturer/designer: Annin Robotics
+- Type: Six-axis articulated robotic arm
+- Purpose: Robotics education, research, automation, and experimentation
+- Official website: Annin Robotics
+</pasted_content id="176e">
+
+Now for making the bom csv:
+1. Extract approximately 40–60 meaningful BOM entries into a structured CSV, preserving actual component names, quantities, part numbers, suppliers where documented, and PDF source pages.
+2. Do not fabricate country of origin, prices, lead times, or missing specifications. Represent missing values as unknown.
+3. Group components by subsystem: actuation, transmission, structure, electronics, power, and sensors.
+4. Use the existing customer-specific risk engine to analyze all components, with risk scores and recommendations based on documented facts and the customer's stated priorities.
+5. Keep the J2 shoulder motor as the primary candidate for live TinyFish replacement research.
+6. Preserve the existing engineering checks and CAD motor-mount generation. Do not rewrite working functionality.
+7. Treat the PDF as the source BOM, not proof of supply-chain risk or regulatory compliance.
+8. Prioritize a reliable end-to-end hackathon demo over additional features.
+
+First inspect the existing BOM schema and importer, then make only the minimum changes required to support this dataset.
+
+---
+
+this problem occured: 
+
+<pasted_content id="176e">
+demo-company-bom.csv was not loaded. Fix these and upload it again:
+
+line 2: unit_cost_usd is not a number
+line 3: unit_cost_usd is not a number
+line 4: unit_cost_usd is not a number
+line 5: unit_cost_usd is not a number
+line 6: unit_cost_usd is not a number
+line 7: unit_cost_usd is not a number
+line 8: unit_cost_usd is not a number
+line 9: unit_cost_usd is not a number
+and 52 more
+</pasted_content id="176e">
+
+---
+
+yes, commit and push and open the PR
+
+---
+
+merge it and run make deploy
+
+---
+
+url for live
+
+---
+
+why is it the case that when i run the link and run for design this pops up and is labelled as replau:
+
+---
+
+This is the error and the result of all the recent code changes and the new example company and BOM file, also what should we do with Q5 of onboarding if no longer relevant?: ValidationError: 1 validation error for AgentEvent result Input should be a valid dictionary [type=dict_type, input_value=[{'date': 'Apr 25, 2025',...m/watch?v=fjYjR656kKg'}], input_type=list] For further information visit https://errors.pydantic.dev/2.14/v/dict_type
+
+---
+
+yes, commit, push, open the PR, merge and deploy
+
+---
+
+pull the changes from main from tygo, make sure the cod eis upto date
+
+---
+
+The live succeeded. the biggest problem is that the bom file is pretty empty. for the sake of a hackathon demo, please fill up all the unkown info/data with reasonable info. Secondly here is the performance of the run. check it out. we couldnt see its full potential because of lack of info.
+
+---
+
+yes, commit, push (all commits, including the 3d model one from cad-ar4-real-meshes branch (something a long those lines)), open the PR, merge and deploy
