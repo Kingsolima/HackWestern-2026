@@ -181,6 +181,35 @@ describe('followJob', () => {
   })
 })
 
+describe('check_result', () => {
+  const check = (candidate_id: string, name: string, verdict: 'pass' | 'fail' | 'review') => ({
+    candidate_id,
+    check: name,
+    verdict,
+    value: 0.5,
+    threshold: 0.3,
+    unit: 'N·m',
+    margin: 0.2,
+    claim_ids: [],
+    note: '',
+  })
+
+  it('groups checks by candidate and lets a later result replace the same check', () => {
+    const state = fold([
+      ev('check_result', { check: check('c1', 'torque_cont', 'review') }),
+      ev('check_result', { check: check('c1', 'speed', 'pass') }),
+      ev('check_result', { check: check('c2', 'torque_cont', 'fail') }),
+      ev('check_result', { check: check('c1', 'torque_cont', 'pass') }),
+    ])
+    expect(Object.keys(state.checks)).toEqual(['c1', 'c2'])
+    expect(state.checks.c1.map((c) => [c.check, c.verdict])).toEqual([
+      ['speed', 'pass'],
+      ['torque_cont', 'pass'],
+    ])
+    expect(state.checks.c2).toHaveLength(1)
+  })
+})
+
 describe('createJob', () => {
   const capture = () => {
     const calls: RequestInit[] = []
@@ -205,6 +234,15 @@ describe('createJob', () => {
   it('surfaces a refused live job as an error', async () => {
     const fetchImpl = (async () => new Response('{"detail":"live jobs need a valid X-Live-Token"}', { status: 403 })) as unknown as typeof fetch
     await expect(createJob('live', { liveToken: 'bad' }, fetchImpl)).rejects.toThrow('403')
+  })
+
+  it('sends the onboarded company facts, but not on top of a preset project', async () => {
+    const { calls, fetchImpl } = capture()
+    const company = [{ field: 'company_name', label: 'Name', value: 'Example Robotics', quote: '' }]
+    await createJob('replay', { company }, fetchImpl)
+    await createJob('replay', { company, projectId: 'ar4_club' }, fetchImpl)
+    expect(JSON.parse(calls[0].body as string).company).toEqual(company)
+    expect(JSON.parse(calls[1].body as string).company).toBeUndefined()
   })
 
   it('sends project_id only when a project is picked', async () => {

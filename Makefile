@@ -1,7 +1,7 @@
 # Keep a sourced ROS (or other) PYTHONPATH from leaking into the uv envs.
 unexport PYTHONPATH
 
-.PHONY: help install dev-backend dev-cad dev-frontend up down db test test-cad lint prod-up prod-down deploy
+.PHONY: help install dev-backend dev-cad dev-frontend up down db test test-cad lint prod-up prod-down deploy smoke
 
 help:
 	@echo "install       install backend + frontend deps"
@@ -16,6 +16,7 @@ help:
 	@echo "prod-up       run the production stack locally on http://localhost:8080"
 	@echo "prod-down     stop it"
 	@echo "deploy        pull main on the Vultr VM and rebuild (DEPLOY_HOST=vultr-hw)"
+	@echo "smoke         replay every demo path on a running site (HOST=http://localhost:8080)"
 
 install:
 	cd backend && uv sync
@@ -64,3 +65,8 @@ prod-down:
 
 deploy:
 	ssh $(DEPLOY_HOST) 'cd /opt/hackwestern && git pull --ff-only && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build web backend cad'
+
+# End-to-end check of a running stack: health, database, then one replay job per demo path.
+HOST ?= http://localhost:8080
+smoke:
+	python3 scripts/smoke.py $(HOST)

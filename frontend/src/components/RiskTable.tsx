@@ -86,6 +86,16 @@ export function RiskTable({ rows, alternatives }: { rows: RiskRow[]; alternative
                         ILLUSTRATIVE
                       </span>
                     )}
+                    {line.sources.length > 0 && (
+                      <span className="muted">
+                        {' '}
+                        {line.sources.map((url, i) => (
+                          <a key={url} href={url} target="_blank" rel="noreferrer" title={url}>
+                            [{i + 1}]
+                          </a>
+                        ))}
+                      </span>
+                    )}
                   </td>
                   <td>{line.domain}</td>
                   <td>{line.qty}</td>
@@ -96,7 +106,7 @@ export function RiskTable({ rows, alternatives }: { rows: RiskRow[]; alternative
                         <LevelChip
                           key={name}
                           level={f?.level ?? 'unknown'}
-                          title={f ? `${f.value} · ${f.reason}` : 'not assessed'}
+                          title={f ? [`${f.value} · ${f.reason}`, ...f.source_urls].join('\n') : 'not assessed'}
                         >
                           {name}
                         </LevelChip>

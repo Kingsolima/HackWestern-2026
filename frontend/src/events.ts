@@ -135,6 +135,12 @@ export interface Design {
   glb_url: string
   step_url: string
   fit: DesignFit
+  // Candidate-only fields; absent or null on the baseline.
+  candidate_id?: string | null
+  manufacturer?: string | null
+  part_number?: string | null
+  verdict?: Verdict | null
+  fit_badge?: 'drop_in' | 'close' | 'needs_review' | null
 }
 export type DesignReadyEvent = Envelope<'design_ready', Design>
 // --- v4 supply-risk events (docs/BUILD-PLAN-v4.md §4). Additive: a job without them renders as
@@ -174,7 +180,8 @@ export interface BomLine {
   availability: Availability
   lead_time_days: number | null
   illustrative: boolean
-  sources: Source[]
+  /** URLs behind the price and origin (backend BomLine.sources is a list of strings). */
+  sources: string[]
 }
 
 export interface Project {
@@ -261,11 +268,22 @@ export type RiskLineEvent = Envelope<'risk_line', { risk: LineRisk; line: BomLin
 export type AlternativeEvent = Envelope<'alternative', { alternative: Alternative }>
 export type RecommendationEvent = Envelope<'recommendation', { recommendation: Recommendation }>
 
+/** One engineering check on one candidate (backend/app/engineering/spec_checks.py SpecCheck). */
+export interface SpecCheck {
+  candidate_id: string
+  check: string
+  verdict: 'pass' | 'fail' | 'review'
+  value: number | null
+  threshold: number | null
+  unit: string
+  margin: number | null
+  claim_ids: string[]
+  note: string
+}
+export type CheckResultEvent = Envelope<'check_result', { check: SpecCheck }>
+
 /** Declared in the catalog, payload models not written yet; kept so they don't break the UI. */
-export type PendingEvent = Envelope<
-  'check_result' | 'advocate' | 'synthesis',
-  Record<string, unknown>
->
+export type PendingEvent = Envelope<'advocate' | 'synthesis', Record<string, unknown>>
 
 export type JobEvent =
   | StageEvent
@@ -282,6 +300,7 @@ export type JobEvent =
   | RiskLineEvent
   | AlternativeEvent
   | RecommendationEvent
+  | CheckResultEvent
   | PendingEvent
 
 /** GET/POST /api/jobs response (backend/app/api/jobs.py JobStatus). */

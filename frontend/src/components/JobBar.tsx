@@ -9,7 +9,7 @@ interface Props {
   /** Shown only with ?live=1 in the URL: starts a real (credit-spending) TinyFish job. */
   onStartLive?: () => void
   project: ProjectId
-  /** Omit to hide the project switcher (v4, behind ?v4=1 until the backend sends projects). */
+  /** Omit to hide the project switcher. */
   onProjectChange?: (id: ProjectId) => void
 }
 

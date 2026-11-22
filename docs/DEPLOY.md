@@ -63,7 +63,32 @@ Replay jobs are open to everyone. Live jobs spend TinyFish credit, so the server
 Merge to `main`, then `make deploy` (git pull + rebuild). Logs:
 `ssh vultr-hw 'cd /opt/hackwestern && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f --tail 50'`.
 
+## Tiger Data (Postgres)
+
+The backend reads `DATABASE_URL` from the server's `.env` (the production compose file passes it
+through; without it the backend falls back to the local `db` service, which production does not
+start). Two settings, both in `.env`:
+
+- `DATABASE_URL`: the Tiger Cloud connection string.
+- `TIGER_ENABLED=true`: keep the board and `agent_runs` in Tiger Data. The backend applies
+  `db/schema.sql` at startup and will not start if the database is unreachable. Left out or
+  `false`, facts stay in memory and the database is only health-checked.
+
+`GET /health/db` answers 200 when the backend can reach the database and 503 when it cannot.
+`/health` does not depend on the database.
+
+## Check a deploy
+
+```bash
+make smoke HOST=http://<VM IP>     # or HOST=http://localhost:8080 after make prod-up
+```
+
+It checks the backend, the database, the website and the three starter 3D models, then runs one
+replay job per demo path (wheeled demo, AR4 club, Stretch, an onboarded company) and fails unless
+each ends `DONE`. Replay jobs spend nothing. Recordings reach the server only through git, so a
+replay that passes locally and fails on the server usually means a recording was not committed.
+
 ## Not deployed yet
 
-Tiger Data and Vultr Object Storage: no code uses them yet (the board is in memory, CAD files are
-on the VM's disk). Add `DATABASE_URL` / `S3_*` to the server's `.env` when that lands.
+Vultr Object Storage: no code uses it yet (CAD files are on the VM's disk). Add `S3_*` to the
+server's `.env` when that lands.
