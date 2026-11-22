@@ -42,8 +42,24 @@ export interface CadMeasure {
   volume_mm3: number
 }
 
+/** Set when the parts list holds the motor of an arm we have researched: the job runs on that
+ * arm's joint numbers, and the drivetrain question does not apply. */
+export interface KnownArm {
+  robot: string
+  cad_robot: string
+  arm: {
+    joint: string
+    payload_kg: number
+    reach_m: number
+    gear_ratio: number
+    bus_voltage_v: number
+    safety_factor: number
+  }
+}
+
 export interface IntakeResult {
   robot_kind: 'wheeled'
+  known_arm?: KnownArm | null
   company: CompanyFact[]
   specs: SpecRow[]
   dropped: string[]

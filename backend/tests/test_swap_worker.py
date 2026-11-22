@@ -180,3 +180,29 @@ def test_origin_claim_needs_country_quote_and_page(missing):
     result = REAL_RESULT | {missing: None}
     claims = claims_from_candidate(AgentMotorCandidate.model_validate(result), "r1", True)
     assert "country_of_origin" not in {c.field for c in claims}
+
+
+async def test_a_list_result_is_an_incomplete_run_and_the_other_site_still_counts(tmp_path):
+    """Seen live on scribd.com: the agent ignored the schema and returned a list. That used to
+    raise out of the worker and fail the whole job."""
+    bad = SwapTarget(name="bad", url="https://bad.example/", goal="g")
+
+    def handler(request):
+        if json.loads(request.content)["url"] == bad.url:
+            listed = complete() | {"result": [{"date": "Apr 25, 2025"}]}
+            return sse_response(sse(STARTED, listed))
+        return sse_response(sse(STARTED, complete()))
+
+    ctx, _ = context(tmp_path, handler)
+    [candidate] = await SwapWorker(targets=(TEKNIC, bad)).run(ctx)
+    assert candidate.id == "CPM-SDSK-2310D-RLN"
+    finished = [e.data for e in ctx.log.events if e.type == "run_finished"]
+    assert sorted(f["outcome"] for f in finished) == ["incomplete", "success"]
+    assert any("returned a list" in f["reason"] for f in finished)
+
+
+async def test_a_result_that_does_not_fit_the_schema_costs_only_that_site(tmp_path):
+    odd = complete() | {"result": {"status": "success", "specs": "none"}}
+    ctx, _ = context(tmp_path, lambda r: sse_response(sse(STARTED, odd)))
+    assert await SwapWorker().run(ctx) == []
+    assert [e.data["stage"] for e in ctx.log.events if e.type == "error"] == ["EXTRACT"]

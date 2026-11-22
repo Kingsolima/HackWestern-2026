@@ -54,11 +54,11 @@ To stay near 60 lines, three groups are one line each: the machined aluminum par
 Upload [demo-company-bom.csv](demo-company-bom.csv) as the parts list. There is no CAD file for
 this company; skip that upload.
 
-## Step 5: What else should we know about the drivetrain?
+## Step 5: the drivetrain question is skipped
 
-Leave this empty. The question and the numbers on the review screen describe a wheeled
-drivetrain, which an arm does not have. The job does not use them for this parts list (see
-"How the J2 motor is handled").
+The site recognises this parts list as the AR4 by the J2 motor's part number, so it goes from
+the files step straight to the review screen. A wheeled parts list still gets the drivetrain
+question.
 
 ## What to expect on the review screen
 
@@ -76,8 +76,9 @@ drivetrain, which an arm does not have. The job does not use them for this parts
 | Parts budget per robot | $2,500 |
 | Needs parts in | 30 days |
 
-The drivetrain numbers below the facts are the wheeled demo robot's defaults. Leave them as
-they are: changing one that feeds the agent's goal turns the run into a live one.
+Above the facts, the review screen shows the J2 joint numbers a replacement motor is checked
+against (payload 1.9 kg, reach 629 mm, gear ratio 50 : 1, bus voltage 24 V, safety factor 1.5),
+marked "from our research". No wheel numbers are shown.
 
 ## How the J2 motor is handled
 

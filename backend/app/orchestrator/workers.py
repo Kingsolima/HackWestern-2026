@@ -20,7 +20,13 @@ from app.agents.verifier import classify_outcome
 from app.engineering.requirements import requirement_for
 from app.orchestrator.context import JobContext
 from app.orchestrator.discovery import TRIAGE_CHARS, domain_of
-from app.orchestrator.events import RunFinished, RunProgress, RunStarted, RunStreamingUrl
+from app.orchestrator.events import (
+    ErrorPayload,
+    RunFinished,
+    RunProgress,
+    RunStarted,
+    RunStreamingUrl,
+)
 from app.schemas import (
     AgentMotorCandidate,
     AgentRunResult,
@@ -218,12 +224,19 @@ class SwapWorker:
         return [candidate_from_output(pinned, run_id, live=live, extracted_by="gemini_text")]
 
     async def _target(self, ctx: JobContext, target: SwapTarget) -> list[Candidate]:
-        outcome, run, live = await self._dispatch(ctx, target, stealth=False)
-        if outcome == "blocked":
-            outcome, run, live = await self._dispatch(ctx, target, stealth=True)
-        if outcome != "success" or run.result is None:
+        """One site's run. Whatever goes wrong on it (a dropped stream, a result that does not
+        fit the schema) costs this site only: the other runs and the job go on."""
+        try:
+            outcome, run, live = await self._dispatch(ctx, target, stealth=False)
+            if outcome == "blocked":
+                outcome, run, live = await self._dispatch(ctx, target, stealth=True)
+            if outcome != "success" or run.result is None:
+                return []
+            output = AgentMotorCandidate.model_validate(run.result)
+        except (httpx.HTTPError, ValidationError, ValueError, RuntimeError) as exc:
+            message = f"{target.name}: {type(exc).__name__}: {exc}"[:300]
+            await ctx.log.emit(ErrorPayload(message=message, stage="EXTRACT"))
             return []
-        output = AgentMotorCandidate.model_validate(run.result)
         return [candidate_from_output(output, run.run_id, live)]
 
     async def _dispatch(

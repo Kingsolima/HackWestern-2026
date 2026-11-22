@@ -155,6 +155,11 @@ export default function App() {
         ) : (
           <BeforeAfterViewer before={job.baseline} after={job.candidates[0]} />
         )
+      ) : onboarded?.arm && !projectId ? (
+        <ModelViewer
+          src={`/cad/designs/starter_${onboarded.arm.cad_robot}/glb`}
+          title={`${onboarded.arm.robot}: your redesign appears here after the BUILD step`}
+        />
       ) : onboarded && !projectId ? (
         <ModelViewer
           src={starterRobot('').src}

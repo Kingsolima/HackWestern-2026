@@ -22,9 +22,19 @@ from app.intake.extract import confirm, prompt, response_schema
 from app.intake.from_bom import specs_from_bom
 from app.intake.from_cad import specs_from_cad
 from app.intake.merge import merge
-from app.intake.schema import SCHEMAS, Answers, CadMeasure, IntakeResult, RobotKind, SpecField
+from app.intake.schema import (
+    SCHEMAS,
+    Answers,
+    CadMeasure,
+    IntakeResult,
+    KnownArm,
+    RobotKind,
+    SpecField,
+)
+from app.intake.to_project import bom_line, known_arm
 from app.orchestrator.fleet import JobBudget
 from app.orchestrator.runtime import Runtime
+from app.projects import list_projects
 from app.schemas import BomRow
 from app.tfclient.recorder import ReplayMiss
 
@@ -79,7 +89,14 @@ async def intake(
         raw = await read_answers(body.answers, fields, runtime, x_live_token)
         company, stated, dropped = confirm(raw, body.answers, fields)
         found += stated
-    return merge(body.robot_kind, load_demo_robot(), found, company, dropped)
+    result = merge(body.robot_kind, load_demo_robot(), found, company, dropped)
+    lines = [bom_line(n, row) for n, row in enumerate(body.bom, start=1)]
+    match = known_arm(lines, list_projects())
+    if match is not None and match[0].arm is not None:
+        result.known_arm = KnownArm(
+            robot=match[0].robot, cad_robot=match[0].cad_robot, arm=match[0].arm
+        )
+    return result
 
 
 @router.get("/example")

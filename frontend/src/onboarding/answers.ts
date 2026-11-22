@@ -1,7 +1,7 @@
 // What onboarding ends with, and the pure functions that turn it into the Robot a job runs on.
 
 import type { BomRow, Robot, RobotRequirements } from '../types'
-import type { CompanyFact, SpecRow } from './intake'
+import type { CompanyFact, KnownArm, SpecRow } from './intake'
 import type { OpenAnswers } from './questions'
 
 /** The confirmed result of onboarding: the user's words, their BOM, and the facts and numbers
@@ -11,6 +11,8 @@ export interface Onboarded {
   bom: BomRow[]
   company: CompanyFact[]
   specs: SpecRow[]
+  /** The researched arm the parts list matched, if any. The specs are then not used. */
+  arm?: KnownArm | null
 }
 
 export const fact = (company: CompanyFact[], field: string): string | undefined =>
