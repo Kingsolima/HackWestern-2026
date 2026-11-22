@@ -12,6 +12,7 @@ from app.api.intake import router as intake_router
 from app.api.jobs import projects_router
 from app.api.jobs import router as jobs_router
 from app.api.routes import router
+from app.api.runs import router as runs_router
 from app.api.sites import router as sites_router
 from app.config import settings
 from app.db.tiger import TigerDB, connect
@@ -46,6 +47,7 @@ app.include_router(projects_router)
 app.include_router(designs_router)
 app.include_router(intake_router)
 app.include_router(sites_router)
+app.include_router(runs_router)
 
 
 @app.get("/health")

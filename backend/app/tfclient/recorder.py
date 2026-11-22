@@ -51,6 +51,14 @@ class Recorder:
             raise ReplayMiss(f"no recording for {product} {request_key(product, request)[:12]}")
         return None
 
+    def recorded(self, product: Product, request: dict[str, Any]) -> dict[str, Any] | None:
+        """The recorded response for a call, in any mode; None when it was never recorded."""
+        path = self.path(product, request)
+        if not path.exists():
+            return None
+        with gzip.open(path, "rt", encoding="utf-8") as f:
+            return json.load(f).get("response")
+
     def _save(self, product: Product, request: dict[str, Any], body: dict[str, Any]) -> None:
         path = self.path(product, request)
         path.parent.mkdir(parents=True, exist_ok=True)
