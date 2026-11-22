@@ -66,7 +66,7 @@ export default function App() {
       {job.baseline && job.candidates[0] ? (
         <BeforeAfterViewer before={job.baseline} after={job.candidates[0]} />
       ) : (
-        <ModelViewer src="/cad/files/test_23.glb" />
+        <ModelViewer src="/cad/designs/starter/glb" />
       )}
       <div className="grid">
         <ComplianceCard card={job.compliance ?? baselineCard} />
