@@ -1,0 +1,29 @@
+Are the agents implemented into the code
+
+---
+
+can you give me commands so that i can have full end to end tests with actual agent output happeneing in agen swarm, etc. Before that show me the points of each part
+
+---
+
+can you give me commands so that i can have full end to end tests with actual agent output happeneing in agen swarm, etc. Before that show me the points of each part
+
+---
+
+do we need a cad file to be inputted?
+
+---
+
+what are the inputs that would be needed for this app for the proper actual demo/product from a robotics company
+
+---
+
+Make the first page to be like an onboarding page with typeform style liek questions that ask questions one at a time that is important to understand the company the product they are trying to build. Make a plan to implement this.
+
+---
+
+can we remove or combine questions that are similar enough? 21 is too much for a hackathon demo and we should keep it open enough cause the answers will be going to an llm.
+
+---
+
+commit this on a new branch and open a PR. but first pull tygos code.

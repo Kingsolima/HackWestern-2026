@@ -1,0 +1,48 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M8109YAGJ097AD5HNCA2C8E2",
+  "session_id": "5be95761-abff-4bd0-b5d0-831f2933cab9",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-22T06:50:12.146177303Z",
+  "branch": "onboarding-intake",
+  "checkpoints_count": 6,
+  "save_step_count": 1,
+  "files_touched": [
+    "backend/app/tfclient/gemini.py"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-fable-5-2",
+  "turn_id": "4fc1fe348854",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 8746,
+    "cache_read_tokens": 1870058,
+    "output_tokens": 5354,
+    "api_call_count": 6
+  },
+  "session_token_usage": {
+    "input_tokens": 188,
+    "cache_creation_tokens": 330083,
+    "cache_read_tokens": 16597491,
+    "output_tokens": 160716,
+    "api_call_count": 89
+  },
+  "redaction": {
+    "replacements": 20,
+    "layers": {
+      "betterleaks": 18,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 2,
+      "credentialed_uri": 4,
+      "entropy": 0,
+      "key_context": 8,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "session_metrics": {
+    "turn_count": 6
+  }
+}
