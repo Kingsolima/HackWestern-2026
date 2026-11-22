@@ -11,6 +11,7 @@ import { ModelViewer } from './components/ModelViewer'
 import { Onboarding } from './components/Onboarding'
 import { ProjectCard } from './components/ProjectCard'
 import type { ProjectId } from './projects'
+import { genericModelNotes } from './modelNotes'
 import { Recommendations } from './components/Recommendations'
 import { RiskTable } from './components/RiskTable'
 import { useJob, type CreateJobOptions } from './job'
@@ -108,6 +109,8 @@ export default function App() {
   }
 
   const runs = job.runOrder.map((id) => job.runs[id])
+  // Project id the backend gives a project built from onboarding (backend/app/intake/to_project.py).
+  const onboardedJob = job.project?.id === 'onboarded'
   // The baseline compliance card comes from an endpoint that always uses the demo robot, so it
   // is only right when the user's robot gives the same numbers.
   const demoPanels = !onboarded || (demo != null && matchesDemo(onboarded, demo))
@@ -142,7 +145,21 @@ export default function App() {
         />
       )}
       {job.baseline && job.candidates[0] ? (
-        <BeforeAfterViewer before={job.baseline} after={job.candidates[0]} />
+        onboardedJob && job.project ? (
+          <BeforeAfterViewer
+            before={job.baseline}
+            after={job.candidates[0]}
+            title="Redesign · generic wheeled model"
+            notes={genericModelNotes(job.project)}
+          />
+        ) : (
+          <BeforeAfterViewer before={job.baseline} after={job.candidates[0]} />
+        )
+      ) : onboarded && !projectId ? (
+        <ModelViewer
+          src={starterRobot('').src}
+          title="Example robot: your redesign appears here after the BUILD step"
+        />
       ) : (
         <ModelViewer {...starterRobot(project)} />
       )}

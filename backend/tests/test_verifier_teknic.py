@@ -47,14 +47,36 @@ def verified_fields(text: str) -> set[str]:
 
 def test_specs_on_the_page_verify_and_the_garbled_torque_does_not():
     # The agent quoted "13 oz-in (1.8 N-m)": 13 oz-in is 0.09 N-m, and neither text is on
-    # the page. Max speed "4,000 RPM" is not on the page either.
+    # the page. Max speed "4,000 RPM" is not on the page either. The price was quoted as a bare
+    # "265": the page shows "$265", but a number alone proves nothing, so it does not verify.
     assert verified_fields(page_text("fetch_tables.json")) == {
         "supply_voltage_min",
         "supply_voltage_max",
         "body_length",
         "shaft_diameter",
-        "price",
     }
+
+
+def test_a_bare_number_is_not_a_quote_but_the_price_as_displayed_is():
+    text = page_text("fetch_tables.json")
+
+    def price(quote: str) -> bool:
+        claim = Claim(
+            id="p",
+            candidate_id="c",
+            field="price",
+            raw_value="265",
+            raw_unit="USD",
+            quote=quote,
+            source=Source(
+                url="https://x", kind="page", fetched_at=datetime.now(UTC), via="tinyfetch"
+            ),
+            extracted_by="tinyagent",
+        )
+        return verify_claim(claim, text, "html_quote").verified
+
+    assert not price("265")
+    assert price("$265")
 
 
 def test_default_html_fetch_misses_the_spec_table():

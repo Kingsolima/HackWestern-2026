@@ -56,7 +56,18 @@ function changes(before: Design, after: Design): Row[] {
   ]
 }
 
-export function BeforeAfterViewer({ before, after }: { before: Design; after: Design }) {
+export function BeforeAfterViewer({
+  before,
+  after,
+  title = 'Redesign',
+  notes = [],
+}: {
+  before: Design
+  after: Design
+  title?: string
+  /** Shown under the title: what the model is and is not built from. */
+  notes?: string[]
+}) {
   const [split, setSplit] = useState(50)
   const [beforeEl, setBeforeEl] = useState<ModelViewerElement | null>(null)
   const [afterEl, setAfterEl] = useState<ModelViewerElement | null>(null)
@@ -64,7 +75,12 @@ export function BeforeAfterViewer({ before, after }: { before: Design; after: De
 
   return (
     <section className="panel">
-      <h2>Redesign</h2>
+      <h2>{title}</h2>
+      {notes.map((note) => (
+        <p key={note} className="muted">
+          {note}
+        </p>
+      ))}
       <div className="compare">
         <model-viewer
           ref={setBeforeEl}

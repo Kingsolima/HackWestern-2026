@@ -61,6 +61,18 @@ class GeminiClient:
         """Flash in JSON mode; returns the parsed JSON object. enforce_schema=False puts the schema
         in the prompt instead of responseSchema: Gemini refuses large schemas (the TinyAgent motor
         schema) with HTTP 400 "too many states", and callers validate the output anyway."""
+        data, _ = await self.extract_json_live(prompt, schema, temperature, enforce_schema)
+        return data
+
+    async def extract_json_live(
+        self,
+        prompt: str,
+        schema: dict[str, Any],
+        temperature: float = 0.0,
+        enforce_schema: bool = True,
+    ) -> tuple[dict[str, Any], bool]:
+        """extract_json, plus whether the answer came from a real call now (False = replayed
+        from a recording, also in a mixed job)."""
         config: dict[str, Any] = {
             "temperature": temperature,
             "responseMimeType": "application/json",
@@ -79,5 +91,5 @@ class GeminiClient:
             body = {k: v for k, v in request.items() if k != "model"}
             return await self._post(f"{API}/models/{self.flash_model}:generateContent", body)
 
-        body, _ = await self.recorder.call("gemini", request, live)
-        return json.loads(body["candidates"][0]["content"]["parts"][0]["text"])
+        body, was_live = await self.recorder.call("gemini", request, live)
+        return json.loads(body["candidates"][0]["content"]["parts"][0]["text"]), was_live

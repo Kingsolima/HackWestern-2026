@@ -188,9 +188,12 @@ class SwapWorker:
         outcome: Outcome = "success"
         reason = ""
         output = None
+        live = False
         try:
             async with ctx.fleet.slot("gemini", ctx.budget):
-                raw = await ctx.gemini.extract_json(prompt, MOTOR_SCHEMA, enforce_schema=False)
+                raw, live = await ctx.gemini.extract_json_live(
+                    prompt, MOTOR_SCHEMA, enforce_schema=False
+                )
             output = AgentMotorCandidate.model_validate(pin_to_page(raw, lead.url))
             reason = output.reason
             if output.status != "success":
@@ -198,7 +201,7 @@ class SwapWorker:
         except (httpx.HTTPError, ReplayMiss, ValidationError, ValueError) as exc:
             outcome, reason = "error", f"{type(exc).__name__}: {exc}"[:300]
         await ctx.log.emit(
-            RunFinished(run_id=run_id, outcome=outcome, reason=reason, duration_s=0, live=False)
+            RunFinished(run_id=run_id, outcome=outcome, reason=reason, duration_s=0, live=live)
         )
         if output is None or outcome != "success":
             return []
@@ -210,7 +213,9 @@ class SwapWorker:
                 "product_url": lead.url,
             }
         )
-        return [candidate_from_output(pinned, run_id, live=True, extracted_by="gemini_text")]
+        # live=False for a replayed reading, so its claims say via="replay" and the alternative is
+        # not shown as a live find.
+        return [candidate_from_output(pinned, run_id, live=live, extracted_by="gemini_text")]
 
     async def _target(self, ctx: JobContext, target: SwapTarget) -> list[Candidate]:
         outcome, run, live = await self._dispatch(ctx, target, stealth=False)
