@@ -31,7 +31,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from cad_worker.arm import ArmParams, arm, measure_arm
+from cad_worker.arm import ArmParams, arm, arm_meshes, measure_arm
 from cad_worker.export import export
 from cad_worker.measure import measure_step
 from cad_worker.robot import RobotParams, measure, robot
@@ -53,13 +53,14 @@ STARTERS: dict[str, Params] = {
 
 
 def build_design(design_id: str, params: Params) -> dict:
+    meshes = None
     if isinstance(params, ArmParams):
-        fit, assy = measure_arm(params), arm(params)
+        fit, assy, meshes = measure_arm(params), arm(params), arm_meshes()
     elif isinstance(params, StretchParams):
         fit, assy = measure_stretch(params), stretch(params)
     else:
         fit, assy = measure(params), robot(params)
-    export(assy, OUT_DIR, design_id)
+    export(assy, OUT_DIR, design_id, extra_meshes=meshes)
     (OUT_DIR / f"{design_id}.fit.json").write_text(json.dumps(fit, indent=2))
     base = f"/designs/{design_id}"
     return {
@@ -162,6 +163,7 @@ def get_glb(design_id: str) -> FileResponse:
 
 @app.get("/designs/{design_id}/step")
 def get_step(design_id: str) -> FileResponse:
+    """The generated parts only: on ar4 the Annin link meshes are in the GLB, not the STEP."""
     path = _design_file(design_id, ".step")
     return FileResponse(path, media_type="application/step", filename=path.name)
 
