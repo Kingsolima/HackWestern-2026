@@ -1,11 +1,9 @@
 import json
 
 import pytest
-from fastapi.testclient import TestClient
 
 from app.agents.verifier import canonical_url
 from app.config import settings
-from app.main import app
 from app.orchestrator.job import PIPELINE, VERIFY_PASSES
 from app.orchestrator.workers import FAKE_HTML, FAKE_URL
 from app.tfclient.recorder import Recorder
@@ -16,15 +14,6 @@ class NoClaimWorker:
 
     async def run(self, ctx):
         return []
-
-
-@pytest.fixture
-def client(monkeypatch):
-    monkeypatch.setattr(settings, "replay_speed", 0)
-    # Never reach a real CAD worker on the dev machine; tests that need one install fake_cad.
-    monkeypatch.setattr(settings, "cad_worker_url", "http://cad.invalid")
-    with TestClient(app) as c:
-        yield c
 
 
 def sse_events(client, job_id, last_event_id=None):

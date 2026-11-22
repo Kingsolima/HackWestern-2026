@@ -17,7 +17,7 @@ from pydantic import ValidationError
 from app.agents.targets import GENERIC_GOAL, MOTOR_SCHEMA, SWAP_TARGETS, SwapTarget
 from app.agents.triage import Lead
 from app.agents.verifier import classify_outcome
-from app.engineering.spec_checks import requirement
+from app.engineering.requirements import requirement_for
 from app.orchestrator.context import JobContext
 from app.orchestrator.discovery import TRIAGE_CHARS, domain_of
 from app.orchestrator.events import RunFinished, RunProgress, RunStarted, RunStreamingUrl
@@ -210,7 +210,7 @@ class SwapWorker:
         self, ctx: JobContext, target: SwapTarget, stealth: bool
     ) -> tuple[Outcome, AgentRunResult, bool]:
         domain = urlparse(target.url).hostname or target.url
-        req = requirement(ctx.robot.requirements)
+        req = requirement_for(ctx.robot, ctx.project)
         goal = target.goal_for(req.t_cont_nm, req.t_peak_nm, req.v_bus)
         events: list[AgentEvent] = []
         async with ctx.fleet.slot("agent", ctx.budget, domain):

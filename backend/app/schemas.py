@@ -142,7 +142,9 @@ class CheckResult(BaseModel):
 class Objective(StrEnum):
     cost = "cost"
     performance = "performance"
-    us_first = "us_first"
+    us_first = "us_first"  # the domestic objective; only on when a criteria rule asks for it
+    supply_risk = "supply_risk"
+    lead_time = "lead_time"
 
 
 class DesignVariant(BaseModel):
@@ -282,3 +284,115 @@ class BoardEntry(BaseModel):
         if self.kind == "fact" and not (self.verified and self.author == self.VERIFIER):
             raise ValueError("only the verifier writes verified facts")
         return self
+
+
+# --- v4 shapes (docs/BUILD-PLAN-v4.md section 4): a project, its facts and the criteria code
+# derives from them. Additive: jobs without a project run the v3 wheeled pipeline unchanged.
+
+Domain = Literal["actuation", "sensing", "compute", "power", "structure", "other"]
+Level = Literal["low", "medium", "high", "unknown"]
+FactBasis = Literal["verified", "stated"]
+FactField = Literal[
+    "sells_to_us_federal", "deploy_countries", "uptime_critical", "budget_usd", "need_by_days"
+]
+Availability = Literal["in_stock", "lead_time", "out_of_stock", "unknown"]
+
+
+class ProjectFacts(BaseModel):
+    """What the criteria rules read. None / empty = not known, and no rule fires on it."""
+
+    sells_to_us_federal: bool | None = None
+    deploy_countries: list[str] = Field(default_factory=list, description="ISO-2 codes")
+    uptime_critical: bool | None = None
+    budget_usd: float | None = None
+    need_by_days: int | None = None
+
+
+class Fact(BaseModel):
+    """Where one ProjectFacts value came from: a quote verified on the team's own page, or the
+    team's own statement in the project file."""
+
+    field: FactField
+    value: str
+    basis: FactBasis
+    quote: str | None = None
+    source_url: str | None = None
+
+
+class IntakeSource(BaseModel):
+    """A page of the team's own site that INTAKE reads for facts (company projects)."""
+
+    url: str
+    reason: str
+
+
+class ArmLink(BaseModel):
+    name: str
+    mass_kg: float
+    com_m: float = Field(description="Horizontal distance from the joint axis at full extension")
+
+
+class ArmParams(BaseModel):
+    """Inputs of the arm-joint requirement (BUILD-PLAN-v4 section 6), for the deep joint."""
+
+    joint: str
+    payload_kg: float
+    reach_m: float = Field(description="Joint axis to payload at full horizontal extension")
+    links: list[ArmLink]
+    gear_ratio: float
+    efficiency: float
+    omega_max_dps: float = Field(description="Joint top speed, degrees per second")
+    t_accel_s: float = Field(description="Time to reach top speed")
+    safety_factor: float = 1.5
+    bus_voltage_v: float
+    illustrative: bool = False
+    notes: list[str] = Field(default_factory=list, description="Source or assumption per input")
+
+
+class BomLine(BaseModel):
+    id: str
+    domain: Domain
+    qty: int
+    part: str
+    manufacturer: str | None = None
+    part_number: str | None = None
+    unit_price_usd: float | None = None
+    origin_country: str | None = None
+    origin_tier: OriginTier = "none"
+    availability: Availability = "unknown"
+    lead_time_days: int | None = None
+    hts_code: str | None = None
+    illustrative: bool = False
+    sources: list[str] = Field(default_factory=list, description="URLs behind price and origin")
+    notes: str | None = None
+
+
+class Project(BaseModel):
+    id: str
+    kind: Literal["company", "club"]
+    name: str
+    robot: str
+    use_case: str
+    robot_kind: Literal["wheeled", "arm"]
+    arm: ArmParams | None = None
+    wheeled: RobotRequirements | None = None
+    deep_line: str = Field(description="BomLine id the agents work on")
+    bom: list[BomLine]
+    intake_sources: list[IntakeSource] = Field(default_factory=list)
+    stated: ProjectFacts = Field(default_factory=ProjectFacts, description="Team-stated facts")
+
+
+class CriterionReason(BaseModel):
+    rule: str
+    fact: FactField | None
+    text: str
+
+
+class Criteria(BaseModel):
+    objectives: list[Objective]
+    domestic_threshold: float | None = None
+    max_lead_time_days: int | None = None
+    budget_usd: float | None = None
+    duty_countries: list[str] = Field(default_factory=list, description="Whose import duty counts")
+    blocking_lists: list[Literal["fcc_covered", "dod_1260h", "uflpa"]] = Field(default_factory=list)
+    reasons: list[CriterionReason] = Field(default_factory=list)

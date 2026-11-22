@@ -13,7 +13,15 @@ from pydantic import BaseModel
 
 from app.engineering.compliance import ComplianceCard
 from app.engineering.spec_checks import FitBadge, SpecCheck, Verdict
-from app.schemas import Claim, Objective, OriginEvidence, Outcome, Product
+from app.schemas import (
+    Claim,
+    Criteria,
+    Fact,
+    Objective,
+    OriginEvidence,
+    Outcome,
+    Product,
+)
 
 EventType = Literal[
     "stage",
@@ -26,6 +34,7 @@ EventType = Literal[
     "check_result",
     "compliance",
     "design_ready",
+    "project",
     "advocate",
     "synthesis",
     "error",
@@ -33,6 +42,8 @@ EventType = Literal[
 
 Stage = Literal[
     "CREATED",
+    "INTAKE",
+    "CRITERIA",
     "COMPLIANCE_BASELINE",
     "PLAN",
     "DISCOVER",
@@ -100,6 +111,20 @@ class ClaimRejected(Payload):
     type: ClassVar[EventType] = "claim_rejected"
     claim: Claim
     reason: str
+
+
+class ProjectPayload(Payload):
+    """After CRITERIA: who the team is, the facts the rules read (each verified by quote or stated
+    by the team) and the criteria code derived from them, with the rule behind each."""
+
+    type: ClassVar[EventType] = "project"
+    project_id: str
+    kind: Literal["company", "club"]
+    name: str
+    robot: str
+    use_case: str
+    facts: list[Fact]
+    criteria: Criteria
 
 
 class CompliancePayload(Payload):

@@ -6,7 +6,7 @@ from app.engineering.spec_checks import FitBadge, SpecCheck, Verdict
 from app.orchestrator.board import Board
 from app.orchestrator.events import EventLog
 from app.orchestrator.fleet import Fleet, JobBudget
-from app.schemas import Candidate, Claim, JobMode, Objective, Robot
+from app.schemas import Candidate, Claim, Criteria, Fact, JobMode, Objective, Project, Robot
 from app.tfclient.client import TFClient
 from app.tfclient.gemini import GeminiClient
 
@@ -44,3 +44,6 @@ class JobContext:
     queries: list[str] = field(default_factory=list)
     leads: list[Lead] = field(default_factory=list)
     designs: list[Design] = field(default_factory=list)
+    project: Project | None = None  # None: the v3 wheeled demo job
+    verified_facts: list[Fact] = field(default_factory=list)
+    criteria: Criteria | None = None
